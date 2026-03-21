@@ -11,7 +11,7 @@ This project now follows a simple dependency rule:
 Applied to this codebase, that means:
 
 - theme evaluation, rule editing, palette generation, and export semantics stay project-owned
-- CLI parsing, JSON serialization, error derivation, native compilation, standard config-directory handling, and temp-file handling use established crates
+- CLI parsing, color-space conversion, JSON serialization, error derivation, native compilation, standard config-directory handling, and temp-file handling use established crates
 
 ## Runtime Dependencies
 
@@ -35,6 +35,14 @@ Applied to this codebase, that means:
 - Role: standard OS config-directory discovery
 - Why: editor-only local configuration should live in the platform's normal config location, not in ad-hoc hardcoded paths
 - Main usage: [src/persistence/editor_config.rs](/Users/ysl/Code/theme/src/persistence/editor_config.rs)
+
+### `palette`
+
+- Version: `0.7.6`
+- Role: color-space conversion and color operations
+- Why: replaces handwritten HSL/RGB conversion math with a dedicated color-management crate that is designed around correctness and supports deeper color work later
+- Feature choice: disables default features and keeps only `std`, so the app avoids unused named-color parsing dependencies
+- Main usage: [src/color.rs](/Users/ysl/Code/theme/src/color.rs)
 
 ### `ratatui`
 
@@ -109,6 +117,7 @@ The following areas remain custom on purpose:
 
 - theme parameter model
 - palette generation
+- theme-specific color heuristics and palette slot formulas
 - rule graph and evaluator
 - snapshot/view-model shape
 - exporter semantics
