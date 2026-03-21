@@ -1,0 +1,3 @@
+#[allow(dead_code)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct GuiRenderer;

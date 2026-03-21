@@ -5,8 +5,13 @@ use std::path::Path;
 use std::time::Duration;
 
 use crossterm::event;
+use crossterm::execute;
+use crossterm::terminal::{
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+};
 use ratatui::Terminal;
 use ratatui::backend::Backend;
+use ratatui::backend::CrosstermBackend;
 
 use crate::app::{AppState, Effect, Intent, build_view, update};
 use crate::export::Exporter;
@@ -14,6 +19,7 @@ use crate::export::alacritty::AlacrittyExporter;
 use crate::persistence::project_file::{load_project, save_project};
 use crate::platform::tui::event_adapter::TuiEventAdapter;
 use crate::platform::tui::renderer::TuiRenderer;
+use crate::platform::{PlatformError, PlatformKind, PlatformRuntime};
 
 #[derive(Debug, Default)]
 struct TuiEffectRunner;
@@ -50,7 +56,39 @@ impl TuiEffectRunner {
     }
 }
 
-pub fn run<B: Backend>(terminal: &mut Terminal<B>, mut state: AppState) -> io::Result<()> {
+#[derive(Debug, Default, Clone, Copy)]
+pub struct TuiPlatform;
+
+impl PlatformRuntime for TuiPlatform {
+    fn kind(&self) -> PlatformKind {
+        PlatformKind::Tui
+    }
+
+    fn launch(&self, state: AppState) -> Result<(), PlatformError> {
+        enable_raw_mode().map_err(|err| PlatformError::runtime(self.kind(), err.to_string()))?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen)
+            .map_err(|err| PlatformError::runtime(self.kind(), err.to_string()))?;
+
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)
+            .map_err(|err| PlatformError::runtime(self.kind(), err.to_string()))?;
+
+        let result = run_terminal(&mut terminal, state)
+            .map_err(|err| PlatformError::runtime(self.kind(), err.to_string()));
+
+        disable_raw_mode().map_err(|err| PlatformError::runtime(self.kind(), err.to_string()))?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)
+            .map_err(|err| PlatformError::runtime(self.kind(), err.to_string()))?;
+        terminal
+            .show_cursor()
+            .map_err(|err| PlatformError::runtime(self.kind(), err.to_string()))?;
+
+        result
+    }
+}
+
+fn run_terminal<B: Backend>(terminal: &mut Terminal<B>, mut state: AppState) -> io::Result<()> {
     let adapter = TuiEventAdapter;
     let renderer = TuiRenderer;
     let effects = TuiEffectRunner;
