@@ -16,6 +16,7 @@ pub enum Intent {
     SelectToken(usize),
     AdjustControlByStep(ControlId, i32),
     ActivateControl(ControlId),
+    AdjustActiveNumericInputByStep(i32),
 
     SetParamValue(ParamKey, f32),
     SetRuleKind(TokenRole, RuleKind),

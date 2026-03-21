@@ -6,10 +6,10 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 
 use crate::app::controls::ControlSpec;
 use crate::app::view::{
-    Axis, CodePreviewView, ConfigOverlayView, FormFieldView, FormView, OverlayView, PanelBody,
-    PanelView, PickerOverlayView, SelectionListView, SelectionRowView, Size, SpanStyle,
-    StatusBarView, StyledLine, StyledSpan, SwatchItemView, SwatchListView, ViewNode, ViewTheme,
-    ViewTree,
+    Axis, CodePreviewView, ConfigOverlayView, FormFieldView, FormView, NumericEditorOverlayView,
+    OverlayView, PanelBody, PanelView, PickerOverlayView, SelectionListView, SelectionRowView,
+    Size, SpanStyle, StatusBarView, StyledLine, StyledSpan, SwatchItemView, SwatchListView,
+    ViewNode, ViewTheme, ViewTree,
 };
 use crate::domain::color::Color;
 
@@ -257,6 +257,9 @@ impl TuiRenderer {
         match overlay {
             OverlayView::Picker(view) => self.render_picker(frame, area, view, theme),
             OverlayView::Config(view) => self.render_config(frame, area, view, theme),
+            OverlayView::NumericEditor(view) => {
+                self.render_numeric_editor(frame, area, view, theme)
+            }
         }
     }
 
@@ -398,6 +401,53 @@ impl TuiRenderer {
             })
             .collect::<Vec<_>>();
         frame.render_widget(Paragraph::new(rows).wrap(Wrap { trim: false }), sections[0]);
+
+        let footer = overlay
+            .footer_lines
+            .iter()
+            .map(|line| {
+                Line::from(Span::styled(
+                    line.as_str(),
+                    Style::default().fg(tui(theme.text_muted)),
+                ))
+            })
+            .collect::<Vec<_>>();
+        frame.render_widget(
+            Paragraph::new(footer).wrap(Wrap { trim: false }),
+            sections[1],
+        );
+    }
+
+    fn render_numeric_editor(
+        self,
+        frame: &mut Frame,
+        area: Rect,
+        overlay: &NumericEditorOverlayView,
+        theme: &ViewTheme,
+    ) {
+        let area = centered_rect(52, 62, area);
+        frame.render_widget(Clear, area);
+
+        let block = Block::default()
+            .title(overlay.title.as_str())
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(tui(theme.selection)))
+            .style(Style::default().bg(tui(theme.surface)).fg(tui(theme.text)));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let footer_height = overlay.footer_lines.len() as u16 + 1;
+        let sections = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(8), Constraint::Length(footer_height)])
+            .split(inner);
+
+        let body = overlay
+            .body_lines
+            .iter()
+            .map(|line| styled_line_to_tui(line, theme))
+            .collect::<Vec<_>>();
+        frame.render_widget(Paragraph::new(body).wrap(Wrap { trim: false }), sections[0]);
 
         let footer = overlay
             .footer_lines

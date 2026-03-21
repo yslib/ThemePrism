@@ -68,6 +68,10 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             activate_control(state, control);
             Vec::new()
         }
+        Intent::AdjustActiveNumericInputByStep(delta) => {
+            adjust_active_numeric_input(state, delta);
+            Vec::new()
+        }
         Intent::SetParamValue(key, value) => {
             set_param_value(state, key, value);
             Vec::new()
@@ -513,10 +517,16 @@ fn cycle_fixed_color_for_role(state: &mut AppState, role: TokenRole, delta: i32)
 fn open_text_input(state: &mut AppState, target: TextInputTarget) {
     let buffer = default_input_buffer(state, target);
     state.ui.text_input = Some(TextInputState { target, buffer });
-    state.ui.status = format!(
-        "Editing {}. Press Enter to apply or Esc to cancel.",
-        input_target_label(target)
-    );
+    state.ui.status = match target {
+        TextInputTarget::Control(control) if control.supports_numeric_editor() => format!(
+            "Adjusting {}. Left/right nudges live values; Enter applies typed input.",
+            input_target_label(target)
+        ),
+        _ => format!(
+            "Editing {}. Press Enter to apply or Esc to cancel.",
+            input_target_label(target)
+        ),
+    };
 }
 
 fn open_source_picker(state: &mut AppState, control: ControlId) {
@@ -538,6 +548,24 @@ fn open_source_picker(state: &mut AppState, control: ControlId) {
         selected,
     });
     state.ui.status = format!("Selecting source for {}. Type to filter.", control.label());
+}
+
+fn adjust_active_numeric_input(state: &mut AppState, delta: i32) {
+    let Some(target) = state.ui.text_input.as_ref().map(|input| input.target) else {
+        return;
+    };
+    let TextInputTarget::Control(control) = target else {
+        return;
+    };
+    if !control.supports_numeric_editor() {
+        return;
+    }
+
+    adjust_control_by_step(state, control, delta);
+    let buffer = default_input_buffer(state, target);
+    if let Some(input) = &mut state.ui.text_input {
+        input.buffer = buffer;
+    }
 }
 
 fn append_text_input(state: &mut AppState, ch: char) {
@@ -1252,5 +1280,34 @@ pub fn apply_source_to_control(control: ControlId, rule: &mut Rule, source: Sour
             },
         ) => *current = source,
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::controls::ControlId;
+    use crate::domain::params::ParamKey;
+
+    #[test]
+    fn active_numeric_input_steps_and_syncs_buffer() {
+        let mut state = AppState::new().expect("state should build");
+        open_text_input(
+            &mut state,
+            TextInputTarget::Control(ControlId::Param(ParamKey::AccentHue)),
+        );
+
+        let effects = update(&mut state, Intent::AdjustActiveNumericInputByStep(1));
+
+        assert!(effects.is_empty());
+        assert!((state.domain.params.accent_hue - 210.0).abs() < f32::EPSILON);
+        assert_eq!(
+            state
+                .ui
+                .text_input
+                .as_ref()
+                .map(|input| input.buffer.as_str()),
+            Some("210.0")
+        );
     }
 }

@@ -22,6 +22,13 @@ pub enum ControlId {
 }
 
 impl ControlId {
+    pub fn supports_numeric_editor(self) -> bool {
+        matches!(
+            self,
+            Self::Param(_) | Self::MixRatio(_) | Self::AdjustAmount(_)
+        )
+    }
+
     pub fn supports_text_input(self) -> bool {
         matches!(
             self,

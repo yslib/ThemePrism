@@ -1,5 +1,6 @@
 use crossterm::event::{Event, KeyCode, KeyEventKind};
 
+use crate::app::state::TextInputTarget;
 use crate::app::{AppState, Intent};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -29,9 +30,21 @@ impl TuiEventAdapter {
         }
 
         if state.ui.text_input.is_some() {
+            let active_numeric = match state.ui.text_input.as_ref().map(|input| input.target) {
+                Some(TextInputTarget::Control(control)) if control.supports_numeric_editor() => {
+                    Some(control)
+                }
+                _ => None,
+            };
             return match key.code {
                 KeyCode::Esc => vec![Intent::CancelTextInput],
                 KeyCode::Enter => vec![Intent::CommitTextInput],
+                KeyCode::Left | KeyCode::Char('h') if active_numeric.is_some() => {
+                    vec![Intent::AdjustActiveNumericInputByStep(-1)]
+                }
+                KeyCode::Right | KeyCode::Char('l') if active_numeric.is_some() => {
+                    vec![Intent::AdjustActiveNumericInputByStep(1)]
+                }
                 KeyCode::Backspace => vec![Intent::BackspaceTextInput],
                 KeyCode::Delete => vec![Intent::ClearTextInput],
                 KeyCode::Char(ch) if !ch.is_control() => vec![Intent::AppendTextInput(ch)],

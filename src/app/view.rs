@@ -124,6 +124,7 @@ pub struct StatusBarView {
 pub enum OverlayView {
     Picker(PickerOverlayView),
     Config(ConfigOverlayView),
+    NumericEditor(NumericEditorOverlayView),
 }
 
 #[derive(Debug, Clone)]
@@ -154,6 +155,30 @@ pub struct ConfigRowView {
     pub value_text: String,
     pub selected: bool,
     pub is_header: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct NumericEditorOverlayView {
+    pub title: String,
+    pub body_lines: Vec<StyledLine>,
+    pub footer_lines: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum NumericTrackKind {
+    Hue,
+    Scalar,
+}
+
+#[derive(Debug, Clone)]
+struct NumericEditorSpec {
+    label: String,
+    value_text: String,
+    current: f32,
+    min: f32,
+    max: f32,
+    step: f32,
+    track_kind: NumericTrackKind,
 }
 
 #[derive(Debug, Clone)]
@@ -250,6 +275,9 @@ pub fn build_view(state: &AppState) -> ViewTree {
     }
     if let Some(config) = build_config_overlay(state) {
         overlays.push(OverlayView::Config(config));
+    }
+    if let Some(editor) = build_numeric_editor_overlay(state) {
+        overlays.push(OverlayView::NumericEditor(editor));
     }
 
     ViewTree {
@@ -711,6 +739,62 @@ fn build_config_overlay(state: &AppState) -> Option<ConfigOverlayView> {
     })
 }
 
+fn build_numeric_editor_overlay(state: &AppState) -> Option<NumericEditorOverlayView> {
+    let input = state.ui.text_input.as_ref()?;
+    let TextInputTarget::Control(control) = input.target else {
+        return None;
+    };
+    let spec = numeric_editor_spec(state, control)?;
+    let muted = state.theme_color(TokenRole::TextMuted);
+    let text = state.theme_color(TokenRole::Text);
+
+    let mut body_lines = vec![
+        line_pair("Field: ", &spec.label, muted, text, None, true),
+        StyledLine {
+            spans: vec![
+                colored_span("Live: ", muted, false, false),
+                colored_span(spec.value_text.clone(), text, true, false),
+                plain_span("  "),
+                colored_span("Range: ", muted, false, false),
+                colored_span(
+                    format_numeric_range(spec.min, spec.max, spec.track_kind),
+                    text,
+                    false,
+                    false,
+                ),
+                plain_span("  "),
+                colored_span("Step: ", muted, false, false),
+                colored_span(
+                    format_numeric_value(spec.step, spec.track_kind),
+                    text,
+                    false,
+                    false,
+                ),
+            ],
+        },
+        StyledLine { spans: Vec::new() },
+    ];
+    body_lines.extend(build_numeric_track_lines(state, &spec));
+    body_lines.push(StyledLine { spans: Vec::new() });
+    body_lines.push(StyledLine {
+        spans: vec![
+            colored_span("Input: ", muted, false, false),
+            colored_span(input_preview(&input.buffer), text, true, false),
+        ],
+    });
+
+    Some(NumericEditorOverlayView {
+        title: format!("Numeric Editor / {}", spec.label),
+        body_lines,
+        footer_lines: vec![
+            "Left/right nudges the live value and updates the preview immediately.".to_string(),
+            "Type an exact value, then press Enter to apply and close.".to_string(),
+            "Percent fields accept 35 or 35%. Hue fields accept decimals like 205.0.".to_string(),
+            "Esc closes the editor. Delete clears the input field.".to_string(),
+        ],
+    })
+}
+
 fn config_field_row(
     state: &AppState,
     field: ConfigFieldId,
@@ -788,6 +872,127 @@ fn config_field_value(state: &AppState, field: ConfigFieldId) -> String {
     }
 }
 
+fn numeric_editor_spec(state: &AppState, control: ControlId) -> Option<NumericEditorSpec> {
+    match control {
+        ControlId::Param(key) => Some(NumericEditorSpec {
+            label: key.label().to_string(),
+            value_text: key.format_value(&state.domain.params).trim().to_string(),
+            current: key.get(&state.domain.params),
+            min: key.range().0,
+            max: key.range().1,
+            step: key.step(),
+            track_kind: match key {
+                crate::domain::params::ParamKey::BackgroundHue
+                | crate::domain::params::ParamKey::AccentHue => NumericTrackKind::Hue,
+                _ => NumericTrackKind::Scalar,
+            },
+        }),
+        ControlId::MixRatio(role) => match state.domain.rules.get(role) {
+            Some(Rule::Mix { ratio, .. }) => Some(NumericEditorSpec {
+                label: format!("{} / Blend", role.label()),
+                value_text: format!("{:>3.0}%", ratio * 100.0).trim().to_string(),
+                current: *ratio,
+                min: 0.0,
+                max: 1.0,
+                step: 0.05,
+                track_kind: NumericTrackKind::Scalar,
+            }),
+            _ => None,
+        },
+        ControlId::AdjustAmount(role) => match state.domain.rules.get(role) {
+            Some(Rule::Adjust { amount, .. }) => Some(NumericEditorSpec {
+                label: format!("{} / Amount", role.label()),
+                value_text: format!("{:>3.0}%", amount * 100.0).trim().to_string(),
+                current: *amount,
+                min: 0.0,
+                max: 1.0,
+                step: 0.02,
+                track_kind: NumericTrackKind::Scalar,
+            }),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn build_numeric_track_lines(state: &AppState, spec: &NumericEditorSpec) -> Vec<StyledLine> {
+    const TRACK_WIDTH: usize = 36;
+
+    let normalized = if (spec.max - spec.min).abs() < f32::EPSILON {
+        0.0
+    } else {
+        ((spec.current - spec.min) / (spec.max - spec.min)).clamp(0.0, 1.0)
+    };
+    let marker_index = (normalized * (TRACK_WIDTH - 1) as f32).round() as usize;
+
+    let track_spans = (0..TRACK_WIDTH)
+        .map(|index| {
+            let t = index as f32 / (TRACK_WIDTH - 1) as f32;
+            let color = match spec.track_kind {
+                NumericTrackKind::Hue => Color::from_hsl(t * 360.0, 0.72, 0.56),
+                NumericTrackKind::Scalar => scalar_track_color(state, t, normalized),
+            };
+            StyledSpan {
+                text: " ".to_string(),
+                style: SpanStyle {
+                    bg: Some(color),
+                    ..SpanStyle::default()
+                },
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let marker_spans = (0..TRACK_WIDTH)
+        .map(|index| {
+            if index == marker_index {
+                colored_span("^", state.theme_color(TokenRole::Selection), true, false)
+            } else {
+                plain_span(" ")
+            }
+        })
+        .collect::<Vec<_>>();
+
+    vec![
+        StyledLine { spans: track_spans },
+        StyledLine {
+            spans: marker_spans,
+        },
+    ]
+}
+
+fn scalar_track_color(state: &AppState, position: f32, fill: f32) -> Color {
+    let filled_start = state.theme_color(TokenRole::Border);
+    let filled_end = state.theme_color(TokenRole::Selection);
+    let empty = state
+        .theme_color(TokenRole::Surface)
+        .mix(state.theme_color(TokenRole::Border), 0.45);
+
+    if position <= fill {
+        let segment = if fill <= 0.0 {
+            0.0
+        } else {
+            (position / fill).clamp(0.0, 1.0)
+        };
+        filled_start.mix(filled_end, segment)
+    } else {
+        empty
+    }
+}
+
+fn format_numeric_range(min: f32, max: f32, kind: NumericTrackKind) -> String {
+    match kind {
+        NumericTrackKind::Hue => format!("{min:.1}..{max:.1}"),
+        NumericTrackKind::Scalar => format!("{:.0}%..{:.0}%", min * 100.0, max * 100.0),
+    }
+}
+
+fn format_numeric_value(value: f32, kind: NumericTrackKind) -> String {
+    match kind {
+        NumericTrackKind::Hue => format!("{value:.1}"),
+        NumericTrackKind::Scalar => format!("{:.0}%", value * 100.0),
+    }
+}
+
 fn display_text_for_control(state: &AppState, control: ControlId) -> String {
     if let Some(input) = &state.ui.text_input {
         if input.target == TextInputTarget::Control(control) {
@@ -816,8 +1021,13 @@ fn display_text_for_control(state: &AppState, control: ControlId) -> String {
 fn status_help_text(state: &AppState) -> &'static str {
     if state.ui.source_picker.is_some() {
         "↑↓ select  |  type to filter  |  Enter apply  |  Esc close"
-    } else if state.ui.text_input.is_some() {
-        "Enter apply  |  Esc cancel  |  Backspace delete"
+    } else if let Some(input) = &state.ui.text_input {
+        match input.target {
+            TextInputTarget::Control(control) if control.supports_numeric_editor() => {
+                "←→ nudge live  |  type exact value  |  Enter apply  |  Esc close  |  Del clear"
+            }
+            _ => "Enter apply  |  Esc cancel  |  Backspace delete",
+        }
     } else if state.ui.config_modal.is_some() {
         "↑↓ select  |  Enter edit/toggle  |  Space toggle  |  Esc close"
     } else {
@@ -830,12 +1040,8 @@ fn inspector_footer_text(state: &AppState) -> &'static str {
         "Filter sources by name. Tokens are common sources; palette slots are advanced."
     } else if let Some(input) = &state.ui.text_input {
         match input.target {
-            TextInputTarget::Control(ControlId::Param(_)) => {
-                "Type a number. Percent fields accept 35 or 35%."
-            }
-            TextInputTarget::Control(ControlId::MixRatio(_))
-            | TextInputTarget::Control(ControlId::AdjustAmount(_)) => {
-                "Type 0.35 or 35%. Enter applies, Esc cancels."
+            TextInputTarget::Control(control) if control.supports_numeric_editor() => {
+                "Numeric editor is open. Left/right nudges live; Enter applies the typed value."
             }
             TextInputTarget::Control(ControlId::FixedColor(_)) => {
                 "Type #C586C0 or #C586C080. Enter applies, Esc cancels."
@@ -852,14 +1058,14 @@ fn inspector_footer_text(state: &AppState) -> &'static str {
                 "Left/right cycles colors. Enter or i opens hex input."
             }
             Some(ControlId::MixRatio(_)) => {
-                "Adjust ratio with left/right, or type a value on Blend."
+                "Left/right nudges the value. Enter opens the numeric editor."
             }
             Some(ControlId::AdjustAmount(_)) => {
-                "Adjust amount with left/right, or type a value on Amount."
+                "Left/right nudges the value. Enter opens the numeric editor."
             }
             Some(ControlId::RuleKind(_)) => "Left/right cycles rule type.",
             Some(ControlId::AdjustOp(_)) => "Left/right cycles adjust operations.",
-            Some(ControlId::Param(_)) => "Left/right steps values. Enter opens typed input.",
+            Some(ControlId::Param(_)) => "Left/right steps values. Enter opens the numeric editor.",
             None => "Use left/right for quick edits and Enter to activate supported fields.",
         }
     }
