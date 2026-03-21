@@ -1,7 +1,7 @@
 version = 1
 
 [project]
-name = "Studio Theme"
+name = "Untitled Theme"
 
 [params]
 background_hue = 220.0
@@ -12,7 +12,7 @@ accent_hue = 205.0
 accent_saturation = 0.65
 accent_lightness = 0.62
 selection_mix = 0.35
-vibrancy = 0.5
+vibrancy = 0.833838
 
 [rules.Background]
 type = "alias"

@@ -12,6 +12,7 @@ pub struct AppSnapshot {
     pub window_title: String,
     pub status: String,
     pub project: ProjectSnapshot,
+    pub config_sheet: ConfigSheetSnapshot,
     pub theme: ThemeSnapshot,
     pub tokens: Vec<TokenItemSnapshot>,
     pub params: Vec<ScalarFieldSnapshot>,
@@ -28,6 +29,22 @@ pub struct ProjectSnapshot {
     pub project_path: String,
     pub export_targets_summary: String,
     pub enabled_outputs_summary: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ConfigSheetSnapshot {
+    pub project_name: TextFieldSnapshot,
+    pub export_targets: Vec<ExportTargetSnapshot>,
+    pub editor_fields: Vec<ConfigFieldSnapshot>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ExportTargetSnapshot {
+    pub index: usize,
+    pub label: String,
+    pub enabled: bool,
+    pub output_path: String,
+    pub template_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -154,6 +171,32 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
         export_targets_summary: export_targets_summary(state),
         enabled_outputs_summary: export_outputs_summary(state),
     };
+    let config_sheet = ConfigSheetSnapshot {
+        project_name: TextFieldSnapshot {
+            id: "project_name".to_string(),
+            label: "Project Name".to_string(),
+            value_text: state.project.name.clone(),
+        },
+        export_targets: state
+            .project
+            .export_profiles
+            .iter()
+            .enumerate()
+            .map(|(index, profile)| ExportTargetSnapshot {
+                index,
+                label: format!("{} ({})", profile.name, profile.format_label()),
+                enabled: profile.enabled,
+                output_path: profile.output_path.display().to_string(),
+                template_path: match &profile.format {
+                    crate::export::ExportFormat::Template { template_path } => {
+                        Some(template_path.display().to_string())
+                    }
+                    crate::export::ExportFormat::Alacritty => None,
+                },
+            })
+            .collect(),
+        editor_fields: editor_config_fields(state),
+    };
     let theme = ThemeSnapshot {
         background_hex: state.theme_color(TokenRole::Background).to_hex(),
         surface_hex: state.theme_color(TokenRole::Surface).to_hex(),
@@ -239,6 +282,7 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
         window_title: format!("Theme Generator - {}", state.project.name),
         status: state.ui.status.clone(),
         project,
+        config_sheet,
         theme,
         tokens,
         params,

@@ -56,6 +56,8 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
 @property (nonatomic, strong) NSView *inspectorSwatch;
 @property (nonatomic, strong) NSStackView *inspectorFieldsStack;
 @property (nonatomic, strong) NSStackView *editorConfigStack;
+@property (nonatomic, strong) NSWindow *configSheet;
+@property (nonatomic, strong) NSStackView *configSheetStack;
 @property (nonatomic, strong) NSArray<NSDictionary *> *tokens;
 @property (nonatomic, strong) NSDictionary *snapshot;
 @property (nonatomic, assign) BOOL suppressTokenSelection;
@@ -364,6 +366,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     actions.spacing = 10.0;
     actions.distribution = NSStackViewDistributionFillEqually;
     actions.translatesAutoresizingMaskIntoConstraints = NO;
+    [actions addArrangedSubview:[self dialogButtonWithTitle:@"Config" action:@selector(openConfigSheet:)]];
     [actions addArrangedSubview:[self actionButtonWithTitle:@"Save" command:@"save"]];
     [actions addArrangedSubview:[self actionButtonWithTitle:@"Load" command:@"load"]];
     [actions addArrangedSubview:[self actionButtonWithTitle:@"Export" command:@"export"]];
@@ -709,9 +712,148 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     return row;
 }
 
+- (void)ensureConfigSheet {
+    if (self.configSheet != nil) {
+        return;
+    }
+
+    self.configSheet = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 620, 560)
+                                                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
+                                                     backing:NSBackingStoreBuffered
+                                                       defer:NO];
+    self.configSheet.title = @"Configuration";
+    self.configSheet.releasedWhenClosed = NO;
+
+    NSView *contentView = self.configSheet.contentView;
+    NSStackView *root = [[NSStackView alloc] init];
+    root.orientation = NSUserInterfaceLayoutOrientationVertical;
+    root.spacing = 14.0;
+    root.edgeInsets = NSEdgeInsetsMake(18.0, 18.0, 18.0, 18.0);
+    root.translatesAutoresizingMaskIntoConstraints = NO;
+
+    self.configSheetStack = [self verticalSectionStack];
+    self.configSheetStack.spacing = 14.0;
+
+    NSScrollView *scrollView = [[NSScrollView alloc] init];
+    scrollView.translatesAutoresizingMaskIntoConstraints = NO;
+    scrollView.hasVerticalScroller = YES;
+    scrollView.drawsBackground = NO;
+    scrollView.documentView = self.configSheetStack;
+    [scrollView.heightAnchor constraintEqualToConstant:430.0].active = YES;
+
+    NSStackView *actions = [[NSStackView alloc] init];
+    actions.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    actions.alignment = NSLayoutAttributeCenterY;
+    actions.spacing = 10.0;
+    actions.distribution = NSStackViewDistributionGravityAreas;
+    actions.translatesAutoresizingMaskIntoConstraints = NO;
+
+    [actions addArrangedSubview:[NSTextField labelWithString:@"Project settings and editor preferences"]];
+    [actions addArrangedSubview:[self dialogButtonWithTitle:@"Done" action:@selector(closeConfigSheet:)]];
+
+    [root addArrangedSubview:scrollView];
+    [root addArrangedSubview:actions];
+    [contentView addSubview:root];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [root.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor],
+        [root.trailingAnchor constraintEqualToAnchor:contentView.trailingAnchor],
+        [root.topAnchor constraintEqualToAnchor:contentView.topAnchor],
+        [root.bottomAnchor constraintEqualToAnchor:contentView.bottomAnchor],
+    ]];
+}
+
+- (void)openConfigSheet:(id)sender {
+    (void)sender;
+    [self ensureConfigSheet];
+    [self rebuildConfigSheetFromSnapshot:self.snapshot[@"config_sheet"] ?: @{}];
+    if (self.window.attachedSheet != self.configSheet) {
+        [self.window beginSheet:self.configSheet completionHandler:nil];
+    }
+}
+
+- (void)closeConfigSheet:(id)sender {
+    (void)sender;
+    if (self.window.attachedSheet == self.configSheet) {
+        [self.window endSheet:self.configSheet];
+    }
+    [self.configSheet orderOut:nil];
+}
+
+- (void)rebuildConfigSheetFromSnapshot:(NSDictionary *)sheet {
+    if (self.configSheetStack == nil) {
+        return;
+    }
+
+    [self clearStack:self.configSheetStack];
+
+    [self.configSheetStack addArrangedSubview:[self sectionLabel:@"Project"]];
+    NSDictionary *projectName = sheet[@"project_name"] ?: @{};
+    [self.configSheetStack addArrangedSubview:[self configTextRowForField:projectName]];
+
+    [self.configSheetStack addArrangedSubview:[self sectionLabel:@"Export Targets"]];
+    NSArray<NSDictionary *> *targets = sheet[@"export_targets"] ?: @[];
+    for (NSDictionary *target in targets) {
+        [self.configSheetStack addArrangedSubview:[self exportTargetBlockForItem:target]];
+    }
+
+    [self.configSheetStack addArrangedSubview:[self sectionLabel:@"Editor Preferences"]];
+    NSArray<NSDictionary *> *editorFields = sheet[@"editor_fields"] ?: @[];
+    for (NSDictionary *field in editorFields) {
+        NSString *kind = field[@"kind"] ?: @"";
+        if ([kind isEqualToString:@"text"]) {
+            [self.configSheetStack addArrangedSubview:[self configTextRowForField:field]];
+        } else if ([kind isEqualToString:@"toggle"]) {
+            [self.configSheetStack addArrangedSubview:[self configToggleRowForField:field]];
+        } else if ([kind isEqualToString:@"choice"]) {
+            [self.configSheetStack addArrangedSubview:[self configChoiceRowForField:field]];
+        }
+    }
+}
+
+- (NSView *)exportTargetBlockForItem:(NSDictionary *)item {
+    NSInteger index = [item[@"index"] integerValue];
+    NSString *label = item[@"label"] ?: @"Export";
+    NSString *outputPath = item[@"output_path"] ?: @"";
+    NSString *templatePath = item[@"template_path"];
+
+    NSStackView *stack = [self verticalSectionStack];
+    stack.spacing = 8.0;
+    stack.edgeInsets = NSEdgeInsetsMake(8.0, 0.0, 6.0, 0.0);
+
+    NSButton *toggle = [NSButton checkboxWithTitle:label target:self action:@selector(configToggleChanged:)];
+    toggle.identifier = [NSString stringWithFormat:@"export_enabled:%ld", (long)index];
+    toggle.state = [item[@"enabled"] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
+    [stack addArrangedSubview:toggle];
+
+    NSDictionary *outputField = @{
+        @"id": [NSString stringWithFormat:@"export_output:%ld", (long)index],
+        @"label": @"Output",
+        @"value_text": outputPath,
+    };
+    [stack addArrangedSubview:[self configTextRowForField:outputField]];
+
+    if ([templatePath isKindOfClass:[NSString class]]) {
+        NSDictionary *templateField = @{
+            @"id": [NSString stringWithFormat:@"export_template:%ld", (long)index],
+            @"label": @"Template",
+            @"value_text": templatePath,
+        };
+        [stack addArrangedSubview:[self configTextRowForField:templateField]];
+    }
+
+    return stack;
+}
+
 - (NSButton *)actionButtonWithTitle:(NSString *)title command:(NSString *)command {
     NSButton *button = [NSButton buttonWithTitle:title target:self action:@selector(commandButtonPressed:)];
     button.identifier = command;
+    button.bezelStyle = NSBezelStyleRounded;
+    return button;
+}
+
+- (NSButton *)dialogButtonWithTitle:(NSString *)title action:(SEL)action {
+    NSButton *button = [NSButton buttonWithTitle:title target:self action:action];
     button.bezelStyle = NSBezelStyleRounded;
     return button;
 }
@@ -782,20 +924,47 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
 }
 
 - (void)configTextCommitted:(NSTextField *)sender {
-    NSString *command =
-        [NSString stringWithFormat:@"set-editor-text|%@|%@", sender.identifier, sender.stringValue];
+    NSString *identifier = sender.identifier ?: @"";
+    NSString *command = nil;
+
+    if ([identifier isEqualToString:@"project_name"]) {
+        command = [NSString stringWithFormat:@"set-project-name|%@", sender.stringValue];
+    } else if ([identifier isEqualToString:@"project_path"]) {
+        command = [NSString stringWithFormat:@"set-editor-text|%@|%@", identifier, sender.stringValue];
+    } else if ([identifier hasPrefix:@"export_output:"]) {
+        NSString *index = [identifier componentsSeparatedByString:@":"].lastObject ?: @"0";
+        command = [NSString stringWithFormat:@"set-export-output|%@|%@", index, sender.stringValue];
+    } else if ([identifier hasPrefix:@"export_template:"]) {
+        NSString *index = [identifier componentsSeparatedByString:@":"].lastObject ?: @"0";
+        command = [NSString stringWithFormat:@"set-export-template|%@|%@", index, sender.stringValue];
+    }
+
+    if (command == nil) {
+        return;
+    }
+
     [self dispatchAndRefresh:command];
 }
 
 - (void)configToggleChanged:(NSButton *)sender {
+    NSString *identifier = sender.identifier ?: @"";
     NSString *value = sender.state == NSControlStateValueOn ? @"true" : @"false";
-    NSString *command = [NSString stringWithFormat:@"set-editor-toggle|%@|%@", sender.identifier, value];
+    NSString *command = nil;
+
+    if ([identifier hasPrefix:@"export_enabled:"]) {
+        NSString *index = [identifier componentsSeparatedByString:@":"].lastObject ?: @"0";
+        command = [NSString stringWithFormat:@"set-export-enabled|%@|%@", index, value];
+    } else {
+        command = [NSString stringWithFormat:@"set-editor-toggle|%@|%@", identifier, value];
+    }
+
     [self dispatchAndRefresh:command];
 }
 
 - (void)configChoiceChanged:(NSPopUpButton *)sender {
     NSString *value = sender.selectedItem.representedObject ?: @"";
-    NSString *command = [NSString stringWithFormat:@"set-editor-choice|%@|%@", sender.identifier, value];
+    NSString *identifier = sender.identifier ?: @"";
+    NSString *command = [NSString stringWithFormat:@"set-editor-choice|%@|%@", identifier, value];
     [self dispatchAndRefresh:command];
 }
 
@@ -859,6 +1028,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     self.suppressTokenSelection = NO;
 
     NSArray<NSDictionary *> *params = snapshot[@"params"] ?: @[];
+    NSDictionary *configSheet = snapshot[@"config_sheet"] ?: @{};
     NSDictionary *editorConfig = snapshot[@"editor_config"] ?: @{};
     NSDictionary *inspector = snapshot[@"inspector"] ?: @{};
 
@@ -876,6 +1046,10 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
 
     [self rebuildPalette:snapshot[@"palette"] ?: @[]];
     [self rebuildPreview:snapshot];
+
+    if (self.window.attachedSheet == self.configSheet) {
+        [self rebuildConfigSheetFromSnapshot:configSheet];
+    }
 }
 
 - (void)syncInspector:(NSDictionary *)inspector preservingSliderId:(NSString *)preservedSliderId {

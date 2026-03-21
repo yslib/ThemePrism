@@ -120,6 +120,47 @@ fn parse_command(command: &str) -> Result<Intent, String> {
                 _ => Err(format!("{command} does not target a text control")),
             }
         }
+        "set-project-name" => {
+            let value = parts
+                .next()
+                .ok_or_else(|| "missing project name".to_string())?;
+            Ok(Intent::SetProjectName(value.to_string()))
+        }
+        "set-export-enabled" => {
+            let index = parts
+                .next()
+                .ok_or_else(|| "missing export index".to_string())?
+                .parse::<usize>()
+                .map_err(|_| "invalid export index".to_string())?;
+            let enabled = parse_bool(
+                parts
+                    .next()
+                    .ok_or_else(|| "missing export enabled value".to_string())?,
+            )?;
+            Ok(Intent::SetExportEnabled(index, enabled))
+        }
+        "set-export-output" => {
+            let index = parts
+                .next()
+                .ok_or_else(|| "missing export index".to_string())?
+                .parse::<usize>()
+                .map_err(|_| "invalid export index".to_string())?;
+            let value = parts
+                .next()
+                .ok_or_else(|| "missing export output path".to_string())?;
+            Ok(Intent::SetExportOutputPath(index, value.into()))
+        }
+        "set-export-template" => {
+            let index = parts
+                .next()
+                .ok_or_else(|| "missing export index".to_string())?
+                .parse::<usize>()
+                .map_err(|_| "invalid export index".to_string())?;
+            let value = parts
+                .next()
+                .ok_or_else(|| "missing export template path".to_string())?;
+            Ok(Intent::SetExportTemplatePath(index, value.into()))
+        }
         "set-editor-text" => {
             let field = parts
                 .next()
@@ -387,6 +428,23 @@ mod tests {
 
     #[test]
     fn gui_bridge_parses_editor_preference_commands() {
+        assert!(matches!(
+            parse_command("set-project-name|Aurora Theme"),
+            Ok(Intent::SetProjectName(name)) if name == "Aurora Theme"
+        ));
+        assert!(matches!(
+            parse_command("set-export-enabled|1|true"),
+            Ok(Intent::SetExportEnabled(1, true))
+        ));
+        assert!(matches!(
+            parse_command("set-export-output|0|exports/demo.toml"),
+            Ok(Intent::SetExportOutputPath(0, path)) if path.display().to_string() == "exports/demo.toml"
+        ));
+        assert!(matches!(
+            parse_command("set-export-template|1|templates/demo.txt"),
+            Ok(Intent::SetExportTemplatePath(1, path)) if path.display().to_string() == "templates/demo.txt"
+        ));
+
         let project_path = match parse_command("set-editor-text|project_path|projects/demo.toml") {
             Ok(Intent::SetEditorProjectPath(path)) => path,
             other => panic!("expected editor project path intent, got {other:?}"),

@@ -96,6 +96,10 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             set_fixed_color(state, role, color);
             Vec::new()
         }
+        Intent::SetProjectName(name) => set_project_name(state, name),
+        Intent::SetExportEnabled(index, enabled) => set_export_enabled(state, index, enabled),
+        Intent::SetExportOutputPath(index, path) => set_export_output_path(state, index, path),
+        Intent::SetExportTemplatePath(index, path) => set_export_template_path(state, index, path),
         Intent::SetEditorProjectPath(path) => set_editor_project_path(state, path),
         Intent::SetEditorAutoLoadProject(enabled) => set_editor_auto_load_project(state, enabled),
         Intent::SetEditorAutoSaveOnExport(enabled) => {
@@ -754,6 +758,76 @@ fn save_editor_config_effects(state: &AppState) -> Vec<Effect> {
             config: state.editor_config(),
         },
     }]
+}
+
+fn set_project_name(state: &mut AppState, name: String) -> Vec<Effect> {
+    let value = name.trim();
+    if value.is_empty() {
+        state.ui.status = "Project name cannot be empty.".to_string();
+        return Vec::new();
+    }
+
+    state.project.name = value.to_string();
+    state.ui.status = format!("Project name -> {}", state.project.name);
+    Vec::new()
+}
+
+fn set_export_enabled(state: &mut AppState, index: usize, enabled: bool) -> Vec<Effect> {
+    match state.project.export_profiles.get_mut(index) {
+        Some(profile) => {
+            profile.enabled = enabled;
+            let status = if enabled { "enabled" } else { "disabled" };
+            state.ui.status = format!("{} {status}.", profile.name);
+        }
+        None => {
+            state.ui.status = format!("Missing export target {}.", index + 1);
+        }
+    }
+    Vec::new()
+}
+
+fn set_export_output_path(
+    state: &mut AppState,
+    index: usize,
+    path: std::path::PathBuf,
+) -> Vec<Effect> {
+    match state.project.export_profiles.get_mut(index) {
+        Some(profile) => {
+            profile.output_path = path;
+            state.ui.status = format!(
+                "{} output -> {}",
+                profile.name,
+                profile.output_path.display()
+            );
+        }
+        None => {
+            state.ui.status = format!("Missing export target {}.", index + 1);
+        }
+    }
+    Vec::new()
+}
+
+fn set_export_template_path(
+    state: &mut AppState,
+    index: usize,
+    path: std::path::PathBuf,
+) -> Vec<Effect> {
+    match state.project.export_profiles.get_mut(index) {
+        Some(profile) => match &mut profile.format {
+            ExportFormat::Template { template_path } => {
+                *template_path = path;
+                state.ui.status =
+                    format!("{} template -> {}", profile.name, template_path.display());
+            }
+            ExportFormat::Alacritty => {
+                state.ui.status = format!("{} does not use a template path.", profile.name);
+            }
+        },
+        None => {
+            state.ui.status = format!("Missing export target {}.", index + 1);
+        }
+    }
+    Vec::new()
 }
 
 fn set_editor_project_path(state: &mut AppState, path: std::path::PathBuf) -> Vec<Effect> {
