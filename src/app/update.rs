@@ -693,7 +693,7 @@ fn apply_fixed_color_input(
     buffer: &str,
 ) -> Result<String, String> {
     let color = Color::from_hex(buffer)
-        .map_err(|_| "Invalid hex color. Use a 6-digit value like #C586C0.".to_string())?;
+        .map_err(|_| "Invalid hex color. Use #C586C0 or #C586C080.".to_string())?;
     try_mutate_rules(state, |rules| {
         if let Some(Rule::Fixed { color: current }) = rules.get_mut(role) {
             *current = color;
@@ -1169,7 +1169,8 @@ fn accepts_input_char(target: TextInputTarget, ch: char, existing: &str) -> bool
                 ch.is_ascii_digit() || ch == '.' || ch == '%'
             }
             ControlId::FixedColor(_) => {
-                ch.is_ascii_hexdigit()
+                let hex_len = existing.trim_start_matches('#').len();
+                (ch.is_ascii_hexdigit() && hex_len < 8)
                     || (ch == '#' && !existing.contains('#') && existing.is_empty())
             }
             _ => false,

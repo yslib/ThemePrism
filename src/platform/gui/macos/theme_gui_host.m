@@ -23,19 +23,32 @@ typedef void (*ThemeFreeStringFn)(char *);
 static NSColor *ThemeColorFromHex(NSString *hex) {
     NSString *value = [[hex stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]
         stringByReplacingOccurrencesOfString:@"#" withString:@""];
-    if (value.length != 6) {
+    if (value.length != 6 && value.length != 8) {
         return [NSColor clearColor];
     }
 
-    unsigned int rgb = 0;
-    if (![[NSScanner scannerWithString:value] scanHexInt:&rgb]) {
+    unsigned int raw = 0;
+    if (![[NSScanner scannerWithString:value] scanHexInt:&raw]) {
         return [NSColor clearColor];
     }
 
-    CGFloat red = ((rgb >> 16) & 0xFF) / 255.0;
-    CGFloat green = ((rgb >> 8) & 0xFF) / 255.0;
-    CGFloat blue = (rgb & 0xFF) / 255.0;
-    return [NSColor colorWithSRGBRed:red green:green blue:blue alpha:1.0];
+    CGFloat red = 0.0;
+    CGFloat green = 0.0;
+    CGFloat blue = 0.0;
+    CGFloat alpha = 1.0;
+
+    if (value.length == 8) {
+        red = ((raw >> 24) & 0xFF) / 255.0;
+        green = ((raw >> 16) & 0xFF) / 255.0;
+        blue = ((raw >> 8) & 0xFF) / 255.0;
+        alpha = (raw & 0xFF) / 255.0;
+    } else {
+        red = ((raw >> 16) & 0xFF) / 255.0;
+        green = ((raw >> 8) & 0xFF) / 255.0;
+        blue = (raw & 0xFF) / 255.0;
+    }
+
+    return [NSColor colorWithSRGBRed:red green:green blue:blue alpha:alpha];
 }
 
 @interface ThemeGuiController : NSObject <NSApplicationDelegate, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate, ThemeSliderTracking>
@@ -611,7 +624,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     NSTextField *textField = [[NSTextField alloc] init];
     textField.identifier = fieldId;
     textField.stringValue = value;
-    textField.placeholderString = @"#224466";
+    textField.placeholderString = @"#224466 or #224466CC";
     textField.font = [NSFont monospacedSystemFontOfSize:12.0 weight:NSFontWeightRegular];
     textField.target = self;
     textField.action = @selector(textCommitted:);

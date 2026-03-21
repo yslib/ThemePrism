@@ -14,7 +14,7 @@ impl Exporter for AlacrittyExporter {
         let token = |role: TokenRole| {
             theme
                 .token(role)
-                .map(|color| color.to_hex())
+                .map(|color| color.to_opaque_hex())
                 .ok_or_else(|| ExportError::MissingToken(role.label().to_string()))
         };
 

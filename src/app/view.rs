@@ -838,7 +838,7 @@ fn inspector_footer_text(state: &AppState) -> &'static str {
                 "Type 0.35 or 35%. Enter applies, Esc cancels."
             }
             TextInputTarget::Control(ControlId::FixedColor(_)) => {
-                "Type a hex color like #C586C0. Enter applies, Esc cancels."
+                "Type #C586C0 or #C586C080. Enter applies, Esc cancels."
             }
             TextInputTarget::Config(_) => "Type text. Enter applies, Esc cancels.",
             TextInputTarget::Control(_) => "Press Enter to apply or Esc to cancel.",
