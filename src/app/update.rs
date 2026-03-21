@@ -34,6 +34,10 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             move_selection(state, delta);
             Vec::new()
         }
+        Intent::SelectToken(index) => {
+            select_token(state, index);
+            Vec::new()
+        }
         Intent::AdjustControlByStep(control, delta) => {
             if state.ui.source_picker.is_some() || state.ui.text_input.is_some() {
                 return Vec::new();
@@ -46,6 +50,34 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
                 return Vec::new();
             }
             activate_control(state, control);
+            Vec::new()
+        }
+        Intent::SetParamValue(key, value) => {
+            set_param_value(state, key, value);
+            Vec::new()
+        }
+        Intent::SetRuleKind(role, kind) => {
+            set_rule_kind_for_role(state, role, kind);
+            Vec::new()
+        }
+        Intent::SetReferenceSource(control, source) => {
+            set_reference_source(state, control, source);
+            Vec::new()
+        }
+        Intent::SetMixRatio(role, ratio) => {
+            set_mix_ratio(state, role, ratio);
+            Vec::new()
+        }
+        Intent::SetAdjustOp(role, op) => {
+            set_adjust_op(state, role, op);
+            Vec::new()
+        }
+        Intent::SetAdjustAmount(role, amount) => {
+            set_adjust_amount(state, role, amount);
+            Vec::new()
+        }
+        Intent::SetFixedColor(role, color) => {
+            set_fixed_color(state, role, color);
             Vec::new()
         }
         Intent::AppendTextInput(ch) => {
@@ -200,6 +232,17 @@ fn move_selection(state: &mut AppState, delta: i32) {
     }
 }
 
+fn select_token(state: &mut AppState, index: usize) {
+    state.ui.selected_token = index.min(TokenRole::ALL.len().saturating_sub(1));
+    state.ui.inspector_field = state
+        .ui
+        .inspector_field
+        .min(state.inspector_field_count().saturating_sub(1));
+    state.ui.source_picker = None;
+    state.ui.text_input = None;
+    state.ui.status = format!("Selected token {}", state.selected_role().label());
+}
+
 fn adjust_control_by_step(state: &mut AppState, control: ControlId, delta: i32) {
     match control {
         ControlId::Param(key) => adjust_param_by_step(state, key, delta),
@@ -222,6 +265,21 @@ fn activate_control(state: &mut AppState, control: ControlId) {
     }
 }
 
+fn set_param_value(state: &mut AppState, key: ParamKey, value: f32) {
+    let mut params = state.domain.params.clone();
+    key.set(&mut params, value);
+    state.domain.params = params;
+    if let Err(err) = state.recompute() {
+        state.ui.status = format!("Failed to update {}: {err}", key.label());
+    } else {
+        state.ui.status = format!(
+            "{} -> {}",
+            key.label(),
+            key.format_value(&state.domain.params)
+        );
+    }
+}
+
 fn adjust_param_by_step(state: &mut AppState, key: ParamKey, delta: i32) {
     let mut params = state.domain.params.clone();
     key.adjust(&mut params, delta);
@@ -235,6 +293,26 @@ fn adjust_param_by_step(state: &mut AppState, key: ParamKey, delta: i32) {
             key.format_value(&state.domain.params)
         );
     }
+}
+
+fn set_rule_kind_for_role(state: &mut AppState, role: TokenRole, kind: RuleKind) {
+    let current_color = state
+        .domain
+        .resolved
+        .token(role)
+        .expect("resolved theme should contain every token");
+    let selection_mix = state.domain.params.selection_mix;
+    let result = try_mutate_rules(state, |rules| {
+        let rule = rules
+            .get_mut(role)
+            .expect("selected token should have rule");
+        *rule = starter_rule(kind, role, current_color, selection_mix);
+    });
+
+    state.ui.status = match result {
+        Ok(()) => format!("Updated {}", role.label()),
+        Err(err) => format!("Rule change rejected: {err}"),
+    };
 }
 
 fn cycle_rule_kind_for_role(state: &mut AppState, role: TokenRole, delta: i32) {
@@ -259,6 +337,22 @@ fn cycle_rule_kind_for_role(state: &mut AppState, role: TokenRole, delta: i32) {
     };
 }
 
+fn set_reference_source(state: &mut AppState, control: ControlId, source: SourceRef) {
+    let result = try_mutate_rules(state, |rules| {
+        let role =
+            role_for_reference_control(control).expect("control should be reference control");
+        let rule = rules
+            .get_mut(role)
+            .expect("selected token should have a rule");
+        apply_source_to_control(control, rule, source.clone());
+    });
+
+    state.ui.status = match result {
+        Ok(()) => format!("Updated {}", control.label()),
+        Err(err) => format!("Rule change rejected: {err}"),
+    };
+}
+
 fn cycle_reference_source(state: &mut AppState, control: ControlId, role: TokenRole, delta: i32) {
     let result = try_mutate_rules(state, |rules| {
         let rule = rules
@@ -275,10 +369,34 @@ fn cycle_reference_source(state: &mut AppState, control: ControlId, role: TokenR
     };
 }
 
+fn set_mix_ratio(state: &mut AppState, role: TokenRole, ratio: f32) {
+    let result = try_mutate_rules(state, |rules| {
+        if let Some(Rule::Mix { ratio: current, .. }) = rules.get_mut(role) {
+            *current = ratio.clamp(0.0, 1.0);
+        }
+    });
+    state.ui.status = match result {
+        Ok(()) => format!("Updated {}", role.label()),
+        Err(err) => format!("Rule change rejected: {err}"),
+    };
+}
+
 fn set_mix_ratio_by_step(state: &mut AppState, role: TokenRole, delta: i32) {
     let result = try_mutate_rules(state, |rules| {
         if let Some(Rule::Mix { ratio, .. }) = rules.get_mut(role) {
             *ratio = (*ratio + delta as f32 * 0.05).clamp(0.0, 1.0);
+        }
+    });
+    state.ui.status = match result {
+        Ok(()) => format!("Updated {}", role.label()),
+        Err(err) => format!("Rule change rejected: {err}"),
+    };
+}
+
+fn set_adjust_op(state: &mut AppState, role: TokenRole, next: AdjustOp) {
+    let result = try_mutate_rules(state, |rules| {
+        if let Some(Rule::Adjust { op, .. }) = rules.get_mut(role) {
+            *op = next;
         }
     });
     state.ui.status = match result {
@@ -299,10 +417,37 @@ fn cycle_adjust_op_for_role(state: &mut AppState, role: TokenRole, delta: i32) {
     };
 }
 
+fn set_adjust_amount(state: &mut AppState, role: TokenRole, amount: f32) {
+    let result = try_mutate_rules(state, |rules| {
+        if let Some(Rule::Adjust {
+            amount: current, ..
+        }) = rules.get_mut(role)
+        {
+            *current = amount.clamp(0.0, 1.0);
+        }
+    });
+    state.ui.status = match result {
+        Ok(()) => format!("Updated {}", role.label()),
+        Err(err) => format!("Rule change rejected: {err}"),
+    };
+}
+
 fn set_adjust_amount_by_step(state: &mut AppState, role: TokenRole, delta: i32) {
     let result = try_mutate_rules(state, |rules| {
         if let Some(Rule::Adjust { amount, .. }) = rules.get_mut(role) {
             *amount = (*amount + delta as f32 * 0.02).clamp(0.0, 1.0);
+        }
+    });
+    state.ui.status = match result {
+        Ok(()) => format!("Updated {}", role.label()),
+        Err(err) => format!("Rule change rejected: {err}"),
+    };
+}
+
+fn set_fixed_color(state: &mut AppState, role: TokenRole, next: Color) {
+    let result = try_mutate_rules(state, |rules| {
+        if let Some(Rule::Fixed { color }) = rules.get_mut(role) {
+            *color = next;
         }
     });
     state.ui.status = match result {

@@ -1,6 +1,7 @@
 pub mod controls;
 pub mod effect;
 pub mod intent;
+pub mod snapshot;
 pub mod state;
 pub mod update;
 pub mod view;

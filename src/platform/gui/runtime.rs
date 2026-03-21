@@ -1,7 +1,11 @@
 use crate::app::AppState;
 use crate::app::build_view;
 use crate::platform::gui::bootstrap::GuiBootstrap;
-use crate::platform::gui::host::{GuiHost, PendingGuiHost};
+use crate::platform::gui::host::GuiHost;
+#[cfg(not(target_os = "macos"))]
+use crate::platform::gui::host::PendingGuiHost;
+#[cfg(target_os = "macos")]
+use crate::platform::gui::macos::MacOsAppKitHost;
 use crate::platform::{PlatformError, PlatformKind, PlatformRuntime};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -20,7 +24,15 @@ impl PlatformRuntime for GuiPlatform {
 }
 
 impl GuiPlatform {
-    fn host(&self) -> impl GuiHost {
-        PendingGuiHost
+    fn host(&self) -> Box<dyn GuiHost> {
+        #[cfg(target_os = "macos")]
+        {
+            Box::new(MacOsAppKitHost)
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            Box::new(PendingGuiHost)
+        }
     }
 }

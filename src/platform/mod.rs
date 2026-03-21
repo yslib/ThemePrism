@@ -1,3 +1,4 @@
+pub mod effects;
 pub mod gui;
 pub mod tui;
 
