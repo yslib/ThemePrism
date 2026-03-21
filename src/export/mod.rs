@@ -5,6 +5,7 @@ use std::fmt;
 
 use crate::evaluator::ResolvedTheme;
 
+#[allow(dead_code)]
 pub trait Exporter {
     fn name(&self) -> &'static str;
     fn export(&self, theme: &ResolvedTheme) -> Result<String, ExportError>;

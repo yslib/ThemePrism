@@ -1,0 +1,94 @@
+[params]
+background_hue = 13.0
+background_lightness = 0.44000039
+background_saturation = 0.5000005
+contrast = 0.5000001
+accent_hue = 230.0
+accent_saturation = 0.24000035
+accent_lightness = 0.36000034
+selection_mix = 0.46000007
+vibrancy = 0.0
+
+[rules.Background]
+type = "alias"
+source = "bg_0"
+
+[rules.Border]
+type = "adjust"
+source = "Surface"
+op = "Lighten"
+amount = 0.08
+
+[rules.Comment]
+type = "alias"
+source = "TextMuted"
+
+[rules.Cursor]
+type = "alias"
+source = "fg_2"
+
+[rules.Error]
+type = "fixed"
+color = "#EEC64E"
+
+[rules.Function]
+type = "alias"
+source = "accent_5"
+
+[rules.Hint]
+type = "alias"
+source = "accent_5"
+
+[rules.Info]
+type = "alias"
+source = "accent_3"
+
+[rules.Keyword]
+type = "alias"
+source = "Hint"
+
+[rules.Number]
+type = "alias"
+source = "accent_2"
+
+[rules.Selection]
+type = "adjust"
+source = "Text"
+op = "Lighten"
+amount = 0.1
+
+[rules.String]
+type = "alias"
+source = "accent_1"
+
+[rules.Success]
+type = "alias"
+source = "accent_1"
+
+[rules.Surface]
+type = "alias"
+source = "bg_1"
+
+[rules.SurfaceAlt]
+type = "alias"
+source = "bg_2"
+
+[rules.Text]
+type = "alias"
+source = "fg_2"
+
+[rules.TextMuted]
+type = "alias"
+source = "fg_0"
+
+[rules.Type]
+type = "alias"
+source = "accent_3"
+
+[rules.Variable]
+type = "alias"
+source = "fg_2"
+
+[rules.Warning]
+type = "alias"
+source = "accent_2"

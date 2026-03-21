@@ -22,6 +22,27 @@ impl SourceRef {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceGroup {
+    Common,
+    Advanced,
+}
+
+impl SourceGroup {
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Common => "Common Sources",
+            Self::Advanced => "Advanced Palette",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourceOption {
+    pub group: SourceGroup,
+    pub source: SourceRef,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdjustOp {
     Lighten,
     Darken,
@@ -259,7 +280,7 @@ pub fn starter_rule(
     }
 }
 
-pub fn available_sources(current_role: TokenRole) -> Vec<SourceRef> {
+pub fn available_source_options(current_role: TokenRole) -> Vec<SourceOption> {
     let common_tokens = [
         TokenRole::Background,
         TokenRole::Surface,
@@ -286,11 +307,24 @@ pub fn available_sources(current_role: TokenRole) -> Vec<SourceRef> {
     let mut sources = Vec::new();
     for role in common_tokens {
         if role != current_role {
-            sources.push(SourceRef::Token(role));
+            sources.push(SourceOption {
+                group: SourceGroup::Common,
+                source: SourceRef::Token(role),
+            });
         }
     }
     for slot in PaletteSlot::ALL {
-        sources.push(SourceRef::Palette(slot));
+        sources.push(SourceOption {
+            group: SourceGroup::Advanced,
+            source: SourceRef::Palette(slot),
+        });
     }
     sources
+}
+
+pub fn available_sources(current_role: TokenRole) -> Vec<SourceRef> {
+    available_source_options(current_role)
+        .into_iter()
+        .map(|option| option.source)
+        .collect()
 }

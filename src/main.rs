@@ -1,13 +1,10 @@
 mod app;
-mod color;
-mod evaluator;
+mod domain;
 mod export;
-mod palette;
-mod params;
-mod preview;
-mod rules;
-mod tokens;
-mod ui;
+mod persistence;
+mod platform;
+
+pub use domain::{color, evaluator, palette, params, preview, rules, tokens};
 
 use std::error::Error;
 use std::io;
@@ -19,7 +16,8 @@ use crossterm::terminal::{
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
-use crate::app::{App, run_app};
+use crate::app::AppState;
+use crate::platform::tui::runtime;
 
 fn main() -> Result<(), Box<dyn Error>> {
     enable_raw_mode()?;
@@ -30,8 +28,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let result = (|| -> Result<(), Box<dyn Error>> {
-        let app = App::new()?;
-        run_app(&mut terminal, app)?;
+        let state = AppState::new()?;
+        runtime::run(&mut terminal, state)?;
         Ok(())
     })();
 
