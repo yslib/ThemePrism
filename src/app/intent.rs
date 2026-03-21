@@ -6,6 +6,7 @@ use crate::domain::color::Color;
 use crate::domain::params::ParamKey;
 use crate::domain::rules::{AdjustOp, RuleKind, SourceRef};
 use crate::domain::tokens::TokenRole;
+use crate::export::ExportArtifact;
 
 #[derive(Debug, Clone)]
 pub enum Intent {
@@ -37,6 +38,11 @@ pub enum Intent {
     ApplySourcePickerSelection,
     CloseSourcePicker,
 
+    OpenConfigRequested,
+    CloseConfigRequested,
+    MoveConfigSelection(i32),
+    ActivateConfigField,
+
     SaveProjectRequested,
     LoadProjectRequested,
     ExportThemeRequested,
@@ -44,5 +50,5 @@ pub enum Intent {
 
     ProjectSaved(Result<PathBuf, String>),
     ProjectLoaded(Result<ProjectData, String>),
-    ThemeExported(Result<PathBuf, String>),
+    ThemeExported(Result<Vec<ExportArtifact>, String>),
 }

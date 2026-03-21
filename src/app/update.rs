@@ -140,17 +140,19 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             Vec::new()
         }
         Intent::SaveProjectRequested => vec![Effect::SaveProject {
-            path: state.paths.project_path.clone(),
+            path: state.project.project_path.clone(),
             project: ProjectData {
+                name: state.project.name.clone(),
                 params: state.domain.params.clone(),
                 rules: state.domain.rules.clone(),
+                export_profile: state.project.export_profile.clone(),
             },
         }],
         Intent::LoadProjectRequested => vec![Effect::LoadProject {
-            path: state.paths.project_path.clone(),
+            path: state.project.project_path.clone(),
         }],
-        Intent::ExportThemeRequested => vec![Effect::ExportAlacritty {
-            path: state.paths.export_path.clone(),
+        Intent::ExportThemeRequested => vec![Effect::ExportTheme {
+            profile: state.project.export_profile.clone(),
             theme: state.domain.resolved.clone(),
         }],
         Intent::ResetRequested => {
@@ -167,8 +169,10 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         Intent::ProjectLoaded(result) => {
             match result {
                 Ok(project) => {
+                    state.project.name = project.name;
                     state.domain.params = project.params;
                     state.domain.rules = project.rules;
+                    state.project.export_profile = project.export_profile;
                     state.ui.text_input = None;
                     state.ui.source_picker = None;
                     match state.recompute() {
@@ -179,7 +183,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
                                 .min(state.inspector_field_count().saturating_sub(1));
                             state.ui.status = format!(
                                 "Loaded project from {}",
-                                state.paths.project_path.display()
+                                state.project.project_path.display()
                             );
                         }
                         Err(err) => {
@@ -195,7 +199,11 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         }
         Intent::ThemeExported(result) => {
             state.ui.status = match result {
-                Ok(path) => format!("Exported Alacritty theme to {}", path.display()),
+                Ok(artifact) => format!(
+                    "Exported {} to {}",
+                    artifact.profile_name,
+                    artifact.output_path.display()
+                ),
                 Err(err) => format!("Export failed: {err}"),
             };
             Vec::new()

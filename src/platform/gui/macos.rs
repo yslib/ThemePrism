@@ -14,7 +14,7 @@ impl GuiHost for MacOsAppKitHost {
     }
 
     fn run(&self, bootstrap: GuiBootstrap) -> Result<(), PlatformError> {
-        let mut session = Box::new(GuiBridgeSession::new(bootstrap.state));
+        let mut session = Box::new(GuiBridgeSession::from_core(bootstrap.session));
         let result = unsafe {
             theme_gui_host_run(
                 (&mut *session) as *mut GuiBridgeSession as *mut c_void,

@@ -1,5 +1,5 @@
 use crate::app::controls::{
-    ChoiceControlSpec, ColorControlSpec, ControlId, ControlSpec, ReferenceField,
+    ChoiceControlSpec, ColorControlSpec, ControlId, ControlSpec, DisplayFieldSpec, ReferenceField,
     ReferencePickerControlSpec, ScalarControlSpec,
 };
 use crate::app::state::{AppState, FocusPane};
@@ -219,7 +219,12 @@ pub fn build_view(state: &AppState) -> ViewTree {
             ViewNode::StatusBar(StatusBarView {
                 focus_label: state.ui.focus.label().to_string(),
                 help_text: status_help_text(state).to_string(),
-                status_text: state.ui.status.clone(),
+                status_text: format!(
+                    "{}  |  Export: {} -> {}",
+                    state.ui.status,
+                    state.project.export_profile.name,
+                    state.project.export_profile.output_path.display()
+                ),
             }),
         ],
     });
@@ -262,7 +267,7 @@ fn build_token_panel(state: &AppState) -> PanelView {
 }
 
 fn build_params_panel(state: &AppState) -> PanelView {
-    let fields = crate::domain::params::ParamKey::ALL
+    let mut fields = crate::domain::params::ParamKey::ALL
         .into_iter()
         .map(|key| FormFieldView {
             control: ControlSpec::Scalar(ScalarControlSpec {
@@ -276,7 +281,36 @@ fn build_params_panel(state: &AppState) -> PanelView {
             }),
             selected: state.ui.focus == FocusPane::Params && key == state.selected_param_key(),
         })
-        .collect();
+        .collect::<Vec<_>>();
+
+    fields.push(FormFieldView {
+        control: ControlSpec::Display(DisplayFieldSpec {
+            label: "Project".to_string(),
+            value_text: state.project.name.clone(),
+            swatch: None,
+        }),
+        selected: false,
+    });
+    fields.push(FormFieldView {
+        control: ControlSpec::Display(DisplayFieldSpec {
+            label: "Exporter".to_string(),
+            value_text: format!(
+                "{} ({})",
+                state.project.export_profile.name,
+                state.project.export_profile.format_label()
+            ),
+            swatch: None,
+        }),
+        selected: false,
+    });
+    fields.push(FormFieldView {
+        control: ControlSpec::Display(DisplayFieldSpec {
+            label: "Output".to_string(),
+            value_text: state.project.export_profile.output_path.display().to_string(),
+            swatch: None,
+        }),
+        selected: false,
+    });
 
     PanelView {
         title: "Theme Params".to_string(),

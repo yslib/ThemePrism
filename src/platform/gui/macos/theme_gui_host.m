@@ -579,6 +579,13 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     NSString *command = [NSString stringWithFormat:@"set-scalar|%@|%.6f", sender.identifier, sender.doubleValue];
     self.dispatchCommand(self.bridgeContext, command.UTF8String);
     [self updateScalarValueLabelForSlider:sender];
+
+    NSDictionary *snapshot = [self fetchSnapshot];
+    if (snapshot == nil) {
+        return;
+    }
+
+    [self applySnapshot:snapshot rebuildControls:NO preservingSliderId:sender.identifier];
 }
 
 - (void)choiceChanged:(NSPopUpButton *)sender {

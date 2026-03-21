@@ -1,0 +1,92 @@
+use std::collections::VecDeque;
+use std::fs;
+use std::io;
+use std::path::Path;
+
+use crate::app::snapshot::{AppSnapshot, build_snapshot};
+use crate::app::view::{ViewTree, build_view};
+use crate::app::{AppState, Effect, Intent, update};
+use crate::export::{ExportArtifact, export_with_profile};
+use crate::persistence::project_file::{load_project, save_project};
+
+#[derive(Debug)]
+pub struct CoreSession {
+    state: AppState,
+}
+
+impl CoreSession {
+    pub fn new(state: AppState) -> Self {
+        Self { state }
+    }
+
+    pub fn state(&self) -> &AppState {
+        &self.state
+    }
+
+    pub fn should_quit(&self) -> bool {
+        self.state.ui.should_quit
+    }
+
+    pub fn set_status(&mut self, message: impl Into<String>) {
+        self.state.ui.status = message.into();
+    }
+
+    pub fn dispatch(&mut self, intent: Intent) {
+        self.dispatch_all([intent]);
+    }
+
+    pub fn dispatch_all(&mut self, intents: impl IntoIterator<Item = Intent>) {
+        let mut queue = intents.into_iter().collect::<VecDeque<_>>();
+
+        while let Some(intent) = queue.pop_front() {
+            let effects = update(&mut self.state, intent);
+            for effect in effects {
+                queue.push_back(self.run_effect(effect));
+            }
+        }
+    }
+
+    pub fn view_tree(&self) -> ViewTree {
+        build_view(&self.state)
+    }
+
+    pub fn snapshot(&self) -> AppSnapshot {
+        build_snapshot(&self.state)
+    }
+
+    fn run_effect(&self, effect: Effect) -> Intent {
+        match effect {
+            Effect::SaveProject { path, project } => {
+                let result = save_project(&path, &project)
+                    .map(|()| path.clone())
+                    .map_err(|err| err.to_string());
+                Intent::ProjectSaved(result)
+            }
+            Effect::LoadProject { path } => {
+                let result = load_project(&path).map_err(|err| err.to_string());
+                let _ = path;
+                Intent::ProjectLoaded(result)
+            }
+            Effect::ExportTheme { profile, theme } => {
+                let result = export_with_profile(&profile, &theme)
+                    .map_err(|err| err.to_string())
+                    .and_then(|content| {
+                        write_export(&profile.output_path, &content)
+                            .map(|()| ExportArtifact {
+                                profile_name: profile.name.clone(),
+                                output_path: profile.output_path.clone(),
+                            })
+                            .map_err(|err| err.to_string())
+                    });
+                Intent::ThemeExported(result)
+            }
+        }
+    }
+}
+
+fn write_export(path: &Path, content: &str) -> io::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, content)
+}

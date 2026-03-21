@@ -9,6 +9,7 @@ use crate::domain::tokens::{PaletteSlot, TokenRole};
 pub struct AppSnapshot {
     pub window_title: String,
     pub status: String,
+    pub project: ProjectSnapshot,
     pub theme: ThemeSnapshot,
     pub tokens: Vec<TokenItemSnapshot>,
     pub params: Vec<ScalarFieldSnapshot>,
@@ -16,6 +17,15 @@ pub struct AppSnapshot {
     pub palette: Vec<SwatchSnapshot>,
     pub resolved_tokens: Vec<SwatchSnapshot>,
     pub preview: Vec<PreviewLineSnapshot>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProjectSnapshot {
+    pub name: String,
+    pub project_path: String,
+    pub export_profile_name: String,
+    pub export_format: String,
+    pub export_output_path: String,
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +117,18 @@ pub struct PreviewSegmentSnapshot {
 }
 
 pub fn build_snapshot(state: &AppState) -> AppSnapshot {
+    let project = ProjectSnapshot {
+        name: state.project.name.clone(),
+        project_path: state.project.project_path.display().to_string(),
+        export_profile_name: state.project.export_profile.name.clone(),
+        export_format: state.project.export_profile.format_label().to_string(),
+        export_output_path: state
+            .project
+            .export_profile
+            .output_path
+            .display()
+            .to_string(),
+    };
     let theme = ThemeSnapshot {
         background_hex: state.theme_color(TokenRole::Background).to_hex(),
         surface_hex: state.theme_color(TokenRole::Surface).to_hex(),
@@ -185,8 +207,9 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
         .collect();
 
     AppSnapshot {
-        window_title: "Theme Generator".to_string(),
+        window_title: format!("Theme Generator - {}", state.project.name),
         status: state.ui.status.clone(),
+        project,
         theme,
         tokens,
         params,

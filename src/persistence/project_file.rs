@@ -6,7 +6,9 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::app::effect::ProjectData;
 use crate::color::Color;
+use crate::export::ExportProfile;
 use crate::params::ThemeParams;
 use crate::rules::{AdjustOp, Rule, RuleSet, SourceRef};
 use crate::tokens::{PaletteSlot, TokenRole};
@@ -30,10 +32,23 @@ impl fmt::Display for ProjectError {
 
 impl Error for ProjectError {}
 
+const CURRENT_PROJECT_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ProjectFile {
+    version: u32,
+    project: ProjectMeta,
     params: ProjectParams,
     rules: BTreeMap<String, RuleFile>,
+    #[serde(default)]
+    exports: Vec<ExportProfile>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    export: Option<ExportProfile>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ProjectMeta {
+    name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,16 +87,22 @@ enum RuleFile {
 
 pub fn save_project(
     path: &Path,
-    params: &ThemeParams,
-    rules: &RuleSet,
+    project: &ProjectData,
 ) -> Result<(), ProjectError> {
     let file = ProjectFile {
-        params: ProjectParams::from(params),
-        rules: rules
+        version: CURRENT_PROJECT_VERSION,
+        project: ProjectMeta {
+            name: project.name.clone(),
+        },
+        params: ProjectParams::from(&project.params),
+        rules: project
+            .rules
             .rules
             .iter()
             .map(|(role, rule)| (role.label().to_string(), RuleFile::from(rule)))
             .collect(),
+        exports: project.export_profiles.clone(),
+        export: None,
     };
 
     let output =
@@ -93,10 +114,16 @@ pub fn save_project(
     fs::write(path, output).map_err(|err| ProjectError::Io(err.to_string()))
 }
 
-pub fn load_project(path: &Path) -> Result<(ThemeParams, RuleSet), ProjectError> {
+pub fn load_project(path: &Path) -> Result<ProjectData, ProjectError> {
     let content = fs::read_to_string(path).map_err(|err| ProjectError::Io(err.to_string()))?;
     let file: ProjectFile =
         toml::from_str(&content).map_err(|err| ProjectError::Parse(err.to_string()))?;
+    if file.version != CURRENT_PROJECT_VERSION {
+        return Err(ProjectError::InvalidData(format!(
+            "unsupported project version {}",
+            file.version
+        )));
+    }
 
     let params = ThemeParams::from(file.params);
     let mut rules = BTreeMap::new();
@@ -110,7 +137,20 @@ pub fn load_project(path: &Path) -> Result<(ThemeParams, RuleSet), ProjectError>
         rules.insert(role, rule_file.to_rule()?);
     }
 
-    Ok((params, RuleSet { rules }))
+    let export_profiles = if !file.exports.is_empty() {
+        file.exports
+    } else if let Some(profile) = file.export {
+        vec![profile]
+    } else {
+        vec![ExportProfile::default()]
+    };
+
+    Ok(ProjectData {
+        name: file.project.name,
+        params,
+        rules: RuleSet { rules },
+        export_profiles,
+    })
 }
 
 impl From<&ThemeParams> for ProjectParams {
@@ -282,5 +322,46 @@ fn decode_palette_slot(value: &str) -> Option<PaletteSlot> {
         "accent_4" | "Accent4" => Some(PaletteSlot::Accent4),
         "accent_5" | "Accent5" => Some(PaletteSlot::Accent5),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use crate::app::effect::ProjectData;
+    use crate::export::{ExportFormat, ExportProfile};
+    use crate::params::ThemeParams;
+    use crate::persistence::project_file::{load_project, save_project};
+    use crate::rules::RuleSet;
+
+    #[test]
+    fn project_file_round_trips_export_profile() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("theme-project-{unique}.toml"));
+        let project = ProjectData {
+            name: "Integration Theme".to_string(),
+            params: ThemeParams::default(),
+            rules: RuleSet::default(),
+            export_profile: ExportProfile {
+                name: "Custom Template".to_string(),
+                output_path: "exports/custom.conf".into(),
+                format: ExportFormat::Template {
+                    template_path: "templates/custom.txt".into(),
+                },
+            },
+        };
+
+        save_project(&path, &project).unwrap();
+        let loaded = load_project(&path).unwrap();
+
+        assert_eq!(loaded.name, project.name);
+        assert_eq!(loaded.export_profile, project.export_profile);
+
+        let _ = fs::remove_file(path);
     }
 }

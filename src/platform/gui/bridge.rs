@@ -1,42 +1,46 @@
-use crate::app::Intent;
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::snapshot::{
     AppSnapshot, ChoiceFieldSnapshot, ChoiceOptionSnapshot, ColorFieldSnapshot,
-    EditorFieldSnapshot, PreviewLineSnapshot, PreviewSegmentSnapshot, ScalarFieldSnapshot,
-    SwatchSnapshot, ThemeSnapshot, build_snapshot,
+    EditorFieldSnapshot, PreviewLineSnapshot, PreviewSegmentSnapshot, ProjectSnapshot,
+    ScalarFieldSnapshot, SwatchSnapshot, ThemeSnapshot,
 };
-use crate::app::state::AppState;
+#[cfg(test)]
+use crate::core::AppState;
+use crate::core::{CoreSession, Intent};
 use crate::domain::color::Color;
 use crate::domain::params::ParamKey;
 use crate::domain::rules::{AdjustOp, RuleKind, SourceRef};
 use crate::domain::tokens::{PaletteSlot, TokenRole};
-use crate::platform::effects::{AppEffectRunner, dispatch_intents};
 
 #[derive(Debug)]
 pub struct GuiBridgeSession {
-    state: AppState,
-    effects: AppEffectRunner,
+    core: CoreSession,
 }
 
 impl GuiBridgeSession {
+    #[cfg(test)]
     pub fn new(state: AppState) -> Self {
-        Self {
-            state,
-            effects: AppEffectRunner,
-        }
+        Self::from_core(CoreSession::new(state))
+    }
+
+    pub fn from_core(core: CoreSession) -> Self {
+        Self { core }
     }
 
     pub fn snapshot_json(&self) -> String {
-        snapshot_to_json(&build_snapshot(&self.state))
+        snapshot_to_json(&self.core.snapshot())
     }
 
     pub fn dispatch(&mut self, command: &str) {
         match parse_command(command) {
-            Ok(intent) => dispatch_intents(&mut self.state, vec![intent], &self.effects),
-            Err(message) => {
-                self.state.ui.status = format!("GUI command rejected: {message}");
-            }
+            Ok(intent) => self.core.dispatch(intent),
+            Err(message) => self.core.set_status(format!("GUI command rejected: {message}")),
         }
+    }
+
+    #[cfg(test)]
+    pub fn state(&self) -> &AppState {
+        self.core.state()
     }
 }
 
@@ -273,9 +277,10 @@ pub fn snapshot_to_json(snapshot: &AppSnapshot) -> String {
     let preview = join_json(snapshot.preview.iter().map(preview_line_to_json));
 
     format!(
-        "{{\"window_title\":{},\"status\":{},\"theme\":{},\"tokens\":[{}],\"params\":[{}],\"inspector\":{{\"token_id\":{},\"token_label\":{},\"token_color_hex\":{},\"rule_summary\":{},\"fields\":[{}]}} ,\"palette\":[{}],\"resolved_tokens\":[{}],\"preview\":[{}]}}",
+        "{{\"window_title\":{},\"status\":{},\"project\":{},\"theme\":{},\"tokens\":[{}],\"params\":[{}],\"inspector\":{{\"token_id\":{},\"token_label\":{},\"token_color_hex\":{},\"rule_summary\":{},\"fields\":[{}]}} ,\"palette\":[{}],\"resolved_tokens\":[{}],\"preview\":[{}]}}",
         json_string(&snapshot.window_title),
         json_string(&snapshot.status),
+        project_to_json(&snapshot.project),
         theme_to_json(&snapshot.theme),
         tokens,
         params,
@@ -287,6 +292,17 @@ pub fn snapshot_to_json(snapshot: &AppSnapshot) -> String {
         palette,
         resolved,
         preview,
+    )
+}
+
+fn project_to_json(project: &ProjectSnapshot) -> String {
+    format!(
+        "{{\"name\":{},\"project_path\":{},\"export_profile_name\":{},\"export_format\":{},\"export_output_path\":{}}}",
+        json_string(&project.name),
+        json_string(&project.project_path),
+        json_string(&project.export_profile_name),
+        json_string(&project.export_format),
+        json_string(&project.export_output_path),
     )
 }
 
@@ -435,9 +451,9 @@ mod tests {
         let mut session = GuiBridgeSession::new(AppState::new().unwrap());
         session.dispatch("set-scalar|param:contrast|0.420000");
 
-        assert!((session.state.domain.params.contrast - 0.42).abs() < 0.001);
+        assert!((session.state().domain.params.contrast - 0.42).abs() < 0.001);
         assert_eq!(
-            ParamKey::Contrast.format_value(&session.state.domain.params),
+            ParamKey::Contrast.format_value(&session.state().domain.params),
             "    42%"
         );
     }
@@ -448,7 +464,7 @@ mod tests {
         session.dispatch("set-choice|rule_kind:background|fixed");
         session.dispatch("set-text|fixed_color:background|#224466");
 
-        match session.state.domain.rules.get(TokenRole::Background) {
+        match session.state().domain.rules.get(TokenRole::Background) {
             Some(Rule::Fixed { color }) => {
                 assert!(color.approx_eq(Color::from_hex("#224466").unwrap()));
             }
@@ -456,7 +472,7 @@ mod tests {
         }
 
         assert_eq!(
-            session.state.theme_color(TokenRole::Background).to_hex(),
+            session.state().theme_color(TokenRole::Background).to_hex(),
             "#224466"
         );
     }
@@ -466,7 +482,7 @@ mod tests {
         let mut session = GuiBridgeSession::new(AppState::new().unwrap());
         session.dispatch("set-choice|reference:background:alias_source|palette:accent_3");
 
-        match session.state.domain.rules.get(TokenRole::Background) {
+        match session.state().domain.rules.get(TokenRole::Background) {
             Some(Rule::Alias { source }) => {
                 assert_eq!(source.label(), "accent_3");
             }

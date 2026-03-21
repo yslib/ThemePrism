@@ -1,4 +1,5 @@
 mod app;
+mod core;
 mod domain;
 mod export;
 mod persistence;
@@ -8,7 +9,7 @@ pub use domain::{color, evaluator, palette, params, preview, rules, tokens};
 
 use std::error::Error;
 
-use crate::app::AppState;
+use crate::core::AppState;
 use crate::platform::{PlatformError, run_entrypoint};
 
 fn main() -> Result<(), Box<dyn Error>> {

@@ -1,5 +1,4 @@
-use crate::app::AppState;
-use crate::app::build_view;
+use crate::core::CoreSession;
 use crate::platform::gui::bootstrap::GuiBootstrap;
 use crate::platform::gui::host::GuiHost;
 #[cfg(not(target_os = "macos"))]
@@ -16,9 +15,9 @@ impl PlatformRuntime for GuiPlatform {
         PlatformKind::Gui
     }
 
-    fn launch(&self, state: AppState) -> Result<(), PlatformError> {
-        let view = build_view(&state);
-        let bootstrap = GuiBootstrap::new(state, &view);
+    fn launch(&self, session: CoreSession) -> Result<(), PlatformError> {
+        let view = session.view_tree();
+        let bootstrap = GuiBootstrap::new(session, &view);
         self.host().run(bootstrap)
     }
 }

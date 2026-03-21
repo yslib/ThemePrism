@@ -8,6 +8,7 @@ use crate::domain::palette::{Palette, generate_palette};
 use crate::domain::params::{ParamKey, ThemeParams};
 use crate::domain::rules::RuleSet;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
+use crate::export::{ExportProfile, default_export_profiles};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusPane {
@@ -44,8 +45,14 @@ impl FocusPane {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextInputState {
-    pub control: ControlId,
+    pub target: TextInputTarget,
     pub buffer: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextInputTarget {
+    Control(ControlId),
+    Config(ConfigFieldId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,6 +60,28 @@ pub struct SourcePickerState {
     pub control: ControlId,
     pub filter: String,
     pub selected: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigFieldId {
+    ProjectName,
+    ExportEnabled(usize),
+    ExportOutputPath(usize),
+    ExportTemplatePath(usize),
+}
+
+impl ConfigFieldId {
+    pub fn supports_text_input(self) -> bool {
+        matches!(
+            self,
+            Self::ProjectName | Self::ExportOutputPath(_) | Self::ExportTemplatePath(_)
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfigModalState {
+    pub selected_field: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -73,19 +102,21 @@ pub struct UiState {
     pub should_quit: bool,
     pub text_input: Option<TextInputState>,
     pub source_picker: Option<SourcePickerState>,
+    pub config_modal: Option<ConfigModalState>,
 }
 
 #[derive(Debug, Clone)]
-pub struct ProjectPaths {
-    pub export_path: PathBuf,
+pub struct ProjectState {
+    pub name: String,
     pub project_path: PathBuf,
+    pub export_profiles: Vec<ExportProfile>,
 }
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub domain: DomainState,
     pub ui: UiState,
-    pub paths: ProjectPaths,
+    pub project: ProjectState,
 }
 
 #[derive(Debug)]
@@ -128,10 +159,12 @@ impl AppState {
                 should_quit: false,
                 text_input: None,
                 source_picker: None,
+                config_modal: None,
             },
-            paths: ProjectPaths {
-                export_path: PathBuf::from("exports/alacritty-theme.toml"),
+            project: ProjectState {
+                name: "Untitled Theme".to_string(),
                 project_path: PathBuf::from("projects/theme-project.toml"),
+                export_profiles: default_export_profiles(),
             },
         })
     }

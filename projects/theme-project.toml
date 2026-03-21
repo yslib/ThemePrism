@@ -1,13 +1,18 @@
+version = 1
+
+[project]
+name = "Untitled Theme"
+
 [params]
-background_hue = 13.0
-background_lightness = 0.44000039
-background_saturation = 0.5000005
-contrast = 0.5000001
-accent_hue = 230.0
-accent_saturation = 0.24000035
-accent_lightness = 0.36000034
-selection_mix = 0.46000007
-vibrancy = 0.0
+background_hue = 220.0
+background_lightness = 0.12
+background_saturation = 0.08
+contrast = 0.85
+accent_hue = 205.0
+accent_saturation = 0.65
+accent_lightness = 0.62
+selection_mix = 0.35
+vibrancy = 0.5
 
 [rules.Background]
 type = "alias"
@@ -28,8 +33,8 @@ type = "alias"
 source = "fg_2"
 
 [rules.Error]
-type = "fixed"
-color = "#EEC64E"
+type = "alias"
+source = "accent_0"
 
 [rules.Function]
 type = "alias"
@@ -45,17 +50,17 @@ source = "accent_3"
 
 [rules.Keyword]
 type = "alias"
-source = "Hint"
+source = "accent_4"
 
 [rules.Number]
 type = "alias"
 source = "accent_2"
 
 [rules.Selection]
-type = "adjust"
-source = "Text"
-op = "Lighten"
-amount = 0.1
+type = "mix"
+a = "accent_3"
+b = "Surface"
+ratio = 0.35
 
 [rules.String]
 type = "alias"
@@ -75,7 +80,7 @@ source = "bg_2"
 
 [rules.Text]
 type = "alias"
-source = "fg_2"
+source = "fg_1"
 
 [rules.TextMuted]
 type = "alias"
@@ -87,8 +92,15 @@ source = "accent_3"
 
 [rules.Variable]
 type = "alias"
-source = "fg_2"
+source = "Text"
 
 [rules.Warning]
 type = "alias"
 source = "accent_2"
+
+[export]
+name = "Alacritty"
+output_path = "exports/alacritty-theme.toml"
+
+[export.format]
+type = "alacritty"

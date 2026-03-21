@@ -1,4 +1,3 @@
-pub mod effects;
 pub mod gui;
 pub mod tui;
 
@@ -7,7 +6,7 @@ use std::error::Error;
 use std::fmt;
 use std::io::{self, Write};
 
-use crate::app::AppState;
+use crate::core::{AppState, CoreSession};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,7 +87,7 @@ impl Error for PlatformError {}
 
 pub trait PlatformRuntime {
     fn kind(&self) -> PlatformKind;
-    fn launch(&self, state: AppState) -> Result<(), PlatformError>;
+    fn launch(&self, session: CoreSession) -> Result<(), PlatformError>;
 }
 
 pub fn run_entrypoint(
@@ -116,7 +115,7 @@ fn run_entrypoint_with_writer(
 }
 
 pub fn launch(state: AppState, options: LaunchOptions) -> Result<(), PlatformError> {
-    build_runtime(options.platform).launch(state)
+    build_runtime(options.platform).launch(CoreSession::new(state))
 }
 
 #[allow(dead_code)]

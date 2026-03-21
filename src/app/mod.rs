@@ -10,4 +10,3 @@ pub use effect::Effect;
 pub use intent::Intent;
 pub use state::AppState;
 pub use update::update;
-pub use view::build_view;
