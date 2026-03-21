@@ -1,7 +1,10 @@
 use crate::app::controls::{ControlId, ReferenceField};
-use crate::app::effect::{Effect, ProjectData};
+use crate::app::effect::{EditorConfigData, Effect, ProjectData};
 use crate::app::intent::Intent;
-use crate::app::state::{AppState, FocusPane, SourcePickerState, TextInputState};
+use crate::app::state::{
+    AppState, ConfigFieldId, ConfigModalState, FocusPane, SourcePickerState, TextInputState,
+    TextInputTarget,
+};
 use crate::domain::color::Color;
 use crate::domain::params::{ParamKey, ThemeParams};
 use crate::domain::rules::{
@@ -9,6 +12,7 @@ use crate::domain::rules::{
     available_sources, starter_rule,
 };
 use crate::domain::tokens::TokenRole;
+use crate::export::{ExportFormat, default_export_profiles};
 
 pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
     match intent {
@@ -17,7 +21,10 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             Vec::new()
         }
         Intent::MoveFocus(delta) => {
-            if state.ui.source_picker.is_some() || state.ui.text_input.is_some() {
+            if state.ui.source_picker.is_some()
+                || state.ui.text_input.is_some()
+                || state.ui.config_modal.is_some()
+            {
                 return Vec::new();
             }
             state.ui.focus = if delta >= 0 {
@@ -28,7 +35,10 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             Vec::new()
         }
         Intent::MoveSelection(delta) => {
-            if state.ui.source_picker.is_some() || state.ui.text_input.is_some() {
+            if state.ui.source_picker.is_some()
+                || state.ui.text_input.is_some()
+                || state.ui.config_modal.is_some()
+            {
                 return Vec::new();
             }
             move_selection(state, delta);
@@ -39,14 +49,20 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             Vec::new()
         }
         Intent::AdjustControlByStep(control, delta) => {
-            if state.ui.source_picker.is_some() || state.ui.text_input.is_some() {
+            if state.ui.source_picker.is_some()
+                || state.ui.text_input.is_some()
+                || state.ui.config_modal.is_some()
+            {
                 return Vec::new();
             }
             adjust_control_by_step(state, control, delta);
             Vec::new()
         }
         Intent::ActivateControl(control) => {
-            if state.ui.source_picker.is_some() || state.ui.text_input.is_some() {
+            if state.ui.source_picker.is_some()
+                || state.ui.text_input.is_some()
+                || state.ui.config_modal.is_some()
+            {
                 return Vec::new();
             }
             activate_control(state, control);
@@ -96,10 +112,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             }
             Vec::new()
         }
-        Intent::CommitTextInput => {
-            commit_text_input(state);
-            Vec::new()
-        }
+        Intent::CommitTextInput => commit_text_input(state),
         Intent::CancelTextInput => {
             state.ui.text_input = None;
             state.ui.status = "Input cancelled.".to_string();
@@ -139,20 +152,33 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             state.ui.status = "Source picker closed.".to_string();
             Vec::new()
         }
+        Intent::OpenConfigRequested => {
+            open_config_modal(state);
+            Vec::new()
+        }
+        Intent::CloseConfigRequested => {
+            close_config_modal(state);
+            Vec::new()
+        }
+        Intent::MoveConfigSelection(delta) => {
+            move_config_selection(state, delta);
+            Vec::new()
+        }
+        Intent::ActivateConfigField => activate_config_field(state),
         Intent::SaveProjectRequested => vec![Effect::SaveProject {
-            path: state.project.project_path.clone(),
+            path: state.editor.project_path.clone(),
             project: ProjectData {
                 name: state.project.name.clone(),
                 params: state.domain.params.clone(),
                 rules: state.domain.rules.clone(),
-                export_profile: state.project.export_profile.clone(),
+                export_profiles: state.project.export_profiles.clone(),
             },
         }],
         Intent::LoadProjectRequested => vec![Effect::LoadProject {
-            path: state.project.project_path.clone(),
+            path: state.editor.project_path.clone(),
         }],
         Intent::ExportThemeRequested => vec![Effect::ExportTheme {
-            profile: state.project.export_profile.clone(),
+            profiles: state.project.export_profiles.clone(),
             theme: state.domain.resolved.clone(),
         }],
         Intent::ResetRequested => {
@@ -172,9 +198,10 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
                     state.project.name = project.name;
                     state.domain.params = project.params;
                     state.domain.rules = project.rules;
-                    state.project.export_profile = project.export_profile;
+                    state.project.export_profiles = project.export_profiles;
                     state.ui.text_input = None;
                     state.ui.source_picker = None;
+                    state.ui.config_modal = None;
                     match state.recompute() {
                         Ok(()) => {
                             state.ui.inspector_field = state
@@ -183,7 +210,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
                                 .min(state.inspector_field_count().saturating_sub(1));
                             state.ui.status = format!(
                                 "Loaded project from {}",
-                                state.project.project_path.display()
+                                state.editor.project_path.display()
                             );
                         }
                         Err(err) => {
@@ -199,13 +226,23 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         }
         Intent::ThemeExported(result) => {
             state.ui.status = match result {
-                Ok(artifact) => format!(
+                Ok(artifacts) if artifacts.is_empty() => {
+                    "Export completed with no output.".to_string()
+                }
+                Ok(artifacts) if artifacts.len() == 1 => format!(
                     "Exported {} to {}",
-                    artifact.profile_name,
-                    artifact.output_path.display()
+                    artifacts[0].profile_name,
+                    artifacts[0].output_path.display()
                 ),
+                Ok(artifacts) => format!("Exported {} targets.", artifacts.len()),
                 Err(err) => format!("Export failed: {err}"),
             };
+            Vec::new()
+        }
+        Intent::EditorConfigSaved(result) => {
+            if let Err(err) = result {
+                state.ui.status = format!("Editor config save failed: {err}");
+            }
             Vec::new()
         }
     }
@@ -267,7 +304,7 @@ fn activate_control(state: &mut AppState, control: ControlId) {
     if control.supports_source_picker() {
         open_source_picker(state, control);
     } else if control.supports_text_input() {
-        open_text_input(state, control);
+        open_text_input(state, TextInputTarget::Control(control));
     } else {
         state.ui.status = format!("{} does not support activation.", control.label());
     }
@@ -477,12 +514,12 @@ fn cycle_fixed_color_for_role(state: &mut AppState, role: TokenRole, delta: i32)
     };
 }
 
-fn open_text_input(state: &mut AppState, control: ControlId) {
-    let buffer = default_input_buffer(state, control);
-    state.ui.text_input = Some(TextInputState { control, buffer });
+fn open_text_input(state: &mut AppState, target: TextInputTarget) {
+    let buffer = default_input_buffer(state, target);
+    state.ui.text_input = Some(TextInputState { target, buffer });
     state.ui.status = format!(
         "Editing {}. Press Enter to apply or Esc to cancel.",
-        control.label()
+        input_target_label(target)
     );
 }
 
@@ -512,13 +549,13 @@ fn append_text_input(state: &mut AppState, ch: char) {
         .ui
         .text_input
         .as_ref()
-        .map(|input| input.control.label())
+        .map(|input| input_target_label(input.target))
         .unwrap_or_else(|| "input field".to_string());
 
     if let Some(input) = &mut state.ui.text_input {
-        if accepts_input_char(input.control, ch, &input.buffer) {
-            let ch = match input.control {
-                ControlId::FixedColor(_) => ch.to_ascii_uppercase(),
+        if accepts_input_char(input.target, ch, &input.buffer) {
+            let ch = match input.target {
+                TextInputTarget::Control(ControlId::FixedColor(_)) => ch.to_ascii_uppercase(),
                 _ => ch,
             };
             input.buffer.push(ch);
@@ -528,29 +565,31 @@ fn append_text_input(state: &mut AppState, ch: char) {
     }
 }
 
-fn commit_text_input(state: &mut AppState) {
+fn commit_text_input(state: &mut AppState) -> Vec<Effect> {
     let Some(input) = state.ui.text_input.clone() else {
-        return;
+        return Vec::new();
     };
 
-    let result = match input.control {
-        ControlId::Param(key) => apply_param_input(state, key, &input.buffer),
-        ControlId::MixRatio(role) => apply_mix_ratio_input(state, role, &input.buffer),
-        ControlId::AdjustAmount(role) => apply_adjust_amount_input(state, role, &input.buffer),
-        ControlId::FixedColor(role) => apply_fixed_color_input(state, role, &input.buffer),
-        _ => Err(format!(
-            "{} does not support text input.",
-            input.control.label()
-        )),
+    let result = match input.target {
+        TextInputTarget::Control(control) => match control {
+            ControlId::Param(key) => apply_param_input(state, key, &input.buffer),
+            ControlId::MixRatio(role) => apply_mix_ratio_input(state, role, &input.buffer),
+            ControlId::AdjustAmount(role) => apply_adjust_amount_input(state, role, &input.buffer),
+            ControlId::FixedColor(role) => apply_fixed_color_input(state, role, &input.buffer),
+            _ => Err(format!("{} does not support text input.", control.label())),
+        },
+        TextInputTarget::Config(field) => apply_config_input(state, field, &input.buffer),
     };
 
     match result {
         Ok(status) => {
             state.ui.text_input = None;
             state.ui.status = status;
+            effects_for_text_target(state, input.target)
         }
         Err(err) => {
             state.ui.status = err;
+            Vec::new()
         }
     }
 }
@@ -691,14 +730,174 @@ fn try_mutate_rules(state: &mut AppState, update: impl FnOnce(&mut RuleSet)) -> 
 fn reset_state(state: &mut AppState) {
     state.domain.params = ThemeParams::default();
     state.domain.rules = RuleSet::default();
+    state.project.name = "Untitled Theme".to_string();
+    state.project.export_profiles = default_export_profiles();
     state.ui.selected_token = 0;
     state.ui.selected_param = 0;
     state.ui.inspector_field = 0;
     state.ui.text_input = None;
     state.ui.source_picker = None;
+    state.ui.config_modal = None;
     match state.recompute() {
         Ok(()) => state.ui.status = "Reset to defaults.".to_string(),
         Err(err) => state.ui.status = format!("Reset failed: {err}"),
+    }
+}
+
+fn effects_for_text_target(state: &AppState, target: TextInputTarget) -> Vec<Effect> {
+    match target {
+        TextInputTarget::Config(ConfigFieldId::EditorProjectPath) => {
+            vec![Effect::SaveEditorConfig {
+                data: EditorConfigData {
+                    config: state.editor_config(),
+                },
+            }]
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn input_target_label(target: TextInputTarget) -> String {
+    match target {
+        TextInputTarget::Control(control) => control.label().to_string(),
+        TextInputTarget::Config(field) => match field {
+            ConfigFieldId::ProjectName => "project name".to_string(),
+            ConfigFieldId::ExportEnabled(index) => format!("export target {}", index + 1),
+            ConfigFieldId::ExportOutputPath(index) => format!("export {} output path", index + 1),
+            ConfigFieldId::ExportTemplatePath(index) => {
+                format!("export {} template path", index + 1)
+            }
+            ConfigFieldId::EditorProjectPath => "project file path".to_string(),
+        },
+    }
+}
+
+fn open_config_modal(state: &mut AppState) {
+    state.ui.source_picker = None;
+    state.ui.text_input = None;
+    state.ui.config_modal = Some(ConfigModalState { selected_field: 0 });
+    state.ui.status = "Opened configuration panel.".to_string();
+}
+
+fn close_config_modal(state: &mut AppState) {
+    let was_open = state.ui.config_modal.take().is_some();
+    state.ui.text_input = None;
+    if was_open {
+        state.ui.status = "Configuration panel closed.".to_string();
+    }
+}
+
+fn move_config_selection(state: &mut AppState, delta: i32) {
+    let len = config_fields(state).len();
+    if len == 0 {
+        return;
+    }
+
+    if let Some(modal) = &mut state.ui.config_modal {
+        modal.selected_field = cycle_index(modal.selected_field.min(len - 1), len, delta);
+    }
+}
+
+fn activate_config_field(state: &mut AppState) -> Vec<Effect> {
+    let Some(modal) = &state.ui.config_modal else {
+        return Vec::new();
+    };
+
+    let fields = config_fields(state);
+    let Some(field) = fields
+        .get(modal.selected_field.min(fields.len().saturating_sub(1)))
+        .copied()
+    else {
+        return Vec::new();
+    };
+
+    if field.supports_text_input() {
+        open_text_input(state, TextInputTarget::Config(field));
+        return Vec::new();
+    }
+
+    match field {
+        ConfigFieldId::ExportEnabled(index) => {
+            if let Some(profile) = state.project.export_profiles.get_mut(index) {
+                profile.enabled = !profile.enabled;
+                let status = if profile.enabled {
+                    "enabled"
+                } else {
+                    "disabled"
+                };
+                state.ui.status = format!("{} {status}.", profile.name);
+            } else {
+                state.ui.status = format!("Missing export target {}.", index + 1);
+            }
+        }
+        ConfigFieldId::ProjectName
+        | ConfigFieldId::ExportOutputPath(_)
+        | ConfigFieldId::ExportTemplatePath(_)
+        | ConfigFieldId::EditorProjectPath => {}
+    }
+
+    Vec::new()
+}
+
+fn apply_config_input(
+    state: &mut AppState,
+    field: ConfigFieldId,
+    buffer: &str,
+) -> Result<String, String> {
+    let value = buffer.trim();
+    if value.is_empty() {
+        return Err("Input is empty.".to_string());
+    }
+
+    match field {
+        ConfigFieldId::ProjectName => {
+            state.project.name = value.to_string();
+            Ok(format!("Project name -> {}", state.project.name))
+        }
+        ConfigFieldId::EditorProjectPath => {
+            state.editor.project_path = value.into();
+            Ok(format!(
+                "Project file path -> {}",
+                state.editor.project_path.display()
+            ))
+        }
+        ConfigFieldId::ExportOutputPath(index) => {
+            let profile = state
+                .project
+                .export_profiles
+                .get_mut(index)
+                .ok_or_else(|| format!("Missing export target {}.", index + 1))?;
+            profile.output_path = value.into();
+            Ok(format!(
+                "{} output -> {}",
+                profile.name,
+                profile.output_path.display()
+            ))
+        }
+        ConfigFieldId::ExportTemplatePath(index) => {
+            let profile = state
+                .project
+                .export_profiles
+                .get_mut(index)
+                .ok_or_else(|| format!("Missing export target {}.", index + 1))?;
+            match &mut profile.format {
+                ExportFormat::Template { template_path } => {
+                    *template_path = value.into();
+                    Ok(format!(
+                        "{} template -> {}",
+                        profile.name,
+                        template_path.display()
+                    ))
+                }
+                ExportFormat::Alacritty => {
+                    Err(format!("{} does not use a template path.", profile.name))
+                }
+            }
+        }
+        ConfigFieldId::ExportEnabled(index) => Err(format!(
+            "Use Enter or Space to toggle export target {}.",
+            index + 1
+        )),
     }
 }
 
@@ -716,27 +915,64 @@ pub fn filtered_source_options(picker: &SourcePickerState) -> Vec<SourceOption> 
         .collect()
 }
 
-pub fn default_input_buffer(state: &AppState, control: ControlId) -> String {
-    match control {
-        ControlId::Param(key) => match key {
-            ParamKey::BackgroundHue | ParamKey::AccentHue => {
-                format!("{:.1}", key.get(&state.domain.params))
-            }
-            _ => format!("{:.0}", key.get(&state.domain.params) * 100.0),
-        },
-        ControlId::MixRatio(role) => match state.domain.rules.get(role) {
-            Some(Rule::Mix { ratio, .. }) => format!("{:.0}", ratio * 100.0),
+pub fn config_fields(state: &AppState) -> Vec<ConfigFieldId> {
+    let mut fields = vec![ConfigFieldId::ProjectName];
+    for (index, profile) in state.project.export_profiles.iter().enumerate() {
+        fields.push(ConfigFieldId::ExportEnabled(index));
+        fields.push(ConfigFieldId::ExportOutputPath(index));
+        if matches!(&profile.format, ExportFormat::Template { .. }) {
+            fields.push(ConfigFieldId::ExportTemplatePath(index));
+        }
+    }
+    fields.push(ConfigFieldId::EditorProjectPath);
+    fields
+}
+
+pub fn default_input_buffer(state: &AppState, target: TextInputTarget) -> String {
+    match target {
+        TextInputTarget::Control(control) => match control {
+            ControlId::Param(key) => match key {
+                ParamKey::BackgroundHue | ParamKey::AccentHue => {
+                    format!("{:.1}", key.get(&state.domain.params))
+                }
+                _ => format!("{:.0}", key.get(&state.domain.params) * 100.0),
+            },
+            ControlId::MixRatio(role) => match state.domain.rules.get(role) {
+                Some(Rule::Mix { ratio, .. }) => format!("{:.0}", ratio * 100.0),
+                _ => String::new(),
+            },
+            ControlId::AdjustAmount(role) => match state.domain.rules.get(role) {
+                Some(Rule::Adjust { amount, .. }) => format!("{:.0}", amount * 100.0),
+                _ => String::new(),
+            },
+            ControlId::FixedColor(role) => match state.domain.rules.get(role) {
+                Some(Rule::Fixed { color }) => color.to_hex(),
+                _ => String::new(),
+            },
             _ => String::new(),
         },
-        ControlId::AdjustAmount(role) => match state.domain.rules.get(role) {
-            Some(Rule::Adjust { amount, .. }) => format!("{:.0}", amount * 100.0),
-            _ => String::new(),
+        TextInputTarget::Config(field) => match field {
+            ConfigFieldId::ProjectName => state.project.name.clone(),
+            ConfigFieldId::EditorProjectPath => state.editor.project_path.display().to_string(),
+            ConfigFieldId::ExportOutputPath(index) => state
+                .project
+                .export_profiles
+                .get(index)
+                .map(|profile| profile.output_path.display().to_string())
+                .unwrap_or_default(),
+            ConfigFieldId::ExportTemplatePath(index) => state
+                .project
+                .export_profiles
+                .get(index)
+                .and_then(|profile| match &profile.format {
+                    ExportFormat::Template { template_path } => {
+                        Some(template_path.display().to_string())
+                    }
+                    ExportFormat::Alacritty => None,
+                })
+                .unwrap_or_default(),
+            ConfigFieldId::ExportEnabled(_) => String::new(),
         },
-        ControlId::FixedColor(role) => match state.domain.rules.get(role) {
-            Some(Rule::Fixed { color }) => color.to_hex(),
-            _ => String::new(),
-        },
-        _ => String::new(),
     }
 }
 
@@ -779,15 +1015,19 @@ fn parse_fraction_input(buffer: &str) -> Result<f32, String> {
     Ok(value.clamp(0.0, 1.0))
 }
 
-fn accepts_input_char(control: ControlId, ch: char, existing: &str) -> bool {
-    match control {
-        ControlId::Param(_) | ControlId::MixRatio(_) | ControlId::AdjustAmount(_) => {
-            ch.is_ascii_digit() || ch == '.' || ch == '%'
-        }
-        ControlId::FixedColor(_) => {
-            ch.is_ascii_hexdigit() || (ch == '#' && !existing.contains('#') && existing.is_empty())
-        }
-        _ => false,
+fn accepts_input_char(target: TextInputTarget, ch: char, existing: &str) -> bool {
+    match target {
+        TextInputTarget::Control(control) => match control {
+            ControlId::Param(_) | ControlId::MixRatio(_) | ControlId::AdjustAmount(_) => {
+                ch.is_ascii_digit() || ch == '.' || ch == '%'
+            }
+            ControlId::FixedColor(_) => {
+                ch.is_ascii_hexdigit()
+                    || (ch == '#' && !existing.contains('#') && existing.is_empty())
+            }
+            _ => false,
+        },
+        TextInputTarget::Config(_) => !ch.is_control(),
     }
 }
 

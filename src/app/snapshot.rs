@@ -1,3 +1,5 @@
+use serde::Serialize;
+
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::state::AppState;
 use crate::app::update::current_source_for_control;
@@ -5,7 +7,7 @@ use crate::domain::preview::sample_code;
 use crate::domain::rules::{AdjustOp, Rule, RuleKind, SourceRef, available_source_options};
 use crate::domain::tokens::{PaletteSlot, TokenRole};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AppSnapshot {
     pub window_title: String,
     pub status: String,
@@ -19,16 +21,15 @@ pub struct AppSnapshot {
     pub preview: Vec<PreviewLineSnapshot>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ProjectSnapshot {
     pub name: String,
     pub project_path: String,
-    pub export_profile_name: String,
-    pub export_format: String,
-    pub export_output_path: String,
+    pub export_targets_summary: String,
+    pub enabled_outputs_summary: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ThemeSnapshot {
     pub background_hex: String,
     pub surface_hex: String,
@@ -38,7 +39,7 @@ pub struct ThemeSnapshot {
     pub muted_hex: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TokenItemSnapshot {
     pub index: usize,
     pub id: String,
@@ -48,7 +49,7 @@ pub struct TokenItemSnapshot {
     pub selected: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ScalarFieldSnapshot {
     pub id: String,
     pub label: String,
@@ -59,7 +60,7 @@ pub struct ScalarFieldSnapshot {
     pub step: f32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct InspectorSnapshot {
     pub token_id: String,
     pub token_label: String,
@@ -68,14 +69,15 @@ pub struct InspectorSnapshot {
     pub fields: Vec<EditorFieldSnapshot>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum EditorFieldSnapshot {
     Choice(ChoiceFieldSnapshot),
     Scalar(ScalarFieldSnapshot),
     Color(ColorFieldSnapshot),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ChoiceFieldSnapshot {
     pub id: String,
     pub label: String,
@@ -84,13 +86,13 @@ pub struct ChoiceFieldSnapshot {
     pub options: Vec<ChoiceOptionSnapshot>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ChoiceOptionSnapshot {
     pub key: String,
     pub label: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ColorFieldSnapshot {
     pub id: String,
     pub label: String,
@@ -98,18 +100,18 @@ pub struct ColorFieldSnapshot {
     pub color_hex: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SwatchSnapshot {
     pub label: String,
     pub color_hex: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PreviewLineSnapshot {
     pub segments: Vec<PreviewSegmentSnapshot>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PreviewSegmentSnapshot {
     pub text: String,
     pub foreground_hex: String,
@@ -119,15 +121,9 @@ pub struct PreviewSegmentSnapshot {
 pub fn build_snapshot(state: &AppState) -> AppSnapshot {
     let project = ProjectSnapshot {
         name: state.project.name.clone(),
-        project_path: state.project.project_path.display().to_string(),
-        export_profile_name: state.project.export_profile.name.clone(),
-        export_format: state.project.export_profile.format_label().to_string(),
-        export_output_path: state
-            .project
-            .export_profile
-            .output_path
-            .display()
-            .to_string(),
+        project_path: state.editor.project_path.display().to_string(),
+        export_targets_summary: export_targets_summary(state),
+        enabled_outputs_summary: export_outputs_summary(state),
     };
     let theme = ThemeSnapshot {
         background_hex: state.theme_color(TokenRole::Background).to_hex(),
@@ -217,6 +213,38 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
         palette,
         resolved_tokens,
         preview,
+    }
+}
+
+fn export_targets_summary(state: &AppState) -> String {
+    let enabled = state
+        .project
+        .export_profiles
+        .iter()
+        .filter(|profile| profile.enabled)
+        .map(|profile| profile.name.as_str())
+        .collect::<Vec<_>>();
+
+    match enabled.as_slice() {
+        [] => "No targets enabled".to_string(),
+        [name] => format!("1 enabled: {name}"),
+        names if names.len() <= 3 => format!("{} enabled: {}", names.len(), names.join(", ")),
+        names => format!("{} targets enabled", names.len()),
+    }
+}
+
+fn export_outputs_summary(state: &AppState) -> String {
+    let enabled = state
+        .project
+        .export_profiles
+        .iter()
+        .filter(|profile| profile.enabled)
+        .collect::<Vec<_>>();
+
+    match enabled.as_slice() {
+        [] => "No output paths".to_string(),
+        [profile] => profile.output_path.display().to_string(),
+        profiles => format!("{} output paths configured", profiles.len()),
     }
 }
 

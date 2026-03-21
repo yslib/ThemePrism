@@ -7,6 +7,7 @@ use crate::app::snapshot::{AppSnapshot, build_snapshot};
 use crate::app::view::{ViewTree, build_view};
 use crate::app::{AppState, Effect, Intent, update};
 use crate::export::{ExportArtifact, export_with_profile};
+use crate::persistence::editor_config::save_editor_config;
 use crate::persistence::project_file::{load_project, save_project};
 
 #[derive(Debug)]
@@ -67,17 +68,35 @@ impl CoreSession {
                 let _ = path;
                 Intent::ProjectLoaded(result)
             }
-            Effect::ExportTheme { profile, theme } => {
-                let result = export_with_profile(&profile, &theme)
-                    .map_err(|err| err.to_string())
-                    .and_then(|content| {
+            Effect::SaveEditorConfig { data } => {
+                let result = save_editor_config(&data.config).map_err(|err| err.to_string());
+                Intent::EditorConfigSaved(result)
+            }
+            Effect::ExportTheme { profiles, theme } => {
+                let result = (|| -> Result<Vec<ExportArtifact>, String> {
+                    let enabled = profiles
+                        .into_iter()
+                        .filter(|profile| profile.enabled)
+                        .collect::<Vec<_>>();
+
+                    if enabled.is_empty() {
+                        return Err("no export targets are enabled".to_string());
+                    }
+
+                    let mut artifacts = Vec::new();
+                    for profile in enabled {
+                        let content =
+                            export_with_profile(&profile, &theme).map_err(|err| err.to_string())?;
                         write_export(&profile.output_path, &content)
-                            .map(|()| ExportArtifact {
-                                profile_name: profile.name.clone(),
-                                output_path: profile.output_path.clone(),
-                            })
-                            .map_err(|err| err.to_string())
-                    });
+                            .map_err(|err| err.to_string())?;
+                        artifacts.push(ExportArtifact {
+                            profile_name: profile.name.clone(),
+                            output_path: profile.output_path.clone(),
+                        });
+                    }
+
+                    Ok(artifacts)
+                })();
                 Intent::ThemeExported(result)
             }
         }

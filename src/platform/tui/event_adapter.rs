@@ -39,11 +39,24 @@ impl TuiEventAdapter {
             };
         }
 
+        if state.ui.config_modal.is_some() {
+            return match key.code {
+                KeyCode::Esc | KeyCode::Char('c') => vec![Intent::CloseConfigRequested],
+                KeyCode::Enter | KeyCode::Char('i') | KeyCode::Char(' ') => {
+                    vec![Intent::ActivateConfigField]
+                }
+                KeyCode::Up | KeyCode::Char('k') => vec![Intent::MoveConfigSelection(-1)],
+                KeyCode::Down | KeyCode::Char('j') => vec![Intent::MoveConfigSelection(1)],
+                _ => Vec::new(),
+            };
+        }
+
         let Some(control) = state.active_control() else {
             return match key.code {
                 KeyCode::Char('q') => vec![Intent::QuitRequested],
                 KeyCode::Tab => vec![Intent::MoveFocus(1)],
                 KeyCode::BackTab => vec![Intent::MoveFocus(-1)],
+                KeyCode::Char('c') => vec![Intent::OpenConfigRequested],
                 KeyCode::Char('s') => vec![Intent::SaveProjectRequested],
                 KeyCode::Char('o') => vec![Intent::LoadProjectRequested],
                 KeyCode::Char('e') => vec![Intent::ExportThemeRequested],
@@ -58,6 +71,7 @@ impl TuiEventAdapter {
             KeyCode::Char('q') => vec![Intent::QuitRequested],
             KeyCode::Tab => vec![Intent::MoveFocus(1)],
             KeyCode::BackTab => vec![Intent::MoveFocus(-1)],
+            KeyCode::Char('c') => vec![Intent::OpenConfigRequested],
             KeyCode::Char('s') => vec![Intent::SaveProjectRequested],
             KeyCode::Char('o') => vec![Intent::LoadProjectRequested],
             KeyCode::Char('e') => vec![Intent::ExportThemeRequested],

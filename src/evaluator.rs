@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
-use std::error::Error;
-use std::fmt;
+
+use thiserror::Error;
 
 use crate::color::Color;
 use crate::palette::Palette;
@@ -19,38 +19,25 @@ impl ResolvedTheme {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Error)]
 #[allow(dead_code)]
 pub enum EvalError {
+    #[error(
+        "rule cycle detected: {}",
+        .0.iter().map(|role| role.label()).collect::<Vec<_>>().join(" -> ")
+    )]
     CycleDetected(Vec<TokenRole>),
+    #[error("missing rule for {}", .0.label())]
     MissingRule(TokenRole),
+    #[error("missing palette slot {}", .0.label())]
     MissingPaletteSlot(PaletteSlot),
+    #[error("invalid mix ratio {0:.2}")]
     InvalidRatio(f32),
+    #[error("invalid adjust amount {0:.2}")]
     InvalidAmount(f32),
+    #[error("{0}")]
     InvalidSource(String),
 }
-
-impl fmt::Display for EvalError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::CycleDetected(path) => {
-                let labels = path
-                    .iter()
-                    .map(|role| role.label())
-                    .collect::<Vec<_>>()
-                    .join(" -> ");
-                write!(f, "rule cycle detected: {labels}")
-            }
-            Self::MissingRule(role) => write!(f, "missing rule for {}", role.label()),
-            Self::MissingPaletteSlot(slot) => write!(f, "missing palette slot {}", slot.label()),
-            Self::InvalidRatio(value) => write!(f, "invalid mix ratio {value:.2}"),
-            Self::InvalidAmount(value) => write!(f, "invalid adjust amount {value:.2}"),
-            Self::InvalidSource(message) => f.write_str(message),
-        }
-    }
-}
-
-impl Error for EvalError {}
 
 pub fn resolve_theme(palette: Palette, rules: &RuleSet) -> Result<ResolvedTheme, EvalError> {
     let mut resolver = Resolver {

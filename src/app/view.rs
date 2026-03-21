@@ -2,8 +2,8 @@ use crate::app::controls::{
     ChoiceControlSpec, ColorControlSpec, ControlId, ControlSpec, DisplayFieldSpec, ReferenceField,
     ReferencePickerControlSpec, ScalarControlSpec,
 };
-use crate::app::state::{AppState, FocusPane};
-use crate::app::update::{default_input_buffer, filtered_source_options};
+use crate::app::state::{AppState, ConfigFieldId, FocusPane, TextInputTarget};
+use crate::app::update::{config_fields, default_input_buffer, filtered_source_options};
 use crate::domain::color::Color;
 use crate::domain::preview::sample_code;
 use crate::domain::rules::Rule;
@@ -123,6 +123,7 @@ pub struct StatusBarView {
 #[derive(Debug, Clone)]
 pub enum OverlayView {
     Picker(PickerOverlayView),
+    Config(ConfigOverlayView),
 }
 
 #[derive(Debug, Clone)]
@@ -137,6 +138,21 @@ pub struct PickerOverlayView {
 #[derive(Debug, Clone)]
 pub struct PickerRowView {
     pub label: String,
+    pub is_header: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConfigOverlayView {
+    pub title: String,
+    pub rows: Vec<ConfigRowView>,
+    pub footer_lines: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConfigRowView {
+    pub label: String,
+    pub value_text: String,
+    pub selected: bool,
     pub is_header: bool,
 }
 
@@ -220,10 +236,9 @@ pub fn build_view(state: &AppState) -> ViewTree {
                 focus_label: state.ui.focus.label().to_string(),
                 help_text: status_help_text(state).to_string(),
                 status_text: format!(
-                    "{}  |  Export: {} -> {}",
+                    "{}  |  Exports: {}",
                     state.ui.status,
-                    state.project.export_profile.name,
-                    state.project.export_profile.output_path.display()
+                    export_status_summary(state)
                 ),
             }),
         ],
@@ -232,6 +247,9 @@ pub fn build_view(state: &AppState) -> ViewTree {
     let mut overlays = Vec::new();
     if let Some(picker) = build_picker_overlay(state) {
         overlays.push(OverlayView::Picker(picker));
+    }
+    if let Some(config) = build_config_overlay(state) {
+        overlays.push(OverlayView::Config(config));
     }
 
     ViewTree {
@@ -293,20 +311,16 @@ fn build_params_panel(state: &AppState) -> PanelView {
     });
     fields.push(FormFieldView {
         control: ControlSpec::Display(DisplayFieldSpec {
-            label: "Exporter".to_string(),
-            value_text: format!(
-                "{} ({})",
-                state.project.export_profile.name,
-                state.project.export_profile.format_label()
-            ),
+            label: "Exports".to_string(),
+            value_text: export_targets_summary(state),
             swatch: None,
         }),
         selected: false,
     });
     fields.push(FormFieldView {
         control: ControlSpec::Display(DisplayFieldSpec {
-            label: "Output".to_string(),
-            value_text: state.project.export_profile.output_path.display().to_string(),
+            label: "Outputs".to_string(),
+            value_text: export_outputs_summary(state),
             swatch: None,
         }),
         selected: false,
@@ -611,9 +625,138 @@ fn build_picker_overlay(state: &AppState) -> Option<PickerOverlayView> {
     })
 }
 
+fn build_config_overlay(state: &AppState) -> Option<ConfigOverlayView> {
+    let modal = state.ui.config_modal.as_ref()?;
+    let fields = config_fields(state);
+    let selected = fields
+        .get(modal.selected_field.min(fields.len().saturating_sub(1)))
+        .copied();
+
+    let mut rows = vec![
+        ConfigRowView {
+            label: "Project Config (saved with project)".to_string(),
+            value_text: String::new(),
+            selected: false,
+            is_header: true,
+        },
+        config_field_row(state, ConfigFieldId::ProjectName, selected),
+        ConfigRowView {
+            label: "Export Targets (saved with project)".to_string(),
+            value_text: String::new(),
+            selected: false,
+            is_header: true,
+        },
+    ];
+
+    for (index, profile) in state.project.export_profiles.iter().enumerate() {
+        rows.push(config_field_row(
+            state,
+            ConfigFieldId::ExportEnabled(index),
+            selected,
+        ));
+        rows.push(config_field_row(
+            state,
+            ConfigFieldId::ExportOutputPath(index),
+            selected,
+        ));
+        if matches!(
+            &profile.format,
+            crate::export::ExportFormat::Template { .. }
+        ) {
+            rows.push(config_field_row(
+                state,
+                ConfigFieldId::ExportTemplatePath(index),
+                selected,
+            ));
+        }
+    }
+
+    rows.push(ConfigRowView {
+        label: "Editor Config (local only)".to_string(),
+        value_text: String::new(),
+        selected: false,
+        is_header: true,
+    });
+    rows.push(config_field_row(
+        state,
+        ConfigFieldId::EditorProjectPath,
+        selected,
+    ));
+
+    Some(ConfigOverlayView {
+        title: "Configuration".to_string(),
+        rows,
+        footer_lines: vec![
+            "Enter edits text fields. Enter or Space toggles export targets.".to_string(),
+            "Project config is saved with the project file.".to_string(),
+            "Editor config stays local to this machine and editor instance.".to_string(),
+            "Esc closes the panel.".to_string(),
+        ],
+    })
+}
+
+fn config_field_row(
+    state: &AppState,
+    field: ConfigFieldId,
+    selected: Option<ConfigFieldId>,
+) -> ConfigRowView {
+    ConfigRowView {
+        label: config_field_label(field),
+        value_text: config_field_value(state, field),
+        selected: selected == Some(field),
+        is_header: false,
+    }
+}
+
+fn config_field_label(field: ConfigFieldId) -> String {
+    match field {
+        ConfigFieldId::ProjectName => "Project Name".to_string(),
+        ConfigFieldId::ExportEnabled(index) => format!("Target {}", index + 1),
+        ConfigFieldId::ExportOutputPath(index) => format!("Output {}", index + 1),
+        ConfigFieldId::ExportTemplatePath(index) => format!("Template {}", index + 1),
+        ConfigFieldId::EditorProjectPath => "Project File".to_string(),
+    }
+}
+
+fn config_field_value(state: &AppState, field: ConfigFieldId) -> String {
+    if let Some(input) = &state.ui.text_input {
+        if input.target == TextInputTarget::Config(field) {
+            return input_preview(&input.buffer);
+        }
+    }
+
+    match field {
+        ConfigFieldId::ProjectName => state.project.name.clone(),
+        ConfigFieldId::EditorProjectPath => state.editor.project_path.display().to_string(),
+        ConfigFieldId::ExportEnabled(index) => state
+            .project
+            .export_profiles
+            .get(index)
+            .map(|profile| profile.summary_label())
+            .unwrap_or_else(|| "Missing export target".to_string()),
+        ConfigFieldId::ExportOutputPath(index) => state
+            .project
+            .export_profiles
+            .get(index)
+            .map(|profile| profile.output_path.display().to_string())
+            .unwrap_or_else(|| "-".to_string()),
+        ConfigFieldId::ExportTemplatePath(index) => state
+            .project
+            .export_profiles
+            .get(index)
+            .and_then(|profile| match &profile.format {
+                crate::export::ExportFormat::Template { template_path } => {
+                    Some(template_path.display().to_string())
+                }
+                crate::export::ExportFormat::Alacritty => None,
+            })
+            .unwrap_or_else(|| "-".to_string()),
+    }
+}
+
 fn display_text_for_control(state: &AppState, control: ControlId) -> String {
     if let Some(input) = &state.ui.text_input {
-        if input.control == control {
+        if input.target == TextInputTarget::Control(control) {
             return input_preview(&input.buffer);
         }
     }
@@ -632,7 +775,7 @@ fn display_text_for_control(state: &AppState, control: ControlId) -> String {
             Some(Rule::Fixed { color }) => color.to_hex(),
             _ => String::new(),
         },
-        _ => default_input_buffer(state, control),
+        _ => default_input_buffer(state, TextInputTarget::Control(control)),
     }
 }
 
@@ -641,8 +784,10 @@ fn status_help_text(state: &AppState) -> &'static str {
         "↑↓ select  |  type to filter  |  Enter apply  |  Esc close"
     } else if state.ui.text_input.is_some() {
         "Enter apply  |  Esc cancel  |  Backspace delete"
+    } else if state.ui.config_modal.is_some() {
+        "↑↓ select  |  Enter edit/toggle  |  Space toggle  |  Esc close"
     } else {
-        "Tab focus  |  ↑↓ select  |  ←→ adjust  |  Enter/i activate  |  s save  |  o load  |  e export  |  r reset  |  q quit"
+        "Tab focus  |  ↑↓ select  |  ←→ adjust  |  Enter/i activate  |  c config  |  s save  |  o load  |  e export  |  r reset  |  q quit"
     }
 }
 
@@ -650,15 +795,19 @@ fn inspector_footer_text(state: &AppState) -> &'static str {
     if state.ui.source_picker.is_some() {
         "Filter sources by name. Tokens are common sources; palette slots are advanced."
     } else if let Some(input) = &state.ui.text_input {
-        match input.control {
-            ControlId::Param(_) => "Type a number. Percent fields accept 35 or 35%.",
-            ControlId::MixRatio(_) | ControlId::AdjustAmount(_) => {
+        match input.target {
+            TextInputTarget::Control(ControlId::Param(_)) => {
+                "Type a number. Percent fields accept 35 or 35%."
+            }
+            TextInputTarget::Control(ControlId::MixRatio(_))
+            | TextInputTarget::Control(ControlId::AdjustAmount(_)) => {
                 "Type 0.35 or 35%. Enter applies, Esc cancels."
             }
-            ControlId::FixedColor(_) => {
+            TextInputTarget::Control(ControlId::FixedColor(_)) => {
                 "Type a hex color like #C586C0. Enter applies, Esc cancels."
             }
-            _ => "Press Enter to apply or Esc to cancel.",
+            TextInputTarget::Config(_) => "Type text. Enter applies, Esc cancels.",
+            TextInputTarget::Control(_) => "Press Enter to apply or Esc to cancel.",
         }
     } else {
         match state.active_control() {
@@ -735,5 +884,54 @@ fn input_preview(buffer: &str) -> String {
         "_".to_string()
     } else {
         format!("{buffer}_")
+    }
+}
+
+fn export_targets_summary(state: &AppState) -> String {
+    let enabled = state
+        .project
+        .export_profiles
+        .iter()
+        .filter(|profile| profile.enabled)
+        .map(|profile| profile.name.as_str())
+        .collect::<Vec<_>>();
+
+    match enabled.as_slice() {
+        [] => "None enabled".to_string(),
+        [name] => format!("1 enabled: {name}"),
+        names if names.len() <= 3 => format!("{} enabled: {}", names.len(), names.join(", ")),
+        names => format!("{} enabled", names.len()),
+    }
+}
+
+fn export_outputs_summary(state: &AppState) -> String {
+    let enabled = state
+        .project
+        .export_profiles
+        .iter()
+        .filter(|profile| profile.enabled)
+        .collect::<Vec<_>>();
+
+    match enabled.as_slice() {
+        [] => "No export targets enabled".to_string(),
+        [profile] => profile.output_path.display().to_string(),
+        profiles => format!("{} output targets", profiles.len()),
+    }
+}
+
+fn export_status_summary(state: &AppState) -> String {
+    let enabled = state
+        .project
+        .export_profiles
+        .iter()
+        .filter(|profile| profile.enabled)
+        .map(|profile| profile.name.as_str())
+        .collect::<Vec<_>>();
+
+    match enabled.as_slice() {
+        [] => "none enabled".to_string(),
+        [name] => format!("{name} enabled"),
+        names if names.len() <= 3 => format!("{} enabled", names.join(", ")),
+        names => format!("{} targets enabled", names.len()),
     }
 }

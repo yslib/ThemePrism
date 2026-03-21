@@ -13,8 +13,9 @@ pub struct TemplateExporter {
 
 impl TemplateExporter {
     pub fn from_path(profile_name: &str, path: &Path) -> Result<Self, ExportError> {
-        let template = fs::read_to_string(path)
-            .map_err(|err| ExportError::Io(format!("failed to read template {}: {err}", path.display())))?;
+        let template = fs::read_to_string(path).map_err(|err| {
+            ExportError::Io(format!("failed to read template {}: {err}", path.display()))
+        })?;
         Ok(Self {
             profile_name: profile_name.to_string(),
             template,
@@ -43,7 +44,10 @@ impl Exporter for TemplateExporter {
 
         if let Some(start) = rendered.find("{{token.") {
             let tail = &rendered[start..];
-            let end = tail.find("}}").map(|index| start + index + 2).unwrap_or(rendered.len());
+            let end = tail
+                .find("}}")
+                .map(|index| start + index + 2)
+                .unwrap_or(rendered.len());
             let unknown = &rendered[start..end];
             return Err(ExportError::InvalidTemplate(format!(
                 "unknown template placeholder {unknown}"
@@ -81,38 +85,32 @@ fn encode_role(role: TokenRole) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::io::Write;
 
-    use crate::export::template::TemplateExporter;
-    use crate::export::Exporter;
-    use crate::params::ThemeParams;
-    use crate::palette::generate_palette;
-    use crate::rules::RuleSet;
     use crate::evaluator::resolve_theme;
+    use crate::export::Exporter;
+    use crate::export::template::TemplateExporter;
+    use crate::palette::generate_palette;
+    use crate::params::ThemeParams;
+    use crate::rules::RuleSet;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn template_exporter_replaces_token_placeholders() {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!("theme-template-{unique}.txt"));
-        fs::write(
-            &path,
-            "profile={{meta.profile_name}}\nbackground={{token.background}}\nkeyword={{token.keyword}}\n",
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(
+            b"profile={{meta.profile_name}}\nbackground={{token.background}}\nkeyword={{token.keyword}}\n",
         )
         .unwrap();
+        file.flush().unwrap();
 
         let params = ThemeParams::default();
         let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
-        let exporter = TemplateExporter::from_path("Test Profile", &path).unwrap();
+        let exporter = TemplateExporter::from_path("Test Profile", file.path()).unwrap();
         let output = exporter.export(&theme).unwrap();
 
         assert!(output.contains("profile=Test Profile"));
         assert!(output.contains("background=#"));
         assert!(output.contains("keyword=#"));
-
-        let _ = fs::remove_file(path);
     }
 }

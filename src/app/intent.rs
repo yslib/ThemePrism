@@ -50,5 +50,6 @@ pub enum Intent {
 
     ProjectSaved(Result<PathBuf, String>),
     ProjectLoaded(Result<ProjectData, String>),
+    EditorConfigSaved(Result<PathBuf, String>),
     ThemeExported(Result<Vec<ExportArtifact>, String>),
 }

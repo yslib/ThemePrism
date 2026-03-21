@@ -1,36 +1,26 @@
 use std::collections::BTreeMap;
-use std::error::Error;
-use std::fmt;
 use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::app::effect::ProjectData;
 use crate::color::Color;
-use crate::export::ExportProfile;
+use crate::export::{ExportProfile, default_export_profiles};
 use crate::params::ThemeParams;
 use crate::rules::{AdjustOp, Rule, RuleSet, SourceRef};
 use crate::tokens::{PaletteSlot, TokenRole};
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ProjectError {
+    #[error("{0}")]
     Io(String),
+    #[error("{0}")]
     Parse(String),
+    #[error("{0}")]
     InvalidData(String),
 }
-
-impl fmt::Display for ProjectError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Io(message) | Self::Parse(message) | Self::InvalidData(message) => {
-                f.write_str(message)
-            }
-        }
-    }
-}
-
-impl Error for ProjectError {}
 
 const CURRENT_PROJECT_VERSION: u32 = 1;
 
@@ -85,10 +75,7 @@ enum RuleFile {
     },
 }
 
-pub fn save_project(
-    path: &Path,
-    project: &ProjectData,
-) -> Result<(), ProjectError> {
+pub fn save_project(path: &Path, project: &ProjectData) -> Result<(), ProjectError> {
     let file = ProjectFile {
         version: CURRENT_PROJECT_VERSION,
         project: ProjectMeta {
@@ -142,7 +129,7 @@ pub fn load_project(path: &Path) -> Result<ProjectData, ProjectError> {
     } else if let Some(profile) = file.export {
         vec![profile]
     } else {
-        vec![ExportProfile::default()]
+        default_export_profiles()
     };
 
     Ok(ProjectData {
@@ -327,41 +314,37 @@ fn decode_palette_slot(value: &str) -> Option<PaletteSlot> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
     use crate::app::effect::ProjectData;
     use crate::export::{ExportFormat, ExportProfile};
     use crate::params::ThemeParams;
     use crate::persistence::project_file::{load_project, save_project};
     use crate::rules::RuleSet;
+    use tempfile::NamedTempFile;
 
     #[test]
-    fn project_file_round_trips_export_profile() {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!("theme-project-{unique}.toml"));
+    fn project_file_round_trips_export_profiles() {
+        let file = NamedTempFile::new().unwrap();
         let project = ProjectData {
             name: "Integration Theme".to_string(),
             params: ThemeParams::default(),
             rules: RuleSet::default(),
-            export_profile: ExportProfile {
-                name: "Custom Template".to_string(),
-                output_path: "exports/custom.conf".into(),
-                format: ExportFormat::Template {
-                    template_path: "templates/custom.txt".into(),
+            export_profiles: vec![
+                ExportProfile::alacritty_default(),
+                ExportProfile {
+                    name: "Custom Template".to_string(),
+                    enabled: true,
+                    output_path: "exports/custom.conf".into(),
+                    format: ExportFormat::Template {
+                        template_path: "templates/custom.txt".into(),
+                    },
                 },
-            },
+            ],
         };
 
-        save_project(&path, &project).unwrap();
-        let loaded = load_project(&path).unwrap();
+        save_project(file.path(), &project).unwrap();
+        let loaded = load_project(file.path()).unwrap();
 
         assert_eq!(loaded.name, project.name);
-        assert_eq!(loaded.export_profile, project.export_profile);
-
-        let _ = fs::remove_file(path);
+        assert_eq!(loaded.export_profiles, project.export_profiles);
     }
 }

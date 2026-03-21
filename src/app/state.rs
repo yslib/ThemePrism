@@ -1,5 +1,6 @@
-use std::fmt;
 use std::path::PathBuf;
+
+use thiserror::Error;
 
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::domain::color::Color;
@@ -9,6 +10,7 @@ use crate::domain::params::{ParamKey, ThemeParams};
 use crate::domain::rules::RuleSet;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
 use crate::export::{ExportProfile, default_export_profiles};
+use crate::persistence::editor_config::{DEFAULT_PROJECT_PATH, EditorConfig};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusPane {
@@ -68,13 +70,17 @@ pub enum ConfigFieldId {
     ExportEnabled(usize),
     ExportOutputPath(usize),
     ExportTemplatePath(usize),
+    EditorProjectPath,
 }
 
 impl ConfigFieldId {
     pub fn supports_text_input(self) -> bool {
         matches!(
             self,
-            Self::ProjectName | Self::ExportOutputPath(_) | Self::ExportTemplatePath(_)
+            Self::ProjectName
+                | Self::ExportOutputPath(_)
+                | Self::ExportTemplatePath(_)
+                | Self::EditorProjectPath
         )
     }
 }
@@ -108,8 +114,12 @@ pub struct UiState {
 #[derive(Debug, Clone)]
 pub struct ProjectState {
     pub name: String,
-    pub project_path: PathBuf,
     pub export_profiles: Vec<ExportProfile>,
+}
+
+#[derive(Debug, Clone)]
+pub struct EditorState {
+    pub project_path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -117,24 +127,12 @@ pub struct AppState {
     pub domain: DomainState,
     pub ui: UiState,
     pub project: ProjectState,
+    pub editor: EditorState,
 }
 
-#[derive(Debug)]
-pub struct AppStateError(EvalError);
-
-impl fmt::Display for AppStateError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl std::error::Error for AppStateError {}
-
-impl From<EvalError> for AppStateError {
-    fn from(value: EvalError) -> Self {
-        Self(value)
-    }
-}
+#[derive(Debug, Error)]
+#[error(transparent)]
+pub struct AppStateError(#[from] EvalError);
 
 impl AppState {
     pub fn new() -> Result<Self, AppStateError> {
@@ -163,8 +161,10 @@ impl AppState {
             },
             project: ProjectState {
                 name: "Untitled Theme".to_string(),
-                project_path: PathBuf::from("projects/theme-project.toml"),
                 export_profiles: default_export_profiles(),
+            },
+            editor: EditorState {
+                project_path: PathBuf::from(DEFAULT_PROJECT_PATH),
             },
         })
     }
@@ -173,6 +173,12 @@ impl AppState {
         self.domain.palette = generate_palette(&self.domain.params);
         self.domain.resolved = resolve_theme(self.domain.palette.clone(), &self.domain.rules)?;
         Ok(())
+    }
+
+    pub fn editor_config(&self) -> EditorConfig {
+        EditorConfig {
+            project_path: self.editor.project_path.clone(),
+        }
     }
 
     pub fn selected_role(&self) -> TokenRole {

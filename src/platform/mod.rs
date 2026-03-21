@@ -1,15 +1,17 @@
 pub mod gui;
 pub mod tui;
 
-use std::env;
-use std::error::Error;
 use std::fmt;
 use std::io::{self, Write};
 
+use clap::{ArgAction, Parser, ValueEnum, error::ErrorKind};
+use thiserror::Error;
+
 use crate::core::{AppState, CoreSession};
+use crate::persistence::editor_config::load_editor_config;
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum PlatformKind {
     Tui,
     Gui,
@@ -23,6 +25,12 @@ impl PlatformKind {
             Self::Tui => "TUI",
             Self::Gui => "GUI",
         }
+    }
+}
+
+impl fmt::Display for PlatformKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.label())
     }
 }
 
@@ -45,18 +53,56 @@ pub enum LaunchCommand {
     PrintHelp(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Parser)]
+#[command(
+    name = "theme",
+    about = "Generate terminal/editor themes from a shared color system.",
+    long_about = None,
+    disable_version_flag = true,
+    after_help = "No arguments: start tui.\n\
+--platform tui: explicitly start the TUI runtime.\n\
+--platform gui: start the GUI runtime when it becomes available."
+)]
+struct CliArgs {
+    #[arg(long, value_enum, conflicts_with_all = ["tui", "gui", "platform_positional"])]
+    platform: Option<PlatformKind>,
+
+    #[arg(long, action = ArgAction::SetTrue, conflicts_with_all = ["gui", "platform", "platform_positional"])]
+    tui: bool,
+
+    #[arg(long, action = ArgAction::SetTrue, conflicts_with_all = ["tui", "platform", "platform_positional"])]
+    gui: bool,
+
+    #[arg(value_enum, hide = true, conflicts_with_all = ["platform", "tui", "gui"])]
+    platform_positional: Option<PlatformKind>,
+}
+
+impl CliArgs {
+    fn into_launch_options(self) -> LaunchOptions {
+        let platform = self
+            .platform
+            .or(self.platform_positional)
+            .or_else(|| self.tui.then_some(PlatformKind::Tui))
+            .or_else(|| self.gui.then_some(PlatformKind::Gui))
+            .unwrap_or(PlatformKind::DEFAULT);
+
+        LaunchOptions { platform }
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum PlatformError {
+    #[error("{0}")]
     InvalidArgs(String),
+    #[error("failed to initialize app state: {0}")]
     StateInit(String),
+    #[error("{kind} platform is not enabled: {reason}")]
     Unavailable {
         kind: PlatformKind,
         reason: &'static str,
     },
-    Runtime {
-        kind: PlatformKind,
-        message: String,
-    },
+    #[error("{kind} platform failed: {message}")]
+    Runtime { kind: PlatformKind, message: String },
 }
 
 impl PlatformError {
@@ -68,23 +114,6 @@ impl PlatformError {
     }
 }
 
-impl fmt::Display for PlatformError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidArgs(message) => f.write_str(message),
-            Self::StateInit(message) => write!(f, "failed to initialize app state: {message}"),
-            Self::Unavailable { kind, reason } => {
-                write!(f, "{} platform is not enabled: {reason}", kind.label())
-            }
-            Self::Runtime { kind, message } => {
-                write!(f, "{} platform failed: {message}", kind.label())
-            }
-        }
-    }
-}
-
-impl Error for PlatformError {}
-
 pub trait PlatformRuntime {
     fn kind(&self) -> PlatformKind;
     fn launch(&self, session: CoreSession) -> Result<(), PlatformError>;
@@ -93,7 +122,7 @@ pub trait PlatformRuntime {
 pub fn run_entrypoint(
     state_factory: impl FnOnce() -> Result<AppState, PlatformError>,
 ) -> Result<(), PlatformError> {
-    run_entrypoint_with_writer(env::args().skip(1), io::stdout(), state_factory)
+    run_entrypoint_with_writer(std::env::args().skip(1), io::stdout(), state_factory)
 }
 
 fn run_entrypoint_with_writer(
@@ -103,11 +132,19 @@ fn run_entrypoint_with_writer(
 ) -> Result<(), PlatformError> {
     match resolve_launch_command(args)? {
         LaunchCommand::Run(options) => {
-            let state = state_factory()?;
+            let mut state = state_factory()?;
+            match load_editor_config() {
+                Ok(config) => {
+                    state.editor.project_path = config.project_path;
+                }
+                Err(err) => {
+                    state.ui.status = format!("Editor config load failed: {err}");
+                }
+            }
             launch(state, options)
         }
         LaunchCommand::PrintHelp(help) => {
-            writeln!(output, "{help}")
+            write!(output, "{help}")
                 .map_err(|err| PlatformError::runtime(PlatformKind::DEFAULT, err.to_string()))?;
             Ok(())
         }
@@ -155,82 +192,19 @@ pub fn registered_platforms() -> &'static [PlatformDescriptor] {
 pub fn resolve_launch_command(
     args: impl IntoIterator<Item = String>,
 ) -> Result<LaunchCommand, PlatformError> {
-    let mut selected = None;
-    let mut args = args.into_iter();
+    let argv = std::iter::once("theme".to_string())
+        .chain(args)
+        .collect::<Vec<_>>();
 
-    while let Some(arg) = args.next() {
-        match arg.as_str() {
-            "-h" | "--help" => return Ok(LaunchCommand::PrintHelp(usage_text())),
-            "--platform" => {
-                let value = args.next().ok_or_else(|| {
-                    PlatformError::InvalidArgs(
-                        "missing value for --platform\n\n".to_string() + &usage_text(),
-                    )
-                })?;
-                let kind = parse_platform_kind(&value)?;
-                set_platform(&mut selected, kind)?;
+    match CliArgs::try_parse_from(argv) {
+        Ok(cli) => Ok(LaunchCommand::Run(cli.into_launch_options())),
+        Err(error) => match error.kind() {
+            ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
+                Ok(LaunchCommand::PrintHelp(error.to_string()))
             }
-            "--tui" | "tui" => set_platform(&mut selected, PlatformKind::Tui)?,
-            "--gui" | "gui" => set_platform(&mut selected, PlatformKind::Gui)?,
-            other if other.starts_with('-') => {
-                return Err(PlatformError::InvalidArgs(format!(
-                    "unknown option: {other}\n\n{}",
-                    usage_text()
-                )));
-            }
-            other => {
-                return Err(PlatformError::InvalidArgs(format!(
-                    "unknown argument: {other}\n\n{}",
-                    usage_text()
-                )));
-            }
-        }
+            _ => Err(PlatformError::InvalidArgs(error.to_string())),
+        },
     }
-
-    Ok(LaunchCommand::Run(LaunchOptions {
-        platform: selected.unwrap_or(PlatformKind::DEFAULT),
-    }))
-}
-
-fn parse_platform_kind(value: &str) -> Result<PlatformKind, PlatformError> {
-    match value {
-        "tui" | "TUI" => Ok(PlatformKind::Tui),
-        "gui" | "GUI" => Ok(PlatformKind::Gui),
-        _ => Err(PlatformError::InvalidArgs(format!(
-            "unsupported platform: {value}\n\n{}",
-            usage_text()
-        ))),
-    }
-}
-
-fn set_platform(
-    selected: &mut Option<PlatformKind>,
-    next: PlatformKind,
-) -> Result<(), PlatformError> {
-    match selected {
-        Some(current) if *current != next => Err(PlatformError::InvalidArgs(format!(
-            "conflicting platform options: {} and {}\n\n{}",
-            current.label(),
-            next.label(),
-            usage_text()
-        ))),
-        Some(_) => Ok(()),
-        None => {
-            *selected = Some(next);
-            Ok(())
-        }
-    }
-}
-
-fn usage_text() -> String {
-    let default = PlatformKind::DEFAULT.label().to_ascii_lowercase();
-    format!(
-        "Usage: theme [--platform <tui|gui>] [--tui|--gui]\n\
-         \n\
-         No arguments: start {default}\n\
-         --platform tui: explicitly start the TUI runtime\n\
-         --platform gui: start the GUI runtime when it becomes available"
-    )
 }
 
 #[cfg(test)]
@@ -267,19 +241,24 @@ mod tests {
     #[test]
     fn rejects_unknown_platform() {
         let err = parse(&["--platform", "web"]).unwrap_err().to_string();
-        assert!(err.contains("unsupported platform"));
+        assert!(err.contains("invalid value"));
+        assert!(err.contains("tui"));
+        assert!(err.contains("gui"));
     }
 
     #[test]
     fn rejects_conflicting_platform_options() {
         let err = parse(&["--tui", "--gui"]).unwrap_err().to_string();
-        assert!(err.contains("conflicting platform options"));
+        assert!(err.contains("cannot be used with"));
     }
 
     #[test]
     fn help_is_a_successful_command() {
         match resolve_launch_command(["--help".to_string()]).unwrap() {
-            LaunchCommand::PrintHelp(help) => assert!(help.contains("Usage: theme")),
+            LaunchCommand::PrintHelp(help) => {
+                assert!(help.contains("Usage: theme"));
+                assert!(help.contains("--platform"));
+            }
             LaunchCommand::Run(_) => panic!("expected help output"),
         }
     }
@@ -294,5 +273,6 @@ mod tests {
 
         let text = String::from_utf8(output).unwrap();
         assert!(text.contains("Usage: theme"));
+        assert!(text.contains("No arguments: start tui."));
     }
 }

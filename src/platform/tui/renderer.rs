@@ -6,9 +6,10 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 
 use crate::app::controls::ControlSpec;
 use crate::app::view::{
-    Axis, CodePreviewView, FormFieldView, FormView, OverlayView, PanelBody, PanelView,
-    PickerOverlayView, SelectionListView, SelectionRowView, Size, SpanStyle, StatusBarView,
-    StyledLine, StyledSpan, SwatchItemView, SwatchListView, ViewNode, ViewTheme, ViewTree,
+    Axis, CodePreviewView, ConfigOverlayView, FormFieldView, FormView, OverlayView, PanelBody,
+    PanelView, PickerOverlayView, SelectionListView, SelectionRowView, Size, SpanStyle,
+    StatusBarView, StyledLine, StyledSpan, SwatchItemView, SwatchListView, ViewNode, ViewTheme,
+    ViewTree,
 };
 use crate::domain::color::Color;
 
@@ -255,6 +256,7 @@ impl TuiRenderer {
     ) {
         match overlay {
             OverlayView::Picker(view) => self.render_picker(frame, area, view, theme),
+            OverlayView::Config(view) => self.render_config(frame, area, view, theme),
         }
     }
 
@@ -340,6 +342,76 @@ impl TuiRenderer {
                 ),
             ])),
             sections[2],
+        );
+    }
+
+    fn render_config(
+        self,
+        frame: &mut Frame,
+        area: Rect,
+        overlay: &ConfigOverlayView,
+        theme: &ViewTheme,
+    ) {
+        let area = centered_rect(68, 74, area);
+        frame.render_widget(Clear, area);
+
+        let block = Block::default()
+            .title(overlay.title.as_str())
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(tui(theme.selection)))
+            .style(Style::default().bg(tui(theme.surface)).fg(tui(theme.text)));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let footer_height = overlay.footer_lines.len() as u16 + 1;
+        let sections = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(8), Constraint::Length(footer_height)])
+            .split(inner);
+
+        let rows = overlay
+            .rows
+            .iter()
+            .map(|row| {
+                if row.is_header {
+                    Line::from(Span::styled(
+                        row.label.as_str(),
+                        Style::default()
+                            .fg(tui(theme.text_muted))
+                            .add_modifier(Modifier::BOLD),
+                    ))
+                } else {
+                    let style = if row.selected {
+                        Style::default()
+                            .bg(tui(theme.selection))
+                            .fg(tui(theme.background))
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(tui(theme.text))
+                    };
+                    Line::from(vec![
+                        Span::styled(if row.selected { "> " } else { "  " }, style),
+                        Span::styled(format!("{:<12}", row.label), style),
+                        Span::styled(row.value_text.clone(), style),
+                    ])
+                }
+            })
+            .collect::<Vec<_>>();
+        frame.render_widget(Paragraph::new(rows).wrap(Wrap { trim: false }), sections[0]);
+
+        let footer = overlay
+            .footer_lines
+            .iter()
+            .map(|line| {
+                Line::from(Span::styled(
+                    line.as_str(),
+                    Style::default().fg(tui(theme.text_muted)),
+                ))
+            })
+            .collect::<Vec<_>>();
+        frame.render_widget(
+            Paragraph::new(footer).wrap(Wrap { trim: false }),
+            sections[1],
         );
     }
 }

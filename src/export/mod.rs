@@ -1,11 +1,10 @@
 pub mod alacritty;
 pub mod template;
 
-use std::error::Error;
-use std::fmt;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::evaluator::ResolvedTheme;
 use crate::export::alacritty::AlacrittyExporter;
@@ -29,9 +28,7 @@ pub struct ExportProfile {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ExportFormat {
     Alacritty,
-    Template {
-        template_path: PathBuf,
-    },
+    Template { template_path: PathBuf },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,24 +96,15 @@ pub fn export_with_profile(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 #[allow(dead_code)]
 pub enum ExportError {
+    #[error("missing token {0}")]
     MissingToken(String),
+    #[error("{0}")]
     SerializeError(String),
+    #[error("{0}")]
     Io(String),
+    #[error("{0}")]
     InvalidTemplate(String),
 }
-
-impl fmt::Display for ExportError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MissingToken(token) => write!(f, "missing token {token}"),
-            Self::SerializeError(message)
-            | Self::Io(message)
-            | Self::InvalidTemplate(message) => f.write_str(message),
-        }
-    }
-}
-
-impl Error for ExportError {}

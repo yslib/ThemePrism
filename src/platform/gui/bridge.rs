@@ -1,9 +1,5 @@
 use crate::app::controls::{ControlId, ReferenceField};
-use crate::app::snapshot::{
-    AppSnapshot, ChoiceFieldSnapshot, ChoiceOptionSnapshot, ColorFieldSnapshot,
-    EditorFieldSnapshot, PreviewLineSnapshot, PreviewSegmentSnapshot, ProjectSnapshot,
-    ScalarFieldSnapshot, SwatchSnapshot, ThemeSnapshot,
-};
+use crate::app::snapshot::AppSnapshot;
 #[cfg(test)]
 use crate::core::AppState;
 use crate::core::{CoreSession, Intent};
@@ -34,7 +30,9 @@ impl GuiBridgeSession {
     pub fn dispatch(&mut self, command: &str) {
         match parse_command(command) {
             Ok(intent) => self.core.dispatch(intent),
-            Err(message) => self.core.set_status(format!("GUI command rejected: {message}")),
+            Err(message) => self
+                .core
+                .set_status(format!("GUI command rejected: {message}")),
         }
     }
 
@@ -269,172 +267,7 @@ fn parse_source_ref(raw: &str) -> Result<SourceRef, String> {
 }
 
 pub fn snapshot_to_json(snapshot: &AppSnapshot) -> String {
-    let tokens = join_json(snapshot.tokens.iter().map(token_to_json));
-    let params = join_json(snapshot.params.iter().map(scalar_to_json));
-    let fields = join_json(snapshot.inspector.fields.iter().map(editor_field_to_json));
-    let palette = join_json(snapshot.palette.iter().map(swatch_to_json));
-    let resolved = join_json(snapshot.resolved_tokens.iter().map(swatch_to_json));
-    let preview = join_json(snapshot.preview.iter().map(preview_line_to_json));
-
-    format!(
-        "{{\"window_title\":{},\"status\":{},\"project\":{},\"theme\":{},\"tokens\":[{}],\"params\":[{}],\"inspector\":{{\"token_id\":{},\"token_label\":{},\"token_color_hex\":{},\"rule_summary\":{},\"fields\":[{}]}} ,\"palette\":[{}],\"resolved_tokens\":[{}],\"preview\":[{}]}}",
-        json_string(&snapshot.window_title),
-        json_string(&snapshot.status),
-        project_to_json(&snapshot.project),
-        theme_to_json(&snapshot.theme),
-        tokens,
-        params,
-        json_string(&snapshot.inspector.token_id),
-        json_string(&snapshot.inspector.token_label),
-        json_string(&snapshot.inspector.token_color_hex),
-        json_string(&snapshot.inspector.rule_summary),
-        fields,
-        palette,
-        resolved,
-        preview,
-    )
-}
-
-fn project_to_json(project: &ProjectSnapshot) -> String {
-    format!(
-        "{{\"name\":{},\"project_path\":{},\"export_profile_name\":{},\"export_format\":{},\"export_output_path\":{}}}",
-        json_string(&project.name),
-        json_string(&project.project_path),
-        json_string(&project.export_profile_name),
-        json_string(&project.export_format),
-        json_string(&project.export_output_path),
-    )
-}
-
-fn token_to_json(token: &crate::app::snapshot::TokenItemSnapshot) -> String {
-    format!(
-        "{{\"index\":{},\"id\":{},\"label\":{},\"category\":{},\"color_hex\":{},\"selected\":{}}}",
-        token.index,
-        json_string(&token.id),
-        json_string(&token.label),
-        json_string(&token.category),
-        json_string(&token.color_hex),
-        json_bool(token.selected),
-    )
-}
-
-fn theme_to_json(theme: &ThemeSnapshot) -> String {
-    format!(
-        "{{\"background_hex\":{},\"surface_hex\":{},\"border_hex\":{},\"selection_hex\":{},\"text_hex\":{},\"muted_hex\":{}}}",
-        json_string(&theme.background_hex),
-        json_string(&theme.surface_hex),
-        json_string(&theme.border_hex),
-        json_string(&theme.selection_hex),
-        json_string(&theme.text_hex),
-        json_string(&theme.muted_hex),
-    )
-}
-
-fn editor_field_to_json(field: &EditorFieldSnapshot) -> String {
-    match field {
-        EditorFieldSnapshot::Choice(choice) => choice_to_json(choice),
-        EditorFieldSnapshot::Scalar(scalar) => {
-            format!("{{\"kind\":\"scalar\",{}}}", scalar_json_body(scalar))
-        }
-        EditorFieldSnapshot::Color(color) => color_field_to_json(color),
-    }
-}
-
-fn scalar_to_json(field: &ScalarFieldSnapshot) -> String {
-    format!("{{\"kind\":\"scalar\",{}}}", scalar_json_body(field))
-}
-
-fn scalar_json_body(field: &ScalarFieldSnapshot) -> String {
-    format!(
-        "\"id\":{},\"label\":{},\"value_text\":{},\"current\":{},\"min\":{},\"max\":{},\"step\":{}",
-        json_string(&field.id),
-        json_string(&field.label),
-        json_string(&field.value_text),
-        field.current,
-        field.min,
-        field.max,
-        field.step,
-    )
-}
-
-fn choice_to_json(field: &ChoiceFieldSnapshot) -> String {
-    let options = join_json(field.options.iter().map(choice_option_to_json));
-    format!(
-        "{{\"kind\":\"choice\",\"id\":{},\"label\":{},\"value_text\":{},\"selected_key\":{},\"options\":[{}]}}",
-        json_string(&field.id),
-        json_string(&field.label),
-        json_string(&field.value_text),
-        json_string(&field.selected_key),
-        options,
-    )
-}
-
-fn choice_option_to_json(option: &ChoiceOptionSnapshot) -> String {
-    format!(
-        "{{\"key\":{},\"label\":{}}}",
-        json_string(&option.key),
-        json_string(&option.label),
-    )
-}
-
-fn color_field_to_json(field: &ColorFieldSnapshot) -> String {
-    format!(
-        "{{\"kind\":\"color\",\"id\":{},\"label\":{},\"value_text\":{},\"color_hex\":{}}}",
-        json_string(&field.id),
-        json_string(&field.label),
-        json_string(&field.value_text),
-        json_string(&field.color_hex),
-    )
-}
-
-fn swatch_to_json(swatch: &SwatchSnapshot) -> String {
-    format!(
-        "{{\"label\":{},\"color_hex\":{}}}",
-        json_string(&swatch.label),
-        json_string(&swatch.color_hex),
-    )
-}
-
-fn preview_line_to_json(line: &PreviewLineSnapshot) -> String {
-    let segments = join_json(line.segments.iter().map(preview_segment_to_json));
-    format!("{{\"segments\":[{}]}}", segments)
-}
-
-fn preview_segment_to_json(segment: &PreviewSegmentSnapshot) -> String {
-    format!(
-        "{{\"text\":{},\"foreground_hex\":{},\"background_hex\":{}}}",
-        json_string(&segment.text),
-        json_string(&segment.foreground_hex),
-        json_string(&segment.background_hex),
-    )
-}
-
-fn join_json(items: impl IntoIterator<Item = String>) -> String {
-    items.into_iter().collect::<Vec<_>>().join(",")
-}
-
-fn json_string(value: &str) -> String {
-    format!("\"{}\"", escape_json(value))
-}
-
-fn json_bool(value: bool) -> &'static str {
-    if value { "true" } else { "false" }
-}
-
-fn escape_json(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    for ch in value.chars() {
-        match ch {
-            '\\' => out.push_str("\\\\"),
-            '"' => out.push_str("\\\""),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            ch if ch.is_control() => out.push_str(&format!("\\u{:04X}", ch as u32)),
-            ch => out.push(ch),
-        }
-    }
-    out
+    serde_json::to_string(snapshot).expect("app snapshot should serialize to JSON")
 }
 
 #[cfg(test)]

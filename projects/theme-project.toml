@@ -1,7 +1,7 @@
 version = 1
 
 [project]
-name = "Untitled Theme"
+name = "Studio Theme"
 
 [params]
 background_hue = 220.0
@@ -98,9 +98,19 @@ source = "Text"
 type = "alias"
 source = "accent_2"
 
-[export]
+[[exports]]
 name = "Alacritty"
+enabled = true
 output_path = "exports/alacritty-theme.toml"
 
-[export.format]
+[exports.format]
 type = "alacritty"
+
+[[exports]]
+name = "Template"
+enabled = true
+output_path = "exports/theme-template.txt"
+
+[exports.format]
+type = "template"
+template_path = "templates/generic-theme.txt"

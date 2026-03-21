@@ -47,7 +47,10 @@ impl PlatformRuntime for TuiPlatform {
     }
 }
 
-fn run_terminal<B: Backend>(terminal: &mut Terminal<B>, mut session: CoreSession) -> io::Result<()> {
+fn run_terminal<B: Backend>(
+    terminal: &mut Terminal<B>,
+    mut session: CoreSession,
+) -> io::Result<()> {
     let adapter = TuiEventAdapter;
     let renderer = TuiRenderer;
 
