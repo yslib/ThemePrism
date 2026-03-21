@@ -9,10 +9,9 @@ pub use domain::{color, evaluator, palette, params, preview, rules, tokens};
 use std::error::Error;
 
 use crate::app::AppState;
-use crate::platform::launch_from_env;
+use crate::platform::{PlatformError, run_entrypoint};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let state = AppState::new()?;
-    launch_from_env(state)?;
+    run_entrypoint(|| AppState::new().map_err(|err| PlatformError::StateInit(err.to_string())))?;
     Ok(())
 }

@@ -4,6 +4,7 @@ pub mod tui;
 use std::env;
 use std::error::Error;
 use std::fmt;
+use std::io::{self, Write};
 
 use crate::app::AppState;
 
@@ -38,9 +39,16 @@ pub struct LaunchOptions {
     pub platform: PlatformKind,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LaunchCommand {
+    Run(LaunchOptions),
+    PrintHelp(String),
+}
+
 #[derive(Debug)]
 pub enum PlatformError {
     InvalidArgs(String),
+    StateInit(String),
     Unavailable {
         kind: PlatformKind,
         reason: &'static str,
@@ -64,6 +72,7 @@ impl fmt::Display for PlatformError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidArgs(message) => f.write_str(message),
+            Self::StateInit(message) => write!(f, "failed to initialize app state: {message}"),
             Self::Unavailable { kind, reason } => {
                 write!(f, "{} platform is not enabled: {reason}", kind.label())
             }
@@ -81,9 +90,28 @@ pub trait PlatformRuntime {
     fn launch(&self, state: AppState) -> Result<(), PlatformError>;
 }
 
-pub fn launch_from_env(state: AppState) -> Result<(), PlatformError> {
-    let options = parse_launch_options(env::args().skip(1))?;
-    launch(state, options)
+pub fn run_entrypoint(
+    state_factory: impl FnOnce() -> Result<AppState, PlatformError>,
+) -> Result<(), PlatformError> {
+    run_entrypoint_with_writer(env::args().skip(1), io::stdout(), state_factory)
+}
+
+fn run_entrypoint_with_writer(
+    args: impl IntoIterator<Item = String>,
+    mut output: impl Write,
+    state_factory: impl FnOnce() -> Result<AppState, PlatformError>,
+) -> Result<(), PlatformError> {
+    match resolve_launch_command(args)? {
+        LaunchCommand::Run(options) => {
+            let state = state_factory()?;
+            launch(state, options)
+        }
+        LaunchCommand::PrintHelp(help) => {
+            writeln!(output, "{help}")
+                .map_err(|err| PlatformError::runtime(PlatformKind::DEFAULT, err.to_string()))?;
+            Ok(())
+        }
+    }
 }
 
 pub fn launch(state: AppState, options: LaunchOptions) -> Result<(), PlatformError> {
@@ -124,15 +152,15 @@ pub fn registered_platforms() -> &'static [PlatformDescriptor] {
     ]
 }
 
-pub fn parse_launch_options(
+pub fn resolve_launch_command(
     args: impl IntoIterator<Item = String>,
-) -> Result<LaunchOptions, PlatformError> {
+) -> Result<LaunchCommand, PlatformError> {
     let mut selected = None;
     let mut args = args.into_iter();
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "-h" | "--help" => return Err(PlatformError::InvalidArgs(usage_text())),
+            "-h" | "--help" => return Ok(LaunchCommand::PrintHelp(usage_text())),
             "--platform" => {
                 let value = args.next().ok_or_else(|| {
                     PlatformError::InvalidArgs(
@@ -159,9 +187,9 @@ pub fn parse_launch_options(
         }
     }
 
-    Ok(LaunchOptions {
+    Ok(LaunchCommand::Run(LaunchOptions {
         platform: selected.unwrap_or(PlatformKind::DEFAULT),
-    })
+    }))
 }
 
 fn parse_platform_kind(value: &str) -> Result<PlatformKind, PlatformError> {
@@ -207,11 +235,16 @@ fn usage_text() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{PlatformError, PlatformKind, parse_launch_options};
+    use super::{
+        LaunchCommand, PlatformError, PlatformKind, resolve_launch_command,
+        run_entrypoint_with_writer,
+    };
 
     fn parse(args: &[&str]) -> Result<PlatformKind, PlatformError> {
-        parse_launch_options(args.iter().map(|arg| (*arg).to_string()))
-            .map(|options| options.platform)
+        match resolve_launch_command(args.iter().map(|arg| (*arg).to_string()))? {
+            LaunchCommand::Run(options) => Ok(options.platform),
+            LaunchCommand::PrintHelp(_) => panic!("expected a run command"),
+        }
     }
 
     #[test]
@@ -241,5 +274,25 @@ mod tests {
     fn rejects_conflicting_platform_options() {
         let err = parse(&["--tui", "--gui"]).unwrap_err().to_string();
         assert!(err.contains("conflicting platform options"));
+    }
+
+    #[test]
+    fn help_is_a_successful_command() {
+        match resolve_launch_command(["--help".to_string()]).unwrap() {
+            LaunchCommand::PrintHelp(help) => assert!(help.contains("Usage: theme")),
+            LaunchCommand::Run(_) => panic!("expected help output"),
+        }
+    }
+
+    #[test]
+    fn entrypoint_prints_help_without_building_state() {
+        let mut output = Vec::new();
+        run_entrypoint_with_writer(["--help".to_string()], &mut output, || {
+            Err(PlatformError::StateInit("should not run".to_string()))
+        })
+        .unwrap();
+
+        let text = String::from_utf8(output).unwrap();
+        assert!(text.contains("Usage: theme"));
     }
 }
