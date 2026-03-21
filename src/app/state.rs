@@ -10,7 +10,7 @@ use crate::domain::params::{ParamKey, ThemeParams};
 use crate::domain::rules::RuleSet;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
 use crate::export::{ExportProfile, default_export_profiles};
-use crate::persistence::editor_config::{DEFAULT_PROJECT_PATH, EditorConfig};
+use crate::persistence::editor_config::{DEFAULT_PROJECT_PATH, EditorConfig, EditorStartupFocus};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusPane {
@@ -71,6 +71,9 @@ pub enum ConfigFieldId {
     ExportOutputPath(usize),
     ExportTemplatePath(usize),
     EditorProjectPath,
+    EditorAutoLoadProject,
+    EditorAutoSaveOnExport,
+    EditorStartupFocus,
 }
 
 impl ConfigFieldId {
@@ -120,6 +123,9 @@ pub struct ProjectState {
 #[derive(Debug, Clone)]
 pub struct EditorState {
     pub project_path: PathBuf,
+    pub auto_load_project_on_startup: bool,
+    pub auto_save_project_on_export: bool,
+    pub startup_focus: FocusPane,
 }
 
 #[derive(Debug, Clone)]
@@ -165,6 +171,9 @@ impl AppState {
             },
             editor: EditorState {
                 project_path: PathBuf::from(DEFAULT_PROJECT_PATH),
+                auto_load_project_on_startup: false,
+                auto_save_project_on_export: false,
+                startup_focus: FocusPane::Tokens,
             },
         })
     }
@@ -178,7 +187,29 @@ impl AppState {
     pub fn editor_config(&self) -> EditorConfig {
         EditorConfig {
             project_path: self.editor.project_path.clone(),
+            auto_load_project_on_startup: self.editor.auto_load_project_on_startup,
+            auto_save_project_on_export: self.editor.auto_save_project_on_export,
+            startup_focus: self.editor.startup_focus.into(),
         }
+    }
+
+    pub fn apply_project_data(
+        &mut self,
+        project: crate::app::effect::ProjectData,
+    ) -> Result<(), String> {
+        self.project.name = project.name;
+        self.domain.params = project.params;
+        self.domain.rules = project.rules;
+        self.project.export_profiles = project.export_profiles;
+        self.ui.text_input = None;
+        self.ui.source_picker = None;
+        self.ui.config_modal = None;
+        self.recompute().map_err(|err| err.to_string())?;
+        self.ui.inspector_field = self
+            .ui
+            .inspector_field
+            .min(self.inspector_field_count().saturating_sub(1));
+        Ok(())
     }
 
     pub fn selected_role(&self) -> TokenRole {
@@ -292,5 +323,25 @@ impl AppState {
             Color::from_hex("#C77DFF").expect("valid color"),
         ]);
         options
+    }
+}
+
+impl From<EditorStartupFocus> for FocusPane {
+    fn from(value: EditorStartupFocus) -> Self {
+        match value {
+            EditorStartupFocus::Tokens => Self::Tokens,
+            EditorStartupFocus::Params => Self::Params,
+            EditorStartupFocus::Inspector => Self::Inspector,
+        }
+    }
+}
+
+impl From<FocusPane> for EditorStartupFocus {
+    fn from(value: FocusPane) -> Self {
+        match value {
+            FocusPane::Tokens => Self::Tokens,
+            FocusPane::Params => Self::Params,
+            FocusPane::Inspector => Self::Inspector,
+        }
     }
 }

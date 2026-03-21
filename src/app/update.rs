@@ -96,6 +96,12 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             set_fixed_color(state, role, color);
             Vec::new()
         }
+        Intent::SetEditorProjectPath(path) => set_editor_project_path(state, path),
+        Intent::SetEditorAutoLoadProject(enabled) => set_editor_auto_load_project(state, enabled),
+        Intent::SetEditorAutoSaveOnExport(enabled) => {
+            set_editor_auto_save_on_export(state, enabled)
+        }
+        Intent::SetEditorStartupFocus(focus) => set_editor_startup_focus(state, focus),
         Intent::AppendTextInput(ch) => {
             append_text_input(state, ch);
             Vec::new()
@@ -165,22 +171,21 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             Vec::new()
         }
         Intent::ActivateConfigField => activate_config_field(state),
-        Intent::SaveProjectRequested => vec![Effect::SaveProject {
-            path: state.editor.project_path.clone(),
-            project: ProjectData {
-                name: state.project.name.clone(),
-                params: state.domain.params.clone(),
-                rules: state.domain.rules.clone(),
-                export_profiles: state.project.export_profiles.clone(),
-            },
-        }],
+        Intent::SaveProjectRequested => vec![save_project_effect(state)],
         Intent::LoadProjectRequested => vec![Effect::LoadProject {
             path: state.editor.project_path.clone(),
         }],
-        Intent::ExportThemeRequested => vec![Effect::ExportTheme {
-            profiles: state.project.export_profiles.clone(),
-            theme: state.domain.resolved.clone(),
-        }],
+        Intent::ExportThemeRequested => {
+            let mut effects = Vec::new();
+            if state.editor.auto_save_project_on_export {
+                effects.push(save_project_effect(state));
+            }
+            effects.push(Effect::ExportTheme {
+                profiles: state.project.export_profiles.clone(),
+                theme: state.domain.resolved.clone(),
+            });
+            effects
+        }
         Intent::ResetRequested => {
             reset_state(state);
             Vec::new()
@@ -194,30 +199,17 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         }
         Intent::ProjectLoaded(result) => {
             match result {
-                Ok(project) => {
-                    state.project.name = project.name;
-                    state.domain.params = project.params;
-                    state.domain.rules = project.rules;
-                    state.project.export_profiles = project.export_profiles;
-                    state.ui.text_input = None;
-                    state.ui.source_picker = None;
-                    state.ui.config_modal = None;
-                    match state.recompute() {
-                        Ok(()) => {
-                            state.ui.inspector_field = state
-                                .ui
-                                .inspector_field
-                                .min(state.inspector_field_count().saturating_sub(1));
-                            state.ui.status = format!(
-                                "Loaded project from {}",
-                                state.editor.project_path.display()
-                            );
-                        }
-                        Err(err) => {
-                            state.ui.status = format!("Load recompute failed: {err}");
-                        }
+                Ok(project) => match state.apply_project_data(project) {
+                    Ok(()) => {
+                        state.ui.status = format!(
+                            "Loaded project from {}",
+                            state.editor.project_path.display()
+                        );
                     }
-                }
+                    Err(err) => {
+                        state.ui.status = format!("Load recompute failed: {err}");
+                    }
+                },
                 Err(err) => {
                     state.ui.status = format!("Load failed: {err}");
                 }
@@ -744,15 +736,70 @@ fn reset_state(state: &mut AppState) {
     }
 }
 
+fn save_project_effect(state: &AppState) -> Effect {
+    Effect::SaveProject {
+        path: state.editor.project_path.clone(),
+        project: ProjectData {
+            name: state.project.name.clone(),
+            params: state.domain.params.clone(),
+            rules: state.domain.rules.clone(),
+            export_profiles: state.project.export_profiles.clone(),
+        },
+    }
+}
+
+fn save_editor_config_effects(state: &AppState) -> Vec<Effect> {
+    vec![Effect::SaveEditorConfig {
+        data: EditorConfigData {
+            config: state.editor_config(),
+        },
+    }]
+}
+
+fn set_editor_project_path(state: &mut AppState, path: std::path::PathBuf) -> Vec<Effect> {
+    state.editor.project_path = path;
+    state.ui.status = format!(
+        "Project file path -> {}",
+        state.editor.project_path.display()
+    );
+    save_editor_config_effects(state)
+}
+
+fn set_editor_auto_load_project(state: &mut AppState, enabled: bool) -> Vec<Effect> {
+    state.editor.auto_load_project_on_startup = enabled;
+    state.ui.status = if enabled {
+        "Auto-load project on startup enabled.".to_string()
+    } else {
+        "Auto-load project on startup disabled.".to_string()
+    };
+    save_editor_config_effects(state)
+}
+
+fn set_editor_auto_save_on_export(state: &mut AppState, enabled: bool) -> Vec<Effect> {
+    state.editor.auto_save_project_on_export = enabled;
+    state.ui.status = if enabled {
+        "Auto-save project on export enabled.".to_string()
+    } else {
+        "Auto-save project on export disabled.".to_string()
+    };
+    save_editor_config_effects(state)
+}
+
+fn set_editor_startup_focus(state: &mut AppState, focus: FocusPane) -> Vec<Effect> {
+    state.editor.startup_focus = focus;
+    state.ui.focus = focus;
+    state.ui.status = format!("Startup focus -> {}.", focus.label());
+    save_editor_config_effects(state)
+}
+
 fn effects_for_text_target(state: &AppState, target: TextInputTarget) -> Vec<Effect> {
     match target {
-        TextInputTarget::Config(ConfigFieldId::EditorProjectPath) => {
-            vec![Effect::SaveEditorConfig {
-                data: EditorConfigData {
-                    config: state.editor_config(),
-                },
-            }]
-        }
+        TextInputTarget::Config(
+            ConfigFieldId::EditorProjectPath
+            | ConfigFieldId::EditorAutoLoadProject
+            | ConfigFieldId::EditorAutoSaveOnExport
+            | ConfigFieldId::EditorStartupFocus,
+        ) => save_editor_config_effects(state),
         _ => Vec::new(),
     }
 }
@@ -768,6 +815,9 @@ fn input_target_label(target: TextInputTarget) -> String {
                 format!("export {} template path", index + 1)
             }
             ConfigFieldId::EditorProjectPath => "project file path".to_string(),
+            ConfigFieldId::EditorAutoLoadProject => "auto load project on startup".to_string(),
+            ConfigFieldId::EditorAutoSaveOnExport => "auto save project on export".to_string(),
+            ConfigFieldId::EditorStartupFocus => "startup focus".to_string(),
         },
     }
 }
@@ -830,6 +880,18 @@ fn activate_config_field(state: &mut AppState) -> Vec<Effect> {
                 state.ui.status = format!("Missing export target {}.", index + 1);
             }
         }
+        ConfigFieldId::EditorAutoLoadProject => {
+            return set_editor_auto_load_project(state, !state.editor.auto_load_project_on_startup);
+        }
+        ConfigFieldId::EditorAutoSaveOnExport => {
+            return set_editor_auto_save_on_export(
+                state,
+                !state.editor.auto_save_project_on_export,
+            );
+        }
+        ConfigFieldId::EditorStartupFocus => {
+            return set_editor_startup_focus(state, state.editor.startup_focus.next());
+        }
         ConfigFieldId::ProjectName
         | ConfigFieldId::ExportOutputPath(_)
         | ConfigFieldId::ExportTemplatePath(_)
@@ -860,6 +922,11 @@ fn apply_config_input(
                 "Project file path -> {}",
                 state.editor.project_path.display()
             ))
+        }
+        ConfigFieldId::EditorAutoLoadProject
+        | ConfigFieldId::EditorAutoSaveOnExport
+        | ConfigFieldId::EditorStartupFocus => {
+            Err("Use Enter or Space to cycle this editor preference.".to_string())
         }
         ConfigFieldId::ExportOutputPath(index) => {
             let profile = state
@@ -925,6 +992,9 @@ pub fn config_fields(state: &AppState) -> Vec<ConfigFieldId> {
         }
     }
     fields.push(ConfigFieldId::EditorProjectPath);
+    fields.push(ConfigFieldId::EditorAutoLoadProject);
+    fields.push(ConfigFieldId::EditorAutoSaveOnExport);
+    fields.push(ConfigFieldId::EditorStartupFocus);
     fields
 }
 
@@ -954,6 +1024,9 @@ pub fn default_input_buffer(state: &AppState, target: TextInputTarget) -> String
         TextInputTarget::Config(field) => match field {
             ConfigFieldId::ProjectName => state.project.name.clone(),
             ConfigFieldId::EditorProjectPath => state.editor.project_path.display().to_string(),
+            ConfigFieldId::EditorAutoLoadProject
+            | ConfigFieldId::EditorAutoSaveOnExport
+            | ConfigFieldId::EditorStartupFocus => String::new(),
             ConfigFieldId::ExportOutputPath(index) => state
                 .project
                 .export_profiles

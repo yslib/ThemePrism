@@ -1,5 +1,6 @@
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::snapshot::AppSnapshot;
+use crate::app::state::FocusPane;
 #[cfg(test)]
 use crate::core::AppState;
 use crate::core::{CoreSession, Intent};
@@ -119,6 +120,48 @@ fn parse_command(command: &str) -> Result<Intent, String> {
                 _ => Err(format!("{command} does not target a text control")),
             }
         }
+        "set-editor-text" => {
+            let field = parts
+                .next()
+                .ok_or_else(|| "missing editor field id".to_string())?;
+            let value = parts
+                .next()
+                .ok_or_else(|| "missing editor text value".to_string())?;
+
+            match field {
+                "project_path" => Ok(Intent::SetEditorProjectPath(value.into())),
+                _ => Err(format!("unknown editor text field: {field}")),
+            }
+        }
+        "set-editor-toggle" => {
+            let field = parts
+                .next()
+                .ok_or_else(|| "missing editor field id".to_string())?;
+            let enabled = parse_bool(
+                parts
+                    .next()
+                    .ok_or_else(|| "missing toggle value".to_string())?,
+            )?;
+
+            match field {
+                "auto_load_project_on_startup" => Ok(Intent::SetEditorAutoLoadProject(enabled)),
+                "auto_save_project_on_export" => Ok(Intent::SetEditorAutoSaveOnExport(enabled)),
+                _ => Err(format!("unknown editor toggle field: {field}")),
+            }
+        }
+        "set-editor-choice" => {
+            let field = parts
+                .next()
+                .ok_or_else(|| "missing editor field id".to_string())?;
+            let selected = parts
+                .next()
+                .ok_or_else(|| "missing editor choice value".to_string())?;
+
+            match field {
+                "startup_focus" => Ok(Intent::SetEditorStartupFocus(parse_focus_pane(selected)?)),
+                _ => Err(format!("unknown editor choice field: {field}")),
+            }
+        }
         "save" => Ok(Intent::SaveProjectRequested),
         "load" => Ok(Intent::LoadProjectRequested),
         "export" => Ok(Intent::ExportThemeRequested),
@@ -234,6 +277,23 @@ fn parse_adjust_op(raw: &str) -> Result<AdjustOp, String> {
     }
 }
 
+fn parse_focus_pane(raw: &str) -> Result<FocusPane, String> {
+    match raw {
+        "tokens" => Ok(FocusPane::Tokens),
+        "params" => Ok(FocusPane::Params),
+        "inspector" => Ok(FocusPane::Inspector),
+        _ => Err(format!("unknown focus pane: {raw}")),
+    }
+}
+
+fn parse_bool(raw: &str) -> Result<bool, String> {
+    match raw {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        _ => Err(format!("invalid boolean value: {raw}")),
+    }
+}
+
 fn parse_palette_slot(raw: &str) -> Result<PaletteSlot, String> {
     match raw {
         "bg_0" => Ok(PaletteSlot::Bg0),
@@ -272,8 +332,10 @@ pub fn snapshot_to_json(snapshot: &AppSnapshot) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::GuiBridgeSession;
+    use super::{GuiBridgeSession, parse_command};
     use crate::app::AppState;
+    use crate::app::Intent;
+    use crate::app::state::FocusPane;
     use crate::domain::color::Color;
     use crate::domain::params::ParamKey;
     use crate::domain::rules::Rule;
@@ -321,5 +383,27 @@ mod tests {
             }
             other => panic!("expected alias rule, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn gui_bridge_parses_editor_preference_commands() {
+        let project_path = match parse_command("set-editor-text|project_path|projects/demo.toml") {
+            Ok(Intent::SetEditorProjectPath(path)) => path,
+            other => panic!("expected editor project path intent, got {other:?}"),
+        };
+        assert_eq!(project_path.display().to_string(), "projects/demo.toml");
+
+        assert!(matches!(
+            parse_command("set-editor-toggle|auto_load_project_on_startup|true"),
+            Ok(Intent::SetEditorAutoLoadProject(true))
+        ));
+        assert!(matches!(
+            parse_command("set-editor-toggle|auto_save_project_on_export|false"),
+            Ok(Intent::SetEditorAutoSaveOnExport(false))
+        ));
+        assert!(matches!(
+            parse_command("set-editor-choice|startup_focus|inspector"),
+            Ok(Intent::SetEditorStartupFocus(FocusPane::Inspector))
+        ));
     }
 }

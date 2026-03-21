@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 use crate::app::controls::{ControlId, ReferenceField};
-use crate::app::state::AppState;
+use crate::app::state::{AppState, FocusPane};
 use crate::app::update::current_source_for_control;
 use crate::domain::preview::sample_code;
 use crate::domain::rules::{AdjustOp, Rule, RuleKind, SourceRef, available_source_options};
@@ -15,6 +15,7 @@ pub struct AppSnapshot {
     pub theme: ThemeSnapshot,
     pub tokens: Vec<TokenItemSnapshot>,
     pub params: Vec<ScalarFieldSnapshot>,
+    pub editor_config: EditorConfigSnapshot,
     pub inspector: InspectorSnapshot,
     pub palette: Vec<SwatchSnapshot>,
     pub resolved_tokens: Vec<SwatchSnapshot>,
@@ -58,6 +59,34 @@ pub struct ScalarFieldSnapshot {
     pub min: f32,
     pub max: f32,
     pub step: f32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct EditorConfigSnapshot {
+    pub fields: Vec<ConfigFieldSnapshot>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ConfigFieldSnapshot {
+    Text(TextFieldSnapshot),
+    Toggle(ToggleFieldSnapshot),
+    Choice(ChoiceFieldSnapshot),
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TextFieldSnapshot {
+    pub id: String,
+    pub label: String,
+    pub value_text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ToggleFieldSnapshot {
+    pub id: String,
+    pub label: String,
+    pub value_text: String,
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -160,6 +189,10 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
         })
         .collect();
 
+    let editor_config = EditorConfigSnapshot {
+        fields: editor_config_fields(state),
+    };
+
     let inspector = InspectorSnapshot {
         token_id: encode_token_role(state.selected_role()),
         token_label: state.selected_role().label().to_string(),
@@ -209,6 +242,7 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
         theme,
         tokens,
         params,
+        editor_config,
         inspector,
         palette,
         resolved_tokens,
@@ -246,6 +280,41 @@ fn export_outputs_summary(state: &AppState) -> String {
         [profile] => profile.output_path.display().to_string(),
         profiles => format!("{} output paths configured", profiles.len()),
     }
+}
+
+fn editor_config_fields(state: &AppState) -> Vec<ConfigFieldSnapshot> {
+    vec![
+        ConfigFieldSnapshot::Text(TextFieldSnapshot {
+            id: "project_path".to_string(),
+            label: "Project File".to_string(),
+            value_text: state.editor.project_path.display().to_string(),
+        }),
+        ConfigFieldSnapshot::Toggle(ToggleFieldSnapshot {
+            id: "auto_load_project_on_startup".to_string(),
+            label: "Auto Load".to_string(),
+            value_text: "Load project on startup".to_string(),
+            enabled: state.editor.auto_load_project_on_startup,
+        }),
+        ConfigFieldSnapshot::Toggle(ToggleFieldSnapshot {
+            id: "auto_save_project_on_export".to_string(),
+            label: "Auto Save".to_string(),
+            value_text: "Save project before export".to_string(),
+            enabled: state.editor.auto_save_project_on_export,
+        }),
+        ConfigFieldSnapshot::Choice(ChoiceFieldSnapshot {
+            id: "startup_focus".to_string(),
+            label: "Startup Focus".to_string(),
+            value_text: state.editor.startup_focus.label().to_string(),
+            selected_key: encode_focus_pane(state.editor.startup_focus),
+            options: [FocusPane::Tokens, FocusPane::Params, FocusPane::Inspector]
+                .into_iter()
+                .map(|focus| ChoiceOptionSnapshot {
+                    key: encode_focus_pane(focus),
+                    label: focus.label().to_string(),
+                })
+                .collect(),
+        }),
+    ]
 }
 
 fn inspector_fields(state: &AppState) -> Vec<EditorFieldSnapshot> {
@@ -412,6 +481,10 @@ pub fn encode_rule_kind(kind: RuleKind) -> String {
 
 pub fn encode_adjust_op(op: AdjustOp) -> String {
     op.label().to_ascii_lowercase()
+}
+
+pub fn encode_focus_pane(focus: FocusPane) -> String {
+    focus.label().to_ascii_lowercase()
 }
 
 pub fn encode_source_ref(source: &SourceRef) -> String {

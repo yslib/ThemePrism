@@ -24,6 +24,10 @@ pub enum Intent {
     SetAdjustOp(TokenRole, AdjustOp),
     SetAdjustAmount(TokenRole, f32),
     SetFixedColor(TokenRole, Color),
+    SetEditorProjectPath(PathBuf),
+    SetEditorAutoLoadProject(bool),
+    SetEditorAutoSaveOnExport(bool),
+    SetEditorStartupFocus(crate::app::state::FocusPane),
 
     AppendTextInput(char),
     BackspaceTextInput,

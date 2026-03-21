@@ -16,6 +16,10 @@ typedef void (*ThemeFreeStringFn)(char *);
 
 @end
 
+@interface ThemePaneSplitView : NSSplitView
+
+@end
+
 static NSColor *ThemeColorFromHex(NSString *hex) {
     NSString *value = [[hex stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]
         stringByReplacingOccurrencesOfString:@"#" withString:@""];
@@ -51,6 +55,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
 @property (nonatomic, strong) NSTextField *inspectorSummaryLabel;
 @property (nonatomic, strong) NSView *inspectorSwatch;
 @property (nonatomic, strong) NSStackView *inspectorFieldsStack;
+@property (nonatomic, strong) NSStackView *editorConfigStack;
 @property (nonatomic, strong) NSArray<NSDictionary *> *tokens;
 @property (nonatomic, strong) NSDictionary *snapshot;
 @property (nonatomic, assign) BOOL suppressTokenSelection;
@@ -67,6 +72,18 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
 - (void)mouseDown:(NSEvent *)event {
     [super mouseDown:event];
     [self.trackingDelegate sliderInteractionDidEnd:self];
+}
+
+@end
+
+@implementation ThemePaneSplitView
+
+- (CGFloat)dividerThickness {
+    return 10.0;
+}
+
+- (void)drawDividerInRect:(NSRect)rect {
+    (void)rect;
 }
 
 @end
@@ -127,33 +144,52 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
                                               styleMask:style
                                                 backing:NSBackingStoreBuffered
                                                   defer:NO];
+    self.window.opaque = YES;
+    self.window.backgroundColor = NSColor.windowBackgroundColor;
     self.window.title = @"Theme Generator";
-    self.window.titlebarAppearsTransparent = YES;
+    self.window.titlebarAppearsTransparent = NO;
     self.window.toolbarStyle = NSWindowToolbarStyleUnified;
     self.window.minSize = NSMakeSize(1180, 760);
 
     NSView *contentView = self.window.contentView;
+    NSVisualEffectView *backgroundView = [[NSVisualEffectView alloc] init];
+    backgroundView.translatesAutoresizingMaskIntoConstraints = NO;
+    backgroundView.material = NSVisualEffectMaterialUnderWindowBackground;
+    backgroundView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+    backgroundView.state = NSVisualEffectStateActive;
+    [contentView addSubview:backgroundView];
 
-    NSSplitView *splitView = [[NSSplitView alloc] init];
+    ThemePaneSplitView *splitView = [[ThemePaneSplitView alloc] init];
     splitView.translatesAutoresizingMaskIntoConstraints = NO;
     splitView.vertical = YES;
     splitView.dividerStyle = NSSplitViewDividerStyleThin;
+    splitView.wantsLayer = YES;
 
-    NSScrollView *leftPane = [self buildSidebar];
-    NSScrollView *centerPane = [self buildCenterPane];
-    NSScrollView *rightPane = [self buildInspectorPane];
+    NSView *leftPane = [self paneContainerWithContentView:[self buildSidebar]];
+    NSView *centerPane = [self paneContainerWithContentView:[self buildCenterPane]];
+    NSView *rightPane = [self paneContainerWithContentView:[self buildInspectorPane]];
 
     [splitView addArrangedSubview:leftPane];
     [splitView addArrangedSubview:centerPane];
     [splitView addArrangedSubview:rightPane];
 
-    [leftPane.widthAnchor constraintEqualToConstant:230.0].active = YES;
-    [rightPane.widthAnchor constraintEqualToConstant:360.0].active = YES;
+    [leftPane.widthAnchor constraintEqualToConstant:246.0].active = YES;
+    [rightPane.widthAnchor constraintEqualToConstant:376.0].active = YES;
+
+    NSView *mainPanel = [[NSView alloc] init];
+    mainPanel.translatesAutoresizingMaskIntoConstraints = NO;
+    [contentView addSubview:mainPanel];
+    [mainPanel addSubview:splitView];
 
     NSVisualEffectView *statusBar = [[NSVisualEffectView alloc] init];
     statusBar.translatesAutoresizingMaskIntoConstraints = NO;
     statusBar.material = NSVisualEffectMaterialSidebar;
     statusBar.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+    statusBar.state = NSVisualEffectStateActive;
+    statusBar.wantsLayer = YES;
+    statusBar.layer.borderWidth = 0.0;
+    statusBar.layer.backgroundColor =
+        [[[NSColor windowBackgroundColor] colorWithAlphaComponent:0.03] CGColor];
 
     self.statusLabel = [NSTextField labelWithString:@"Ready"];
     self.statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -161,14 +197,23 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     self.statusLabel.textColor = NSColor.secondaryLabelColor;
     [statusBar addSubview:self.statusLabel];
 
-    [contentView addSubview:splitView];
     [contentView addSubview:statusBar];
 
     [NSLayoutConstraint activateConstraints:@[
-        [splitView.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor],
-        [splitView.trailingAnchor constraintEqualToAnchor:contentView.trailingAnchor],
-        [splitView.topAnchor constraintEqualToAnchor:contentView.topAnchor],
-        [splitView.bottomAnchor constraintEqualToAnchor:statusBar.topAnchor],
+        [backgroundView.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor],
+        [backgroundView.trailingAnchor constraintEqualToAnchor:contentView.trailingAnchor],
+        [backgroundView.topAnchor constraintEqualToAnchor:contentView.topAnchor],
+        [backgroundView.bottomAnchor constraintEqualToAnchor:contentView.bottomAnchor],
+
+        [mainPanel.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor constant:14.0],
+        [mainPanel.trailingAnchor constraintEqualToAnchor:contentView.trailingAnchor constant:-14.0],
+        [mainPanel.topAnchor constraintEqualToAnchor:contentView.topAnchor constant:14.0],
+        [mainPanel.bottomAnchor constraintEqualToAnchor:statusBar.topAnchor constant:-10.0],
+
+        [splitView.leadingAnchor constraintEqualToAnchor:mainPanel.leadingAnchor],
+        [splitView.trailingAnchor constraintEqualToAnchor:mainPanel.trailingAnchor],
+        [splitView.topAnchor constraintEqualToAnchor:mainPanel.topAnchor],
+        [splitView.bottomAnchor constraintEqualToAnchor:mainPanel.bottomAnchor],
 
         [statusBar.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor],
         [statusBar.trailingAnchor constraintEqualToAnchor:contentView.trailingAnchor],
@@ -179,6 +224,34 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
         [self.statusLabel.trailingAnchor constraintEqualToAnchor:statusBar.trailingAnchor constant:-16.0],
         [self.statusLabel.centerYAnchor constraintEqualToAnchor:statusBar.centerYAnchor],
     ]];
+}
+
+- (NSView *)paneContainerWithContentView:(NSView *)content {
+    NSVisualEffectView *container = [[NSVisualEffectView alloc] init];
+    container.translatesAutoresizingMaskIntoConstraints = NO;
+    container.material = NSVisualEffectMaterialSidebar;
+    container.blendingMode = NSVisualEffectBlendingModeWithinWindow;
+    container.state = NSVisualEffectStateActive;
+    container.wantsLayer = YES;
+    container.layer.cornerRadius = 13.0;
+    container.layer.masksToBounds = YES;
+    container.layer.borderWidth = 1.0;
+    container.layer.borderColor =
+        [[NSColor.separatorColor colorWithAlphaComponent:0.18] CGColor];
+    container.layer.backgroundColor =
+        [[NSColor.controlBackgroundColor colorWithAlphaComponent:0.05] CGColor];
+
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+    [container addSubview:content];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [content.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:1.0],
+        [content.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-1.0],
+        [content.topAnchor constraintEqualToAnchor:container.topAnchor constant:1.0],
+        [content.bottomAnchor constraintEqualToAnchor:container.bottomAnchor constant:-1.0],
+    ]];
+
+    return container;
 }
 
 - (NSScrollView *)buildSidebar {
@@ -280,6 +353,10 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
 
     self.inspectorFieldsStack = [self verticalSectionStack];
     [stack addArrangedSubview:self.inspectorFieldsStack];
+
+    [stack addArrangedSubview:[self sectionLabel:@"Editor Preferences"]];
+    self.editorConfigStack = [self verticalSectionStack];
+    [stack addArrangedSubview:self.editorConfigStack];
 
     [stack addArrangedSubview:[self sectionLabel:@"Actions"]];
     NSStackView *actions = [[NSStackView alloc] init];
@@ -417,6 +494,21 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     }
 }
 
+- (void)rebuildEditorConfig:(NSDictionary *)editorConfig {
+    [self clearStack:self.editorConfigStack];
+    NSArray<NSDictionary *> *fields = editorConfig[@"fields"] ?: @[];
+    for (NSDictionary *field in fields) {
+        NSString *kind = field[@"kind"] ?: @"";
+        if ([kind isEqualToString:@"text"]) {
+            [self.editorConfigStack addArrangedSubview:[self configTextRowForField:field]];
+        } else if ([kind isEqualToString:@"toggle"]) {
+            [self.editorConfigStack addArrangedSubview:[self configToggleRowForField:field]];
+        } else if ([kind isEqualToString:@"choice"]) {
+            [self.editorConfigStack addArrangedSubview:[self configChoiceRowForField:field]];
+        }
+    }
+}
+
 - (NSView *)scalarControlRowForField:(NSDictionary *)field {
     NSString *label = field[@"label"] ?: @"";
     NSString *fieldId = field[@"id"] ?: @"";
@@ -527,6 +619,96 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     return row;
 }
 
+- (NSView *)configTextRowForField:(NSDictionary *)field {
+    NSString *label = field[@"label"] ?: @"";
+    NSString *fieldId = field[@"id"] ?: @"";
+    NSString *value = field[@"value_text"] ?: @"";
+
+    NSStackView *row = [[NSStackView alloc] init];
+    row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    row.alignment = NSLayoutAttributeCenterY;
+    row.spacing = 12.0;
+
+    NSTextField *labelView = [NSTextField labelWithString:label];
+    labelView.font = [NSFont systemFontOfSize:12.5 weight:NSFontWeightMedium];
+    [labelView.widthAnchor constraintEqualToConstant:130.0].active = YES;
+    [row addArrangedSubview:labelView];
+
+    NSTextField *textField = [[NSTextField alloc] init];
+    textField.identifier = fieldId;
+    textField.stringValue = value;
+    textField.font = [NSFont monospacedSystemFontOfSize:12.0 weight:NSFontWeightRegular];
+    textField.target = self;
+    textField.action = @selector(configTextCommitted:);
+    textField.delegate = self;
+    [textField.widthAnchor constraintGreaterThanOrEqualToConstant:180.0].active = YES;
+    [row addArrangedSubview:textField];
+
+    return row;
+}
+
+- (NSView *)configToggleRowForField:(NSDictionary *)field {
+    NSString *label = field[@"label"] ?: @"";
+    NSString *fieldId = field[@"id"] ?: @"";
+    NSString *value = field[@"value_text"] ?: @"";
+
+    NSStackView *row = [[NSStackView alloc] init];
+    row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    row.alignment = NSLayoutAttributeCenterY;
+    row.spacing = 12.0;
+
+    NSTextField *labelView = [NSTextField labelWithString:label];
+    labelView.font = [NSFont systemFontOfSize:12.5 weight:NSFontWeightMedium];
+    [labelView.widthAnchor constraintEqualToConstant:130.0].active = YES;
+    [row addArrangedSubview:labelView];
+
+    NSButton *toggle = [NSButton checkboxWithTitle:value target:self action:@selector(configToggleChanged:)];
+    toggle.identifier = fieldId;
+    toggle.state = [field[@"enabled"] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
+    [row addArrangedSubview:toggle];
+
+    return row;
+}
+
+- (NSView *)configChoiceRowForField:(NSDictionary *)field {
+    NSString *label = field[@"label"] ?: @"";
+    NSString *fieldId = field[@"id"] ?: @"";
+    NSString *selectedKey = field[@"selected_key"] ?: @"";
+
+    NSStackView *row = [[NSStackView alloc] init];
+    row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    row.alignment = NSLayoutAttributeCenterY;
+    row.spacing = 12.0;
+
+    NSTextField *labelView = [NSTextField labelWithString:label];
+    labelView.font = [NSFont systemFontOfSize:12.5 weight:NSFontWeightMedium];
+    [labelView.widthAnchor constraintEqualToConstant:130.0].active = YES;
+    [row addArrangedSubview:labelView];
+
+    NSPopUpButton *popup = [[NSPopUpButton alloc] init];
+    popup.identifier = fieldId;
+    popup.target = self;
+    popup.action = @selector(configChoiceChanged:);
+    [popup.widthAnchor constraintGreaterThanOrEqualToConstant:180.0].active = YES;
+
+    NSArray<NSDictionary *> *options = field[@"options"] ?: @[];
+    NSInteger selectedIndex = 0;
+    for (NSUInteger index = 0; index < options.count; index += 1) {
+        NSDictionary *option = options[index];
+        NSString *title = option[@"label"] ?: @"";
+        NSString *key = option[@"key"] ?: @"";
+        [popup addItemWithTitle:title];
+        popup.lastItem.representedObject = key;
+        if ([key isEqualToString:selectedKey]) {
+            selectedIndex = (NSInteger)index;
+        }
+    }
+    [popup selectItemAtIndex:selectedIndex];
+    [row addArrangedSubview:popup];
+
+    return row;
+}
+
 - (NSButton *)actionButtonWithTitle:(NSString *)title command:(NSString *)command {
     NSButton *button = [NSButton buttonWithTitle:title target:self action:@selector(commandButtonPressed:)];
     button.identifier = command;
@@ -599,6 +781,24 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     [self dispatchAndRefresh:command];
 }
 
+- (void)configTextCommitted:(NSTextField *)sender {
+    NSString *command =
+        [NSString stringWithFormat:@"set-editor-text|%@|%@", sender.identifier, sender.stringValue];
+    [self dispatchAndRefresh:command];
+}
+
+- (void)configToggleChanged:(NSButton *)sender {
+    NSString *value = sender.state == NSControlStateValueOn ? @"true" : @"false";
+    NSString *command = [NSString stringWithFormat:@"set-editor-toggle|%@|%@", sender.identifier, value];
+    [self dispatchAndRefresh:command];
+}
+
+- (void)configChoiceChanged:(NSPopUpButton *)sender {
+    NSString *value = sender.selectedItem.representedObject ?: @"";
+    NSString *command = [NSString stringWithFormat:@"set-editor-choice|%@|%@", sender.identifier, value];
+    [self dispatchAndRefresh:command];
+}
+
 - (void)commandButtonPressed:(NSButton *)sender {
     [self dispatchAndRefresh:sender.identifier ?: @""];
 }
@@ -659,15 +859,18 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     self.suppressTokenSelection = NO;
 
     NSArray<NSDictionary *> *params = snapshot[@"params"] ?: @[];
+    NSDictionary *editorConfig = snapshot[@"editor_config"] ?: @{};
     NSDictionary *inspector = snapshot[@"inspector"] ?: @{};
 
     if (rebuildControls) {
         [self rebuildParams:params];
+        [self rebuildEditorConfig:editorConfig];
         [self rebuildInspector:inspector];
     } else {
         [self syncScalarRowsInStack:self.paramsStack
                          withFields:params
                  preservingSliderId:preservedSliderId];
+        [self syncEditorConfig:editorConfig];
         [self syncInspector:inspector preservingSliderId:preservedSliderId];
     }
 
@@ -689,6 +892,13 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
                          withFields:fields
                  preservingSliderId:preservedSliderId]) {
         [self rebuildInspector:inspector];
+    }
+}
+
+- (void)syncEditorConfig:(NSDictionary *)editorConfig {
+    NSArray<NSDictionary *> *fields = editorConfig[@"fields"] ?: @[];
+    if (![self syncConfigRowsInStack:self.editorConfigStack withFields:fields]) {
+        [self rebuildEditorConfig:editorConfig];
     }
 }
 
@@ -744,6 +954,39 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
             }
         } else if ([kind isEqualToString:@"color"]) {
             if (![self syncColorRow:(NSStackView *)row withField:field]) {
+                return NO;
+            }
+        } else {
+            return NO;
+        }
+    }
+
+    return YES;
+}
+
+- (BOOL)syncConfigRowsInStack:(NSStackView *)stack withFields:(NSArray<NSDictionary *> *)fields {
+    if (stack.arrangedSubviews.count != fields.count) {
+        return NO;
+    }
+
+    for (NSUInteger index = 0; index < fields.count; index += 1) {
+        NSDictionary *field = fields[index];
+        NSString *kind = field[@"kind"] ?: @"";
+        NSView *row = stack.arrangedSubviews[index];
+        if (![row isKindOfClass:[NSStackView class]]) {
+            return NO;
+        }
+
+        if ([kind isEqualToString:@"text"]) {
+            if (![self syncConfigTextRow:(NSStackView *)row withField:field]) {
+                return NO;
+            }
+        } else if ([kind isEqualToString:@"toggle"]) {
+            if (![self syncConfigToggleRow:(NSStackView *)row withField:field]) {
+                return NO;
+            }
+        } else if ([kind isEqualToString:@"choice"]) {
+            if (![self syncConfigChoiceRow:(NSStackView *)row withField:field]) {
                 return NO;
             }
         } else {
@@ -834,6 +1077,79 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     if (textField.currentEditor == nil) {
         textField.stringValue = field[@"value_text"] ?: @"";
     }
+    return YES;
+}
+
+- (BOOL)syncConfigTextRow:(NSStackView *)row withField:(NSDictionary *)field {
+    if (row.arrangedSubviews.count < 2) {
+        return NO;
+    }
+
+    NSTextField *labelView = (NSTextField *)row.arrangedSubviews[0];
+    NSTextField *textField = (NSTextField *)row.arrangedSubviews[1];
+    if (![textField isKindOfClass:[NSTextField class]]) {
+        return NO;
+    }
+
+    labelView.stringValue = field[@"label"] ?: @"";
+    textField.identifier = field[@"id"] ?: @"";
+    if (textField.currentEditor == nil) {
+        textField.stringValue = field[@"value_text"] ?: @"";
+    }
+    return YES;
+}
+
+- (BOOL)syncConfigToggleRow:(NSStackView *)row withField:(NSDictionary *)field {
+    if (row.arrangedSubviews.count < 2) {
+        return NO;
+    }
+
+    NSTextField *labelView = (NSTextField *)row.arrangedSubviews[0];
+    NSButton *toggle = (NSButton *)row.arrangedSubviews[1];
+    if (![toggle isKindOfClass:[NSButton class]]) {
+        return NO;
+    }
+
+    labelView.stringValue = field[@"label"] ?: @"";
+    toggle.identifier = field[@"id"] ?: @"";
+    toggle.title = field[@"value_text"] ?: @"";
+    toggle.state = [field[@"enabled"] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
+    return YES;
+}
+
+- (BOOL)syncConfigChoiceRow:(NSStackView *)row withField:(NSDictionary *)field {
+    if (row.arrangedSubviews.count < 2) {
+        return NO;
+    }
+
+    NSTextField *labelView = (NSTextField *)row.arrangedSubviews[0];
+    NSPopUpButton *popup = (NSPopUpButton *)row.arrangedSubviews[1];
+    if (![popup isKindOfClass:[NSPopUpButton class]]) {
+        return NO;
+    }
+
+    NSString *selectedKey = field[@"selected_key"] ?: @"";
+    labelView.stringValue = field[@"label"] ?: @"";
+    popup.identifier = field[@"id"] ?: @"";
+
+    NSArray<NSDictionary *> *options = field[@"options"] ?: @[];
+    if (popup.numberOfItems != (NSInteger)options.count) {
+        return NO;
+    }
+
+    NSInteger selectedIndex = 0;
+    for (NSUInteger index = 0; index < options.count; index += 1) {
+        NSDictionary *option = options[index];
+        NSString *title = option[@"label"] ?: @"";
+        NSString *key = option[@"key"] ?: @"";
+        NSMenuItem *item = [popup itemAtIndex:(NSInteger)index];
+        item.title = title;
+        item.representedObject = key;
+        if ([key isEqualToString:selectedKey]) {
+            selectedIndex = (NSInteger)index;
+        }
+    }
+    [popup selectItemAtIndex:selectedIndex];
     return YES;
 }
 

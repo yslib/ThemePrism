@@ -682,12 +682,28 @@ fn build_config_overlay(state: &AppState) -> Option<ConfigOverlayView> {
         ConfigFieldId::EditorProjectPath,
         selected,
     ));
+    rows.push(config_field_row(
+        state,
+        ConfigFieldId::EditorAutoLoadProject,
+        selected,
+    ));
+    rows.push(config_field_row(
+        state,
+        ConfigFieldId::EditorAutoSaveOnExport,
+        selected,
+    ));
+    rows.push(config_field_row(
+        state,
+        ConfigFieldId::EditorStartupFocus,
+        selected,
+    ));
 
     Some(ConfigOverlayView {
         title: "Configuration".to_string(),
         rows,
         footer_lines: vec![
-            "Enter edits text fields. Enter or Space toggles export targets.".to_string(),
+            "Enter edits text fields. Enter or Space toggles targets and cycles editor prefs."
+                .to_string(),
             "Project config is saved with the project file.".to_string(),
             "Editor config stays local to this machine and editor instance.".to_string(),
             "Esc closes the panel.".to_string(),
@@ -715,6 +731,9 @@ fn config_field_label(field: ConfigFieldId) -> String {
         ConfigFieldId::ExportOutputPath(index) => format!("Output {}", index + 1),
         ConfigFieldId::ExportTemplatePath(index) => format!("Template {}", index + 1),
         ConfigFieldId::EditorProjectPath => "Project File".to_string(),
+        ConfigFieldId::EditorAutoLoadProject => "Auto Load".to_string(),
+        ConfigFieldId::EditorAutoSaveOnExport => "Auto Save".to_string(),
+        ConfigFieldId::EditorStartupFocus => "Startup Focus".to_string(),
     }
 }
 
@@ -728,6 +747,21 @@ fn config_field_value(state: &AppState, field: ConfigFieldId) -> String {
     match field {
         ConfigFieldId::ProjectName => state.project.name.clone(),
         ConfigFieldId::EditorProjectPath => state.editor.project_path.display().to_string(),
+        ConfigFieldId::EditorAutoLoadProject => {
+            if state.editor.auto_load_project_on_startup {
+                "[x] Load project on startup".to_string()
+            } else {
+                "[ ] Load project on startup".to_string()
+            }
+        }
+        ConfigFieldId::EditorAutoSaveOnExport => {
+            if state.editor.auto_save_project_on_export {
+                "[x] Save project before export".to_string()
+            } else {
+                "[ ] Save project before export".to_string()
+            }
+        }
+        ConfigFieldId::EditorStartupFocus => state.editor.startup_focus.label().to_string(),
         ConfigFieldId::ExportEnabled(index) => state
             .project
             .export_profiles

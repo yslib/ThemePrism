@@ -9,6 +9,7 @@ use thiserror::Error;
 
 use crate::core::{AppState, CoreSession};
 use crate::persistence::editor_config::load_editor_config;
+use crate::persistence::project_file::load_project;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -136,6 +137,28 @@ fn run_entrypoint_with_writer(
             match load_editor_config() {
                 Ok(config) => {
                     state.editor.project_path = config.project_path;
+                    state.editor.auto_load_project_on_startup = config.auto_load_project_on_startup;
+                    state.editor.auto_save_project_on_export = config.auto_save_project_on_export;
+                    state.editor.startup_focus = config.startup_focus.into();
+                    state.ui.focus = state.editor.startup_focus;
+
+                    if state.editor.auto_load_project_on_startup {
+                        match load_project(&state.editor.project_path) {
+                            Ok(project) => {
+                                if let Err(err) = state.apply_project_data(project) {
+                                    state.ui.status = format!("Auto-load recompute failed: {err}");
+                                } else {
+                                    state.ui.status = format!(
+                                        "Auto-loaded project from {}",
+                                        state.editor.project_path.display()
+                                    );
+                                }
+                            }
+                            Err(err) => {
+                                state.ui.status = format!("Auto-load failed: {err}");
+                            }
+                        }
+                    }
                 }
                 Err(err) => {
                     state.ui.status = format!("Editor config load failed: {err}");

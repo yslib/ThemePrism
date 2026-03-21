@@ -7,15 +7,33 @@ use thiserror::Error;
 
 pub const DEFAULT_PROJECT_PATH: &str = "projects/theme-project.toml";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EditorStartupFocus {
+    #[default]
+    Tokens,
+    Params,
+    Inspector,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EditorConfig {
     pub project_path: PathBuf,
+    #[serde(default)]
+    pub auto_load_project_on_startup: bool,
+    #[serde(default)]
+    pub auto_save_project_on_export: bool,
+    #[serde(default)]
+    pub startup_focus: EditorStartupFocus,
 }
 
 impl Default for EditorConfig {
     fn default() -> Self {
         Self {
             project_path: PathBuf::from(DEFAULT_PROJECT_PATH),
+            auto_load_project_on_startup: false,
+            auto_save_project_on_export: false,
+            startup_focus: EditorStartupFocus::Tokens,
         }
     }
 }
@@ -77,13 +95,18 @@ pub fn save_editor_config_to_path(
 mod tests {
     use tempfile::NamedTempFile;
 
-    use super::{EditorConfig, load_editor_config_from_path, save_editor_config_to_path};
+    use super::{
+        EditorConfig, EditorStartupFocus, load_editor_config_from_path, save_editor_config_to_path,
+    };
 
     #[test]
     fn editor_config_round_trips() {
         let file = NamedTempFile::new().unwrap();
         let config = EditorConfig {
             project_path: "projects/custom.toml".into(),
+            auto_load_project_on_startup: true,
+            auto_save_project_on_export: true,
+            startup_focus: EditorStartupFocus::Inspector,
         };
 
         save_editor_config_to_path(file.path(), &config).unwrap();
