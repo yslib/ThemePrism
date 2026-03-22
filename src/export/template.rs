@@ -38,7 +38,7 @@ impl Exporter for TemplateExporter {
                 .token(role)
                 .map(|value| value.to_hex())
                 .ok_or_else(|| ExportError::MissingToken(role.label().to_string()))?;
-            let key = format!("{{{{token.{}}}}}", encode_role(role));
+            let key = format!("{{{{token.{}}}}}", role.key());
             rendered = rendered.replace(&key, &color);
         }
 
@@ -55,31 +55,6 @@ impl Exporter for TemplateExporter {
         }
 
         Ok(rendered)
-    }
-}
-
-fn encode_role(role: TokenRole) -> &'static str {
-    match role {
-        TokenRole::Background => "background",
-        TokenRole::Surface => "surface",
-        TokenRole::SurfaceAlt => "surface_alt",
-        TokenRole::Text => "text",
-        TokenRole::TextMuted => "text_muted",
-        TokenRole::Border => "border",
-        TokenRole::Selection => "selection",
-        TokenRole::Cursor => "cursor",
-        TokenRole::Comment => "comment",
-        TokenRole::Keyword => "keyword",
-        TokenRole::String => "string",
-        TokenRole::Number => "number",
-        TokenRole::Type => "type",
-        TokenRole::Function => "function",
-        TokenRole::Variable => "variable",
-        TokenRole::Error => "error",
-        TokenRole::Warning => "warning",
-        TokenRole::Info => "info",
-        TokenRole::Hint => "hint",
-        TokenRole::Success => "success",
     }
 }
 

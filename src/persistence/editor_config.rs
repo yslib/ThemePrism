@@ -6,14 +6,18 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
 
+use crate::enum_meta::define_key_enum;
+
 pub const DEFAULT_PROJECT_PATH: &str = "projects/theme-project.toml";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum EditorKeymapPreset {
-    #[default]
-    Standard,
-    Vim,
+define_key_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+    #[serde(rename_all = "snake_case")]
+    pub enum EditorKeymapPreset {
+        #[default]
+        Standard => "standard",
+        Vim => "vim",
+    }
 }
 
 impl EditorKeymapPreset {
@@ -25,17 +29,17 @@ impl EditorKeymapPreset {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum EditorLocale {
-    #[default]
-    EnUs,
-    ZhCn,
+define_key_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+    #[serde(rename_all = "snake_case")]
+    pub enum EditorLocale {
+        #[default]
+        EnUs => "en_us",
+        ZhCn => "zh_cn",
+    }
 }
 
 impl EditorLocale {
-    pub const ALL: [Self; 2] = [Self::EnUs, Self::ZhCn];
-
     pub const fn next(self) -> Self {
         match self {
             Self::EnUs => Self::ZhCn,
@@ -177,5 +181,16 @@ mod tests {
 
         let loaded = load_editor_config_from_path(&path).unwrap();
         assert_eq!(loaded, EditorConfig::default());
+    }
+
+    #[test]
+    fn editor_choice_enums_round_trip_through_stable_keys() {
+        for preset in EditorKeymapPreset::ALL {
+            assert_eq!(EditorKeymapPreset::from_key(preset.key()), Some(preset));
+        }
+
+        for locale in EditorLocale::ALL {
+            assert_eq!(EditorLocale::from_key(locale.key()), Some(locale));
+        }
     }
 }

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::color::Color;
+use crate::enum_meta::define_labeled_key_enum;
 use crate::tokens::{PaletteSlot, TokenRole};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -21,18 +22,11 @@ impl SourceRef {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SourceGroup {
-    Common,
-    Advanced,
-}
-
-impl SourceGroup {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Common => "Common Sources",
-            Self::Advanced => "Advanced Palette",
-        }
+define_labeled_key_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum SourceGroup {
+        Common => { key: "common", label: "Common Sources" },
+        Advanced => { key: "advanced", label: "Advanced Palette" },
     }
 }
 
@@ -42,50 +36,23 @@ pub struct SourceOption {
     pub source: SourceRef,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AdjustOp {
-    Lighten,
-    Darken,
-    Saturate,
-    Desaturate,
-}
-
-impl AdjustOp {
-    pub const ALL: [Self; 4] = [
-        Self::Lighten,
-        Self::Darken,
-        Self::Saturate,
-        Self::Desaturate,
-    ];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Lighten => "Lighten",
-            Self::Darken => "Darken",
-            Self::Saturate => "Saturate",
-            Self::Desaturate => "Desaturate",
-        }
+define_labeled_key_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum AdjustOp {
+        Lighten => { key: "lighten", label: "Lighten" },
+        Darken => { key: "darken", label: "Darken" },
+        Saturate => { key: "saturate", label: "Saturate" },
+        Desaturate => { key: "desaturate", label: "Desaturate" },
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RuleKind {
-    Alias,
-    Mix,
-    Adjust,
-    Fixed,
-}
-
-impl RuleKind {
-    pub const ALL: [Self; 4] = [Self::Alias, Self::Mix, Self::Adjust, Self::Fixed];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Alias => "Alias",
-            Self::Mix => "Mix",
-            Self::Adjust => "Adjust",
-            Self::Fixed => "Fixed",
-        }
+define_labeled_key_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum RuleKind {
+        Alias => { key: "alias", label: "Alias" },
+        Mix => { key: "mix", label: "Mix" },
+        Adjust => { key: "adjust", label: "Adjust" },
+        Fixed => { key: "fixed", label: "Fixed" },
     }
 }
 
@@ -327,4 +294,31 @@ pub fn available_sources(current_role: TokenRole) -> Vec<SourceRef> {
         .into_iter()
         .map(|option| option.source)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AdjustOp, RuleKind, SourceGroup};
+
+    #[test]
+    fn rule_enums_round_trip_through_keys_and_labels() {
+        for kind in RuleKind::ALL {
+            assert_eq!(RuleKind::from_key(kind.key()), Some(kind));
+            assert_eq!(RuleKind::from_label(kind.label()), Some(kind));
+        }
+
+        for op in AdjustOp::ALL {
+            assert_eq!(AdjustOp::from_key(op.key()), Some(op));
+            assert_eq!(AdjustOp::from_label(op.label()), Some(op));
+        }
+    }
+
+    #[test]
+    fn source_group_labels_are_defined_once() {
+        assert_eq!(SourceGroup::from_key("common"), Some(SourceGroup::Common));
+        assert_eq!(
+            SourceGroup::from_label("Advanced Palette"),
+            Some(SourceGroup::Advanced)
+        );
+    }
 }

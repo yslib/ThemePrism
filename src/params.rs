@@ -1,3 +1,5 @@
+use crate::enum_meta::define_labeled_key_enum;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ThemeParams {
     pub background_hue: f32,
@@ -27,46 +29,22 @@ impl Default for ThemeParams {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParamKey {
-    BackgroundHue,
-    BackgroundLightness,
-    BackgroundSaturation,
-    Contrast,
-    AccentHue,
-    AccentSaturation,
-    AccentLightness,
-    SelectionMix,
-    Vibrancy,
+define_labeled_key_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ParamKey {
+        BackgroundHue => { key: "background_hue", label: "Background Hue" },
+        BackgroundLightness => { key: "background_lightness", label: "Background Light" },
+        BackgroundSaturation => { key: "background_saturation", label: "Background Sat" },
+        Contrast => { key: "contrast", label: "Contrast" },
+        AccentHue => { key: "accent_hue", label: "Accent Hue" },
+        AccentSaturation => { key: "accent_saturation", label: "Accent Sat" },
+        AccentLightness => { key: "accent_lightness", label: "Accent Light" },
+        SelectionMix => { key: "selection_mix", label: "Selection Mix" },
+        Vibrancy => { key: "vibrancy", label: "Vibrancy" },
+    }
 }
 
 impl ParamKey {
-    pub const ALL: [Self; 9] = [
-        Self::BackgroundHue,
-        Self::BackgroundLightness,
-        Self::BackgroundSaturation,
-        Self::Contrast,
-        Self::AccentHue,
-        Self::AccentSaturation,
-        Self::AccentLightness,
-        Self::SelectionMix,
-        Self::Vibrancy,
-    ];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::BackgroundHue => "Background Hue",
-            Self::BackgroundLightness => "Background Light",
-            Self::BackgroundSaturation => "Background Sat",
-            Self::Contrast => "Contrast",
-            Self::AccentHue => "Accent Hue",
-            Self::AccentSaturation => "Accent Sat",
-            Self::AccentLightness => "Accent Light",
-            Self::SelectionMix => "Selection Mix",
-            Self::Vibrancy => "Vibrancy",
-        }
-    }
-
     pub const fn range(self) -> (f32, f32) {
         match self {
             Self::BackgroundHue | Self::AccentHue => (0.0, 360.0),
@@ -148,4 +126,16 @@ pub fn clamp_params(params: &mut ThemeParams) {
     params.accent_lightness = clamp(params.accent_lightness, 0.02, 0.96);
     params.selection_mix = clamp(params.selection_mix, 0.0, 1.0);
     params.vibrancy = clamp(params.vibrancy, 0.0, 1.0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ParamKey;
+
+    #[test]
+    fn param_keys_round_trip_through_stable_keys() {
+        for key in ParamKey::ALL {
+            assert_eq!(ParamKey::from_key(key.key()), Some(key));
+        }
+    }
 }

@@ -50,7 +50,6 @@ source-picker-title = Source Picker / { $label }
 help-section-global = Global
 help-section-workspace = Workspace
 help-section-picker-input = Picker / Input
-help-section-keymap-preset = Keymap Preset / { $preset }
 help-shortcut-help-label = Shortcut Help
 help-shortcut-help-desc = Open or close the shortcut reference overlay.
 help-config-label = Config

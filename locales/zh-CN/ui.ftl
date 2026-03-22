@@ -50,7 +50,6 @@ source-picker-title = 来源选择器 / { $label }
 help-section-global = 全局
 help-section-workspace = 工作区
 help-section-picker-input = 选择器 / 输入
-help-section-keymap-preset = Keymap 预设 / { $preset }
 help-shortcut-help-label = 快捷键帮助
 help-shortcut-help-desc = 打开或关闭快捷键参考浮层。
 help-config-label = 配置

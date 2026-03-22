@@ -592,71 +592,41 @@ pub fn encode_control_id(control: ControlId) -> String {
 }
 
 pub fn encode_param_key(key: crate::domain::params::ParamKey) -> String {
-    match key {
-        crate::domain::params::ParamKey::BackgroundHue => "background_hue",
-        crate::domain::params::ParamKey::BackgroundLightness => "background_lightness",
-        crate::domain::params::ParamKey::BackgroundSaturation => "background_saturation",
-        crate::domain::params::ParamKey::Contrast => "contrast",
-        crate::domain::params::ParamKey::AccentHue => "accent_hue",
-        crate::domain::params::ParamKey::AccentSaturation => "accent_saturation",
-        crate::domain::params::ParamKey::AccentLightness => "accent_lightness",
-        crate::domain::params::ParamKey::SelectionMix => "selection_mix",
-        crate::domain::params::ParamKey::Vibrancy => "vibrancy",
-    }
-    .to_string()
+    key.key().to_string()
 }
 
 pub fn encode_token_role(role: TokenRole) -> String {
-    role.label().to_ascii_lowercase()
+    role.key().to_string()
 }
 
 pub fn encode_reference_field(field: ReferenceField) -> String {
-    match field {
-        ReferenceField::AliasSource => "alias_source",
-        ReferenceField::MixA => "mix_a",
-        ReferenceField::MixB => "mix_b",
-        ReferenceField::AdjustSource => "adjust_source",
-    }
-    .to_string()
+    field.key().to_string()
 }
 
 pub fn encode_keymap_preset(preset: EditorKeymapPreset) -> String {
-    match preset {
-        EditorKeymapPreset::Standard => "standard",
-        EditorKeymapPreset::Vim => "vim",
-    }
-    .to_string()
+    preset.key().to_string()
 }
 
 pub fn encode_rule_kind(kind: RuleKind) -> String {
-    kind.label().to_ascii_lowercase()
+    kind.key().to_string()
 }
 
 pub fn encode_adjust_op(op: AdjustOp) -> String {
-    op.label().to_ascii_lowercase()
+    op.key().to_string()
 }
 
 pub fn encode_focus_pane(focus: FocusPane) -> String {
-    match focus {
-        FocusPane::Tokens => "tokens",
-        FocusPane::Params => "params",
-        FocusPane::Inspector => "inspector",
-    }
-    .to_string()
+    focus.key().to_string()
 }
 
 pub fn encode_locale(locale: EditorLocale) -> String {
-    match locale {
-        EditorLocale::EnUs => "en_us",
-        EditorLocale::ZhCn => "zh_cn",
-    }
-    .to_string()
+    locale.key().to_string()
 }
 
 pub fn encode_source_ref(source: &SourceRef) -> String {
     match source {
         SourceRef::Token(role) => format!("token:{}", encode_token_role(*role)),
-        SourceRef::Palette(slot) => format!("palette:{}", slot.label()),
+        SourceRef::Palette(slot) => format!("palette:{}", slot.key()),
         SourceRef::Literal(color) => format!("literal:{}", color.to_hex()),
     }
 }

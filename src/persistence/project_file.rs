@@ -222,7 +222,7 @@ impl RuleFile {
 fn encode_source(source: &SourceRef) -> String {
     match source {
         SourceRef::Token(role) => role.label().to_string(),
-        SourceRef::Palette(slot) => slot.label().to_string(),
+        SourceRef::Palette(slot) => slot.key().to_string(),
         SourceRef::Literal(color) => color.to_hex(),
     }
 }
@@ -248,68 +248,35 @@ fn decode_source(value: &str) -> Result<SourceRef, ProjectError> {
 }
 
 fn encode_adjust_op(op: AdjustOp) -> &'static str {
-    match op {
-        AdjustOp::Lighten => "Lighten",
-        AdjustOp::Darken => "Darken",
-        AdjustOp::Saturate => "Saturate",
-        AdjustOp::Desaturate => "Desaturate",
-    }
+    op.label()
 }
 
 fn decode_adjust_op(value: &str) -> Result<AdjustOp, ProjectError> {
-    match value {
-        "Lighten" => Ok(AdjustOp::Lighten),
-        "Darken" => Ok(AdjustOp::Darken),
-        "Saturate" => Ok(AdjustOp::Saturate),
-        "Desaturate" => Ok(AdjustOp::Desaturate),
-        _ => Err(ProjectError::InvalidData(format!(
-            "unknown adjust operation {value}"
-        ))),
-    }
+    AdjustOp::from_label(value)
+        .or_else(|| AdjustOp::from_key(value))
+        .ok_or_else(|| ProjectError::InvalidData(format!("unknown adjust operation {value}")))
 }
 
 fn decode_token_role(value: &str) -> Option<TokenRole> {
-    match value {
-        "Background" => Some(TokenRole::Background),
-        "Surface" => Some(TokenRole::Surface),
-        "SurfaceAlt" => Some(TokenRole::SurfaceAlt),
-        "Text" => Some(TokenRole::Text),
-        "TextMuted" => Some(TokenRole::TextMuted),
-        "Border" => Some(TokenRole::Border),
-        "Selection" => Some(TokenRole::Selection),
-        "Cursor" => Some(TokenRole::Cursor),
-        "Comment" => Some(TokenRole::Comment),
-        "Keyword" => Some(TokenRole::Keyword),
-        "String" => Some(TokenRole::String),
-        "Number" => Some(TokenRole::Number),
-        "Type" => Some(TokenRole::Type),
-        "Function" => Some(TokenRole::Function),
-        "Variable" => Some(TokenRole::Variable),
-        "Error" => Some(TokenRole::Error),
-        "Warning" => Some(TokenRole::Warning),
-        "Info" => Some(TokenRole::Info),
-        "Hint" => Some(TokenRole::Hint),
-        "Success" => Some(TokenRole::Success),
-        _ => None,
-    }
+    TokenRole::from_label(value).or_else(|| TokenRole::from_key(value))
 }
 
 fn decode_palette_slot(value: &str) -> Option<PaletteSlot> {
-    match value {
-        "bg_0" | "Bg0" => Some(PaletteSlot::Bg0),
-        "bg_1" | "Bg1" => Some(PaletteSlot::Bg1),
-        "bg_2" | "Bg2" => Some(PaletteSlot::Bg2),
-        "fg_0" | "Fg0" => Some(PaletteSlot::Fg0),
-        "fg_1" | "Fg1" => Some(PaletteSlot::Fg1),
-        "fg_2" | "Fg2" => Some(PaletteSlot::Fg2),
-        "accent_0" | "Accent0" => Some(PaletteSlot::Accent0),
-        "accent_1" | "Accent1" => Some(PaletteSlot::Accent1),
-        "accent_2" | "Accent2" => Some(PaletteSlot::Accent2),
-        "accent_3" | "Accent3" => Some(PaletteSlot::Accent3),
-        "accent_4" | "Accent4" => Some(PaletteSlot::Accent4),
-        "accent_5" | "Accent5" => Some(PaletteSlot::Accent5),
-        _ => None,
-    }
+    PaletteSlot::from_label(value).or_else(|| match value {
+        "Bg0" => Some(PaletteSlot::Bg0),
+        "Bg1" => Some(PaletteSlot::Bg1),
+        "Bg2" => Some(PaletteSlot::Bg2),
+        "Fg0" => Some(PaletteSlot::Fg0),
+        "Fg1" => Some(PaletteSlot::Fg1),
+        "Fg2" => Some(PaletteSlot::Fg2),
+        "Accent0" => Some(PaletteSlot::Accent0),
+        "Accent1" => Some(PaletteSlot::Accent1),
+        "Accent2" => Some(PaletteSlot::Accent2),
+        "Accent3" => Some(PaletteSlot::Accent3),
+        "Accent4" => Some(PaletteSlot::Accent4),
+        "Accent5" => Some(PaletteSlot::Accent5),
+        _ => PaletteSlot::from_key(value),
+    })
 }
 
 #[cfg(test)]

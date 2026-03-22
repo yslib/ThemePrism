@@ -1,6 +1,7 @@
 mod app;
 mod core;
 mod domain;
+mod enum_meta;
 mod export;
 mod i18n;
 mod persistence;

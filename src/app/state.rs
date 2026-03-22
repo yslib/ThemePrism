@@ -11,16 +11,19 @@ use crate::domain::params::{ParamKey, ThemeParams};
 use crate::domain::rules::RuleSet;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
 use crate::export::{ExportProfile, default_export_profiles};
+use crate::enum_meta::define_key_enum;
 use crate::i18n::{self, UiText};
 use crate::persistence::editor_config::{
     DEFAULT_PROJECT_PATH, EditorConfig, EditorKeymapPreset, EditorLocale, EditorStartupFocus,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FocusPane {
-    Tokens,
-    Params,
-    Inspector,
+define_key_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum FocusPane {
+        Tokens => "tokens",
+        Params => "params",
+        Inspector => "inspector",
+    }
 }
 
 impl FocusPane {

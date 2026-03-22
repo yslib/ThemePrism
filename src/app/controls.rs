@@ -1,13 +1,16 @@
 use crate::domain::color::Color;
 use crate::domain::params::ParamKey;
 use crate::domain::tokens::TokenRole;
+use crate::enum_meta::define_labeled_key_enum;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReferenceField {
-    AliasSource,
-    MixA,
-    MixB,
-    AdjustSource,
+define_labeled_key_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ReferenceField {
+        AliasSource => { key: "alias_source", label: "source" },
+        MixA => { key: "mix_a", label: "color A" },
+        MixB => { key: "mix_b", label: "color B" },
+        AdjustSource => { key: "adjust_source", label: "source" },
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,16 +52,6 @@ impl ControlId {
             Self::AdjustOp(role) => format!("{} operation", role.label()),
             Self::AdjustAmount(role) => format!("{} adjust amount", role.label()),
             Self::FixedColor(role) => format!("{} fixed color", role.label()),
-        }
-    }
-}
-
-impl ReferenceField {
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::AliasSource | Self::AdjustSource => "source",
-            Self::MixA => "color A",
-            Self::MixB => "color B",
         }
     }
 }

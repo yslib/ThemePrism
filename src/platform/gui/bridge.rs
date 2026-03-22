@@ -253,99 +253,41 @@ fn parse_control_id(raw: &str) -> Result<ControlId, String> {
 }
 
 fn parse_param_key(raw: &str) -> Result<ParamKey, String> {
-    match raw {
-        "background_hue" => Ok(ParamKey::BackgroundHue),
-        "background_lightness" => Ok(ParamKey::BackgroundLightness),
-        "background_saturation" => Ok(ParamKey::BackgroundSaturation),
-        "contrast" => Ok(ParamKey::Contrast),
-        "accent_hue" => Ok(ParamKey::AccentHue),
-        "accent_saturation" => Ok(ParamKey::AccentSaturation),
-        "accent_lightness" => Ok(ParamKey::AccentLightness),
-        "selection_mix" => Ok(ParamKey::SelectionMix),
-        "vibrancy" => Ok(ParamKey::Vibrancy),
-        _ => Err(format!("unknown param key: {raw}")),
-    }
+    ParamKey::from_key(raw).ok_or_else(|| format!("unknown param key: {raw}"))
 }
 
 fn parse_token_role(raw: &str) -> Result<TokenRole, String> {
-    match raw {
-        "background" => Ok(TokenRole::Background),
-        "surface" => Ok(TokenRole::Surface),
-        "surfacealt" => Ok(TokenRole::SurfaceAlt),
-        "text" => Ok(TokenRole::Text),
-        "textmuted" => Ok(TokenRole::TextMuted),
-        "border" => Ok(TokenRole::Border),
-        "selection" => Ok(TokenRole::Selection),
-        "cursor" => Ok(TokenRole::Cursor),
-        "comment" => Ok(TokenRole::Comment),
-        "keyword" => Ok(TokenRole::Keyword),
-        "string" => Ok(TokenRole::String),
-        "number" => Ok(TokenRole::Number),
-        "type" => Ok(TokenRole::Type),
-        "function" => Ok(TokenRole::Function),
-        "variable" => Ok(TokenRole::Variable),
-        "error" => Ok(TokenRole::Error),
-        "warning" => Ok(TokenRole::Warning),
-        "info" => Ok(TokenRole::Info),
-        "hint" => Ok(TokenRole::Hint),
-        "success" => Ok(TokenRole::Success),
-        _ => Err(format!("unknown token role: {raw}")),
-    }
+    TokenRole::from_key(raw)
+        .or_else(|| match raw {
+            "surfacealt" => Some(TokenRole::SurfaceAlt),
+            "textmuted" => Some(TokenRole::TextMuted),
+            _ => None,
+        })
+        .ok_or_else(|| format!("unknown token role: {raw}"))
 }
 
 fn parse_reference_field(raw: &str) -> Result<ReferenceField, String> {
-    match raw {
-        "alias_source" => Ok(ReferenceField::AliasSource),
-        "mix_a" => Ok(ReferenceField::MixA),
-        "mix_b" => Ok(ReferenceField::MixB),
-        "adjust_source" => Ok(ReferenceField::AdjustSource),
-        _ => Err(format!("unknown reference field: {raw}")),
-    }
+    ReferenceField::from_key(raw).ok_or_else(|| format!("unknown reference field: {raw}"))
 }
 
 fn parse_rule_kind(raw: &str) -> Result<RuleKind, String> {
-    match raw {
-        "alias" => Ok(RuleKind::Alias),
-        "mix" => Ok(RuleKind::Mix),
-        "adjust" => Ok(RuleKind::Adjust),
-        "fixed" => Ok(RuleKind::Fixed),
-        _ => Err(format!("unknown rule kind: {raw}")),
-    }
+    RuleKind::from_key(raw).ok_or_else(|| format!("unknown rule kind: {raw}"))
 }
 
 fn parse_adjust_op(raw: &str) -> Result<AdjustOp, String> {
-    match raw {
-        "lighten" => Ok(AdjustOp::Lighten),
-        "darken" => Ok(AdjustOp::Darken),
-        "saturate" => Ok(AdjustOp::Saturate),
-        "desaturate" => Ok(AdjustOp::Desaturate),
-        _ => Err(format!("unknown adjust op: {raw}")),
-    }
+    AdjustOp::from_key(raw).ok_or_else(|| format!("unknown adjust op: {raw}"))
 }
 
 fn parse_focus_pane(raw: &str) -> Result<FocusPane, String> {
-    match raw {
-        "tokens" => Ok(FocusPane::Tokens),
-        "params" => Ok(FocusPane::Params),
-        "inspector" => Ok(FocusPane::Inspector),
-        _ => Err(format!("unknown focus pane: {raw}")),
-    }
+    FocusPane::from_key(raw).ok_or_else(|| format!("unknown focus pane: {raw}"))
 }
 
 fn parse_keymap_preset(raw: &str) -> Result<EditorKeymapPreset, String> {
-    match raw {
-        "standard" => Ok(EditorKeymapPreset::Standard),
-        "vim" => Ok(EditorKeymapPreset::Vim),
-        _ => Err(format!("unknown keymap preset: {raw}")),
-    }
+    EditorKeymapPreset::from_key(raw).ok_or_else(|| format!("unknown keymap preset: {raw}"))
 }
 
 fn parse_editor_locale(raw: &str) -> Result<EditorLocale, String> {
-    match raw {
-        "en_us" => Ok(EditorLocale::EnUs),
-        "zh_cn" => Ok(EditorLocale::ZhCn),
-        _ => Err(format!("unknown editor locale: {raw}")),
-    }
+    EditorLocale::from_key(raw).ok_or_else(|| format!("unknown editor locale: {raw}"))
 }
 
 fn parse_bool(raw: &str) -> Result<bool, String> {
@@ -357,21 +299,7 @@ fn parse_bool(raw: &str) -> Result<bool, String> {
 }
 
 fn parse_palette_slot(raw: &str) -> Result<PaletteSlot, String> {
-    match raw {
-        "bg_0" => Ok(PaletteSlot::Bg0),
-        "bg_1" => Ok(PaletteSlot::Bg1),
-        "bg_2" => Ok(PaletteSlot::Bg2),
-        "fg_0" => Ok(PaletteSlot::Fg0),
-        "fg_1" => Ok(PaletteSlot::Fg1),
-        "fg_2" => Ok(PaletteSlot::Fg2),
-        "accent_0" => Ok(PaletteSlot::Accent0),
-        "accent_1" => Ok(PaletteSlot::Accent1),
-        "accent_2" => Ok(PaletteSlot::Accent2),
-        "accent_3" => Ok(PaletteSlot::Accent3),
-        "accent_4" => Ok(PaletteSlot::Accent4),
-        "accent_5" => Ok(PaletteSlot::Accent5),
-        _ => Err(format!("unknown palette slot: {raw}")),
-    }
+    PaletteSlot::from_key(raw).ok_or_else(|| format!("unknown palette slot: {raw}"))
 }
 
 fn parse_source_ref(raw: &str) -> Result<SourceRef, String> {
