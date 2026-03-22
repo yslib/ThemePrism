@@ -9,6 +9,14 @@ use crate::domain::preview::sample_code;
 use crate::domain::rules::Rule;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
 
+mod layout;
+
+#[allow(unused_imports)]
+pub use layout::{
+    LayoutChild, WorkspaceLayout, WorkspaceSlot, child, column, compose_layout,
+    default_workspace_layout, panel, preview_focus_layout, row, status_bar,
+};
+
 #[derive(Debug, Clone, Copy)]
 pub enum Axis {
     Horizontal,
@@ -160,6 +168,8 @@ pub struct ConfigRowView {
 #[derive(Debug, Clone)]
 pub struct NumericEditorOverlayView {
     pub title: String,
+    pub preferred_width: u16,
+    pub preferred_height: u16,
     pub body_lines: Vec<StyledLine>,
     pub footer_lines: Vec<String>,
 }
@@ -173,11 +183,9 @@ enum NumericTrackKind {
 #[derive(Debug, Clone)]
 struct NumericEditorSpec {
     label: String,
-    value_text: String,
     current: f32,
     min: f32,
     max: f32,
-    step: f32,
     track_kind: NumericTrackKind,
 }
 
@@ -201,6 +209,10 @@ pub struct SpanStyle {
 }
 
 pub fn build_view(state: &AppState) -> ViewTree {
+    build_view_with_layout(state, &default_workspace_layout())
+}
+
+pub fn build_view_with_layout(state: &AppState, workspace_layout: &WorkspaceLayout) -> ViewTree {
     let theme = ViewTheme {
         background: state.theme_color(TokenRole::Background),
         surface: state.theme_color(TokenRole::Surface),
@@ -210,64 +222,9 @@ pub fn build_view(state: &AppState) -> ViewTree {
         text_muted: state.theme_color(TokenRole::TextMuted),
     };
 
-    let root = ViewNode::Split(SplitView {
-        axis: Axis::Vertical,
-        constraints: vec![Size::Min(12), Size::Length(2)],
-        children: vec![
-            ViewNode::Split(SplitView {
-                axis: Axis::Horizontal,
-                constraints: vec![Size::Length(34), Size::Min(48), Size::Length(38)],
-                children: vec![
-                    ViewNode::Split(SplitView {
-                        axis: Axis::Vertical,
-                        constraints: vec![Size::Percentage(58), Size::Percentage(42)],
-                        children: vec![
-                            ViewNode::Panel(build_token_panel(state)),
-                            ViewNode::Panel(build_params_panel(state)),
-                        ],
-                    }),
-                    ViewNode::Split(SplitView {
-                        axis: Axis::Vertical,
-                        constraints: vec![
-                            Size::Percentage(45),
-                            Size::Percentage(28),
-                            Size::Percentage(27),
-                        ],
-                        children: vec![
-                            ViewNode::Panel(build_code_panel(state)),
-                            ViewNode::Panel(build_palette_panel(state)),
-                            ViewNode::Split(SplitView {
-                                axis: Axis::Horizontal,
-                                constraints: vec![Size::Percentage(50), Size::Percentage(50)],
-                                children: vec![
-                                    ViewNode::Panel(build_token_swatch_panel(
-                                        state,
-                                        "Resolved Tokens",
-                                        &TokenRole::ALL[..10],
-                                    )),
-                                    ViewNode::Panel(build_token_swatch_panel(
-                                        state,
-                                        "Resolved Tokens II",
-                                        &TokenRole::ALL[10..],
-                                    )),
-                                ],
-                            }),
-                        ],
-                    }),
-                    ViewNode::Panel(build_inspector_panel(state)),
-                ],
-            }),
-            ViewNode::StatusBar(StatusBarView {
-                focus_label: state.ui.focus.label().to_string(),
-                help_text: status_help_text(state).to_string(),
-                status_text: format!(
-                    "{}  |  Exports: {}",
-                    state.ui.status,
-                    export_status_summary(state)
-                ),
-            }),
-        ],
-    });
+    let mut panel_for_slot = |slot| build_panel_for_slot(state, slot);
+    let mut status_bar_view = || build_status_bar_view(state);
+    let root = compose_layout(workspace_layout, &mut panel_for_slot, &mut status_bar_view);
 
     let mut overlays = Vec::new();
     if let Some(picker) = build_picker_overlay(state) {
@@ -284,6 +241,34 @@ pub fn build_view(state: &AppState) -> ViewTree {
         theme,
         root,
         overlays,
+    }
+}
+
+fn build_panel_for_slot(state: &AppState, slot: WorkspaceSlot) -> PanelView {
+    match slot {
+        WorkspaceSlot::Tokens => build_token_panel(state),
+        WorkspaceSlot::Params => build_params_panel(state),
+        WorkspaceSlot::Preview => build_code_panel(state),
+        WorkspaceSlot::Palette => build_palette_panel(state),
+        WorkspaceSlot::ResolvedPrimary => {
+            build_token_swatch_panel(state, "Resolved Tokens", &TokenRole::ALL[..10])
+        }
+        WorkspaceSlot::ResolvedSecondary => {
+            build_token_swatch_panel(state, "Resolved Tokens II", &TokenRole::ALL[10..])
+        }
+        WorkspaceSlot::Inspector => build_inspector_panel(state),
+    }
+}
+
+fn build_status_bar_view(state: &AppState) -> StatusBarView {
+    StatusBarView {
+        focus_label: state.ui.focus.label().to_string(),
+        help_text: status_help_text(state).to_string(),
+        status_text: format!(
+            "{}  |  Exports: {}",
+            state.ui.status,
+            export_status_summary(state)
+        ),
     }
 }
 
@@ -745,53 +730,16 @@ fn build_numeric_editor_overlay(state: &AppState) -> Option<NumericEditorOverlay
         return None;
     };
     let spec = numeric_editor_spec(state, control)?;
-    let muted = state.theme_color(TokenRole::TextMuted);
-    let text = state.theme_color(TokenRole::Text);
-
-    let mut body_lines = vec![
-        line_pair("Field: ", &spec.label, muted, text, None, true),
-        StyledLine {
-            spans: vec![
-                colored_span("Live: ", muted, false, false),
-                colored_span(spec.value_text.clone(), text, true, false),
-                plain_span("  "),
-                colored_span("Range: ", muted, false, false),
-                colored_span(
-                    format_numeric_range(spec.min, spec.max, spec.track_kind),
-                    text,
-                    false,
-                    false,
-                ),
-                plain_span("  "),
-                colored_span("Step: ", muted, false, false),
-                colored_span(
-                    format_numeric_value(spec.step, spec.track_kind),
-                    text,
-                    false,
-                    false,
-                ),
-            ],
-        },
-        StyledLine { spans: Vec::new() },
-    ];
-    body_lines.extend(build_numeric_track_lines(state, &spec));
-    body_lines.push(StyledLine { spans: Vec::new() });
-    body_lines.push(StyledLine {
-        spans: vec![
-            colored_span("Input: ", muted, false, false),
-            colored_span(input_preview(&input.buffer), text, true, false),
-        ],
-    });
+    let body_lines = vec![build_numeric_track_line(state, &spec, &input.buffer)];
+    let footer_lines = vec!["←→ nudge  |  Enter apply  |  Esc close".to_string()];
+    let preferred_height = body_lines.len() as u16 + footer_lines.len() as u16 + 4;
 
     Some(NumericEditorOverlayView {
         title: format!("Numeric Editor / {}", spec.label),
+        preferred_width: 54,
+        preferred_height,
         body_lines,
-        footer_lines: vec![
-            "Left/right nudges the live value and updates the preview immediately.".to_string(),
-            "Type an exact value, then press Enter to apply and close.".to_string(),
-            "Percent fields accept 35 or 35%. Hue fields accept decimals like 205.0.".to_string(),
-            "Esc closes the editor. Delete clears the input field.".to_string(),
-        ],
+        footer_lines,
     })
 }
 
@@ -876,11 +824,9 @@ fn numeric_editor_spec(state: &AppState, control: ControlId) -> Option<NumericEd
     match control {
         ControlId::Param(key) => Some(NumericEditorSpec {
             label: key.label().to_string(),
-            value_text: key.format_value(&state.domain.params).trim().to_string(),
             current: key.get(&state.domain.params),
             min: key.range().0,
             max: key.range().1,
-            step: key.step(),
             track_kind: match key {
                 crate::domain::params::ParamKey::BackgroundHue
                 | crate::domain::params::ParamKey::AccentHue => NumericTrackKind::Hue,
@@ -890,11 +836,9 @@ fn numeric_editor_spec(state: &AppState, control: ControlId) -> Option<NumericEd
         ControlId::MixRatio(role) => match state.domain.rules.get(role) {
             Some(Rule::Mix { ratio, .. }) => Some(NumericEditorSpec {
                 label: format!("{} / Blend", role.label()),
-                value_text: format!("{:>3.0}%", ratio * 100.0).trim().to_string(),
                 current: *ratio,
                 min: 0.0,
                 max: 1.0,
-                step: 0.05,
                 track_kind: NumericTrackKind::Scalar,
             }),
             _ => None,
@@ -902,11 +846,9 @@ fn numeric_editor_spec(state: &AppState, control: ControlId) -> Option<NumericEd
         ControlId::AdjustAmount(role) => match state.domain.rules.get(role) {
             Some(Rule::Adjust { amount, .. }) => Some(NumericEditorSpec {
                 label: format!("{} / Amount", role.label()),
-                value_text: format!("{:>3.0}%", amount * 100.0).trim().to_string(),
                 current: *amount,
                 min: 0.0,
                 max: 1.0,
-                step: 0.02,
                 track_kind: NumericTrackKind::Scalar,
             }),
             _ => None,
@@ -915,8 +857,12 @@ fn numeric_editor_spec(state: &AppState, control: ControlId) -> Option<NumericEd
     }
 }
 
-fn build_numeric_track_lines(state: &AppState, spec: &NumericEditorSpec) -> Vec<StyledLine> {
-    const TRACK_WIDTH: usize = 36;
+fn build_numeric_track_line(
+    state: &AppState,
+    spec: &NumericEditorSpec,
+    input_buffer: &str,
+) -> StyledLine {
+    const TRACK_WIDTH: usize = 28;
 
     let normalized = if (spec.max - spec.min).abs() < f32::EPSILON {
         0.0
@@ -925,7 +871,7 @@ fn build_numeric_track_lines(state: &AppState, spec: &NumericEditorSpec) -> Vec<
     };
     let marker_index = (normalized * (TRACK_WIDTH - 1) as f32).round() as usize;
 
-    let track_spans = (0..TRACK_WIDTH)
+    let mut spans = (0..TRACK_WIDTH)
         .map(|index| {
             let t = index as f32 / (TRACK_WIDTH - 1) as f32;
             let color = match spec.track_kind {
@@ -933,31 +879,32 @@ fn build_numeric_track_lines(state: &AppState, spec: &NumericEditorSpec) -> Vec<
                 NumericTrackKind::Scalar => scalar_track_color(state, t, normalized),
             };
             StyledSpan {
-                text: " ".to_string(),
+                text: if index == marker_index {
+                    "│".to_string()
+                } else {
+                    " ".to_string()
+                },
                 style: SpanStyle {
+                    fg: if index == marker_index {
+                        Some(state.theme_color(TokenRole::Background))
+                    } else {
+                        None
+                    },
                     bg: Some(color),
+                    bold: index == marker_index,
                     ..SpanStyle::default()
                 },
             }
         })
         .collect::<Vec<_>>();
-
-    let marker_spans = (0..TRACK_WIDTH)
-        .map(|index| {
-            if index == marker_index {
-                colored_span("^", state.theme_color(TokenRole::Selection), true, false)
-            } else {
-                plain_span(" ")
-            }
-        })
-        .collect::<Vec<_>>();
-
-    vec![
-        StyledLine { spans: track_spans },
-        StyledLine {
-            spans: marker_spans,
-        },
-    ]
+    spans.push(plain_span("  "));
+    spans.push(colored_span(
+        input_preview(input_buffer),
+        state.theme_color(TokenRole::Text),
+        true,
+        false,
+    ));
+    StyledLine { spans }
 }
 
 fn scalar_track_color(state: &AppState, position: f32, fill: f32) -> Color {
@@ -976,20 +923,6 @@ fn scalar_track_color(state: &AppState, position: f32, fill: f32) -> Color {
         filled_start.mix(filled_end, segment)
     } else {
         empty
-    }
-}
-
-fn format_numeric_range(min: f32, max: f32, kind: NumericTrackKind) -> String {
-    match kind {
-        NumericTrackKind::Hue => format!("{min:.1}..{max:.1}"),
-        NumericTrackKind::Scalar => format!("{:.0}%..{:.0}%", min * 100.0, max * 100.0),
-    }
-}
-
-fn format_numeric_value(value: f32, kind: NumericTrackKind) -> String {
-    match kind {
-        NumericTrackKind::Hue => format!("{value:.1}"),
-        NumericTrackKind::Scalar => format!("{:.0}%", value * 100.0),
     }
 }
 

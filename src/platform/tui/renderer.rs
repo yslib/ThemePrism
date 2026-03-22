@@ -425,7 +425,7 @@ impl TuiRenderer {
         overlay: &NumericEditorOverlayView,
         theme: &ViewTheme,
     ) {
-        let area = centered_rect(52, 62, area);
+        let area = centered_rect_absolute(overlay.preferred_width, overlay.preferred_height, area);
         frame.render_widget(Clear, area);
 
         let block = Block::default()
@@ -530,6 +530,14 @@ fn centered_rect(height_percent: u16, width_percent: u16, area: Rect) -> Rect {
             Constraint::Percentage((100 - width_percent) / 2),
         ])
         .split(vertical[1])[1]
+}
+
+fn centered_rect_absolute(width: u16, height: u16, area: Rect) -> Rect {
+    let width = width.min(area.width.saturating_sub(2)).max(1);
+    let height = height.min(area.height.saturating_sub(2)).max(1);
+    let x = area.x + area.width.saturating_sub(width) / 2;
+    let y = area.y + area.height.saturating_sub(height) / 2;
+    Rect::new(x, y, width, height)
 }
 
 fn tui(color: Color) -> ratatui::style::Color {
