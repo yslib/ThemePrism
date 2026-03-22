@@ -7,6 +7,7 @@ use fluent_templates::{Loader, static_loader};
 
 use crate::app::state::{ConfigFieldId, FocusPane};
 use crate::app::workspace::{PanelId, WorkspaceTab};
+use crate::domain::preview::PreviewMode;
 use crate::persistence::editor_config::{EditorKeymapPreset, EditorLocale};
 
 static_loader! {
@@ -88,6 +89,7 @@ define_ui_texts! {
     SourcePickerTitle => "source-picker-title",
     HelpSectionGlobal => "help-section-global",
     HelpSectionWorkspace => "help-section-workspace",
+    HelpSectionPreview => "help-section-preview",
     HelpSectionPickerInput => "help-section-picker-input",
     HelpShortcutHelpLabel => "help-shortcut-help-label",
     HelpShortcutHelpDesc => "help-shortcut-help-desc",
@@ -115,6 +117,12 @@ define_ui_texts! {
     HelpAdjustValueDesc => "help-adjust-value-desc",
     HelpActivateLabel => "help-activate-label",
     HelpActivateDesc => "help-activate-desc",
+    HelpPreviewModeLabel => "help-preview-mode-label",
+    HelpPreviewModeDesc => "help-preview-mode-desc",
+    HelpPreviewCaptureLabel => "help-preview-capture-label",
+    HelpPreviewCaptureDesc => "help-preview-capture-desc",
+    HelpPreviewReleaseLabel => "help-preview-release-label",
+    HelpPreviewReleaseDesc => "help-preview-release-desc",
     HelpTypeFilterLabel => "help-type-filter-label",
     HelpTypeFilterDesc => "help-type-filter-desc",
     HelpDeleteBackwardLabel => "help-delete-backward-label",
@@ -162,6 +170,15 @@ define_ui_texts! {
     FocusInspector => "focus-inspector",
     LocaleEnglish => "locale-english",
     LocaleChineseSimplified => "locale-chinese-simplified",
+    PreviewModeCode => "preview-mode-code",
+    PreviewModeShell => "preview-mode-shell",
+    PreviewModeLazygit => "preview-mode-lazygit",
+    PreviewHeaderSemanticSample => "preview-header-semantic-sample",
+    PreviewHeaderSwitchModes => "preview-header-switch-modes",
+    PreviewHeaderCaptureActive => "preview-header-capture-active",
+    PreviewWaitingTitle => "preview-waiting-title",
+    PreviewWaitingDetail => "preview-waiting-detail",
+    PreviewExitedTitle => "preview-exited-title",
     WindowTitle => "window-title",
     GuiSectionThemeParameters => "gui-section-theme-parameters",
     GuiSectionPalette => "gui-section-palette",
@@ -198,6 +215,10 @@ define_ui_texts! {
     StatusExportedCount => "status-exported-count",
     StatusExportFailed => "status-export-failed",
     StatusEditorConfigSaveFailed => "status-editor-config-save-failed",
+    StatusPreviewModeChanged => "status-preview-mode-changed",
+    StatusPreviewCaptureActive => "status-preview-capture-active",
+    StatusPreviewCaptureReleased => "status-preview-capture-released",
+    StatusPreviewProcessExited => "status-preview-process-exited",
     StatusSwitchedTab => "status-switched-tab",
     StatusFocusedPanel => "status-focused-panel",
     StatusTabOnlyHasPanels => "status-tab-only-has-panels",
@@ -351,6 +372,14 @@ pub fn locale_label(locale: EditorLocale, choice: EditorLocale) -> String {
     match choice {
         EditorLocale::EnUs => text(locale, UiText::LocaleEnglish),
         EditorLocale::ZhCn => text(locale, UiText::LocaleChineseSimplified),
+    }
+}
+
+pub fn preview_mode_label(locale: EditorLocale, mode: PreviewMode) -> String {
+    match mode {
+        PreviewMode::Code => text(locale, UiText::PreviewModeCode),
+        PreviewMode::Shell => text(locale, UiText::PreviewModeShell),
+        PreviewMode::Lazygit => text(locale, UiText::PreviewModeLazygit),
     }
 }
 

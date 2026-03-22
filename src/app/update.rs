@@ -9,6 +9,7 @@ use crate::app::view::{panel_order, workspace_layout_for_tab};
 use crate::app::workspace::PanelId;
 use crate::domain::color::Color;
 use crate::domain::params::{ParamKey, ThemeParams};
+use crate::domain::preview::{PreviewFrame, PreviewRuntimeEvent};
 use crate::domain::rules::{
     AdjustOp, Rule, RuleKind, RuleSet, SourceOption, SourceRef, available_source_options,
     available_sources, starter_rule,
@@ -96,6 +97,21 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         }
         Intent::AdjustActiveNumericInputByStep(delta) => {
             adjust_active_numeric_input(state, delta);
+            Vec::new()
+        }
+        Intent::CyclePreviewMode(delta) => {
+            if state.ui.source_picker.is_some()
+                || state.ui.text_input.is_some()
+                || state.ui.config_modal.is_some()
+                || state.ui.shortcut_help_open
+            {
+                return Vec::new();
+            }
+            cycle_preview_mode(state, delta);
+            Vec::new()
+        }
+        Intent::SetPreviewCapture(active) => {
+            set_preview_capture(state, active);
             Vec::new()
         }
         Intent::SetParamValue(key, value) => {
@@ -279,11 +295,84 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             };
             Vec::new()
         }
+        Intent::PreviewRuntimeEvent(event) => {
+            apply_preview_runtime_event(state, event);
+            Vec::new()
+        }
         Intent::EditorConfigSaved(result) => {
             if let Err(err) = result {
                 state.ui.status = tr1(state, UiText::StatusEditorConfigSaveFailed, "error", err);
             }
             Vec::new()
+        }
+    }
+}
+
+fn cycle_preview_mode(state: &mut AppState, delta: i32) {
+    if state.active_panel() != PanelId::Preview {
+        return;
+    }
+
+    state.preview.active_mode = if delta >= 0 {
+        state.preview.active_mode.next()
+    } else {
+        state.preview.active_mode.previous()
+    };
+    state.preview.capture_active = false;
+    state.preview.runtime_status.clear();
+    if state.preview.active_mode.is_runtime_backed() {
+        state.preview.runtime_frame = PreviewFrame::placeholder(
+            tr(state, UiText::PreviewWaitingTitle),
+            tr(state, UiText::PreviewWaitingDetail),
+        );
+        state.preview.runtime_status = tr(state, UiText::PreviewWaitingDetail);
+    }
+    state.ui.status = tr1(
+        state,
+        UiText::StatusPreviewModeChanged,
+        "mode",
+        i18n::preview_mode_label(state.locale(), state.preview.active_mode),
+    );
+}
+
+fn set_preview_capture(state: &mut AppState, active: bool) {
+    if active && !state.preview.active_mode.is_interactive() {
+        return;
+    }
+
+    state.preview.capture_active = active;
+    state.ui.status = if active {
+        tr1(
+            state,
+            UiText::StatusPreviewCaptureActive,
+            "mode",
+            i18n::preview_mode_label(state.locale(), state.preview.active_mode),
+        )
+    } else {
+        tr(state, UiText::StatusPreviewCaptureReleased)
+    };
+}
+
+fn apply_preview_runtime_event(state: &mut AppState, event: PreviewRuntimeEvent) {
+    match event {
+        PreviewRuntimeEvent::FrameUpdated(frame) => {
+            state.preview.runtime_frame = frame;
+            state.preview.runtime_status.clear();
+        }
+        PreviewRuntimeEvent::StatusUpdated(status) => {
+            state.preview.runtime_status = status;
+        }
+        PreviewRuntimeEvent::Exited { message } => {
+            state.preview.capture_active = false;
+            state.preview.runtime_status = tr1(
+                state,
+                UiText::StatusPreviewProcessExited,
+                "message",
+                &message,
+            );
+            state.preview.runtime_frame =
+                PreviewFrame::error(tr(state, UiText::PreviewExitedTitle), &message);
+            state.ui.status = state.preview.runtime_status.clone();
         }
     }
 }
@@ -1799,5 +1888,36 @@ mod tests {
         update(&mut state, Intent::CycleWorkspaceTab(1));
         update(&mut state, Intent::FocusPanelByNumber(3));
         assert_eq!(state.active_panel(), PanelId::EditorPreferences);
+    }
+
+    #[test]
+    fn cycling_preview_mode_prepares_runtime_placeholder() {
+        let mut state = AppState::new().expect("state should build");
+        state.ui.theme_panel = PanelId::Preview;
+
+        update(&mut state, Intent::CyclePreviewMode(1));
+
+        assert_eq!(
+            state.preview.active_mode,
+            crate::preview::PreviewMode::Shell
+        );
+        assert!(matches!(
+            state.preview.runtime_frame,
+            PreviewFrame::Placeholder(_)
+        ));
+        assert!(!state.preview.runtime_status.is_empty());
+    }
+
+    #[test]
+    fn preview_capture_requires_interactive_mode() {
+        let mut state = AppState::new().expect("state should build");
+        state.ui.theme_panel = PanelId::Preview;
+
+        update(&mut state, Intent::SetPreviewCapture(true));
+        assert!(!state.preview.capture_active);
+
+        state.preview.active_mode = crate::preview::PreviewMode::Shell;
+        update(&mut state, Intent::SetPreviewCapture(true));
+        assert!(state.preview.capture_active);
     }
 }

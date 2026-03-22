@@ -4,7 +4,7 @@ use crate::app::controls::{
 };
 use crate::app::state::AppState;
 use crate::app::workspace::PanelId;
-use crate::domain::preview::sample_code;
+use crate::domain::preview::{PreviewFrame, PreviewMode, PreviewSpanStyle, sample_document};
 use crate::domain::rules::Rule;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
 use crate::i18n::{self, UiText};
@@ -12,7 +12,7 @@ use crate::i18n::{self, UiText};
 use super::helpers::{display_text_for_control, export_outputs_summary, export_targets_summary};
 use super::styled::{colored_span, line_pair, plain_span, swatch_span};
 use super::{
-    CodePreviewView, FormFieldView, FormView, PanelBody, PanelView, SelectionListView,
+    DocumentView, FormFieldView, FormView, PanelBody, PanelTabView, PanelView, SelectionListView,
     SelectionRowView, SpanStyle, StyledLine, StyledSpan, SwatchItemView, SwatchListView,
 };
 
@@ -39,6 +39,8 @@ pub(crate) fn build_token_panel(state: &AppState) -> PanelView {
         title: i18n::text(state.locale(), UiText::PanelTokenList),
         active: false,
         shortcut: None,
+        tabs: Vec::new(),
+        header_lines: Vec::new(),
         body: PanelBody::SelectionList(SelectionListView { rows }),
     }
 }
@@ -91,6 +93,8 @@ pub(crate) fn build_params_panel(state: &AppState) -> PanelView {
         title: i18n::text(locale, UiText::PanelThemeParams),
         active: false,
         shortcut: None,
+        tabs: Vec::new(),
+        header_lines: Vec::new(),
         body: PanelBody::Form(FormView {
             header_lines: Vec::new(),
             fields,
@@ -99,34 +103,30 @@ pub(crate) fn build_params_panel(state: &AppState) -> PanelView {
     }
 }
 
-pub(crate) fn build_code_panel(state: &AppState) -> PanelView {
-    let background = state.theme_color(TokenRole::Background);
-    let lines = sample_code()
+pub(crate) fn build_preview_panel(state: &AppState) -> PanelView {
+    let document = match state.preview.active_mode {
+        PreviewMode::Code => sample_document(|role| state.theme_color(role)),
+        _ => runtime_preview_document(&state.preview.runtime_frame, state),
+    };
+    let lines = document
+        .lines
         .into_iter()
-        .map(|segments| StyledLine {
-            spans: segments
-                .into_iter()
-                .map(|segment| {
-                    let role = segment.role.unwrap_or(TokenRole::Text);
-                    StyledSpan {
-                        text: segment.text.to_string(),
-                        style: SpanStyle {
-                            fg: Some(state.theme_color(role)),
-                            bg: Some(background),
-                            ..SpanStyle::default()
-                        },
-                    }
-                })
-                .collect(),
-        })
-        .collect();
-
+        .map(preview_line_to_view_line)
+        .collect::<Vec<_>>();
     PanelView {
         id: PanelId::Preview,
         title: i18n::text(state.locale(), UiText::PanelPreviewSampleCode),
         active: false,
         shortcut: None,
-        body: PanelBody::CodePreview(CodePreviewView { lines }),
+        tabs: PreviewMode::ALL
+            .iter()
+            .map(|mode| PanelTabView {
+                label: preview_mode_label(state, *mode),
+                active: *mode == state.preview.active_mode,
+            })
+            .collect(),
+        header_lines: preview_header_lines(state),
+        body: PanelBody::Document(DocumentView { lines }),
     }
 }
 
@@ -148,6 +148,8 @@ pub(crate) fn build_palette_panel(state: &AppState) -> PanelView {
         title: i18n::text(state.locale(), UiText::PanelPalette),
         active: false,
         shortcut: None,
+        tabs: Vec::new(),
+        header_lines: Vec::new(),
         body: PanelBody::SwatchList(SwatchListView { items }),
     }
 }
@@ -180,6 +182,8 @@ pub(crate) fn build_token_swatch_panel(
         },
         active: false,
         shortcut: None,
+        tabs: Vec::new(),
+        header_lines: Vec::new(),
         body: PanelBody::SwatchList(SwatchListView { items }),
     }
 }
@@ -232,11 +236,116 @@ pub(crate) fn build_inspector_panel(state: &AppState) -> PanelView {
         title: i18n::text(locale, UiText::PanelInspector),
         active: false,
         shortcut: None,
+        tabs: Vec::new(),
+        header_lines: Vec::new(),
         body: PanelBody::Form(FormView {
             header_lines,
             fields,
             footer: Some(inspector_footer_text(state)),
         }),
+    }
+}
+
+fn preview_mode_label(state: &AppState, mode: PreviewMode) -> String {
+    i18n::preview_mode_label(state.locale(), mode)
+}
+
+fn preview_header_lines(state: &AppState) -> Vec<StyledLine> {
+    let detail = if state.preview.capture_active {
+        i18n::text(state.locale(), UiText::PreviewHeaderCaptureActive)
+    } else if state.preview.active_mode == PreviewMode::Code {
+        i18n::text(state.locale(), UiText::PreviewHeaderSemanticSample)
+    } else if !state.preview.runtime_status.is_empty() {
+        state.preview.runtime_status.clone()
+    } else {
+        i18n::text(state.locale(), UiText::PreviewHeaderSwitchModes)
+    };
+
+    vec![StyledLine {
+        spans: vec![StyledSpan {
+            text: detail,
+            style: SpanStyle {
+                fg: Some(state.theme_color(TokenRole::TextMuted)),
+                bg: None,
+                bold: false,
+                italic: false,
+            },
+        }],
+    }]
+}
+
+fn runtime_preview_document(
+    frame: &PreviewFrame,
+    state: &AppState,
+) -> crate::domain::preview::PreviewDocument {
+    match frame {
+        PreviewFrame::Document(document) => document.clone(),
+        PreviewFrame::Placeholder(message) => placeholder_document(
+            state,
+            &message.title,
+            &message.detail,
+            state.theme_color(TokenRole::TextMuted),
+        ),
+        PreviewFrame::Error(message) => placeholder_document(
+            state,
+            &message.title,
+            &message.detail,
+            state.theme_color(TokenRole::Error),
+        ),
+    }
+}
+
+fn placeholder_document(
+    state: &AppState,
+    title: &str,
+    detail: &str,
+    accent: crate::domain::color::Color,
+) -> crate::domain::preview::PreviewDocument {
+    use crate::domain::preview::{PreviewDocument, PreviewLine, PreviewSpan};
+
+    PreviewDocument {
+        lines: vec![
+            PreviewLine {
+                spans: vec![PreviewSpan {
+                    text: title.to_string(),
+                    style: PreviewSpanStyle {
+                        fg: Some(accent),
+                        bg: Some(state.theme_color(TokenRole::Background)),
+                        bold: true,
+                        italic: false,
+                    },
+                }],
+            },
+            PreviewLine {
+                spans: vec![PreviewSpan {
+                    text: detail.to_string(),
+                    style: PreviewSpanStyle {
+                        fg: Some(state.theme_color(TokenRole::TextMuted)),
+                        bg: Some(state.theme_color(TokenRole::Background)),
+                        bold: false,
+                        italic: false,
+                    },
+                }],
+            },
+        ],
+    }
+}
+
+fn preview_line_to_view_line(line: crate::domain::preview::PreviewLine) -> StyledLine {
+    StyledLine {
+        spans: line
+            .spans
+            .into_iter()
+            .map(|span| StyledSpan {
+                text: span.text,
+                style: SpanStyle {
+                    fg: span.style.fg,
+                    bg: span.style.bg,
+                    bold: span.style.bold,
+                    italic: span.style.italic,
+                },
+            })
+            .collect(),
     }
 }
 

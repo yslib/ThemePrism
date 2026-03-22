@@ -61,6 +61,13 @@ Applied to this codebase, that means:
 - Feature choice: disables default features and keeps only `std`, so the app avoids unused named-color parsing dependencies
 - Main usage: [src/color.rs](/Users/ysl/Code/theme/src/color.rs)
 
+### `portable-pty`
+
+- Version: `0.8.1`
+- Role: cross-platform PTY host
+- Why: lets the TUI preview runtime embed real terminal processes without hand-rolling platform-specific PTY code
+- Main usage: [src/platform/tui/preview.rs](/Users/ysl/Code/theme/src/platform/tui/preview.rs)
+
 ### `ratatui`
 
 - Version: `0.29.0`
@@ -109,6 +116,13 @@ Applied to this codebase, that means:
 - Main usage:
   - [src/persistence/editor_config.rs](/Users/ysl/Code/theme/src/persistence/editor_config.rs)
   - [src/i18n/mod.rs](/Users/ysl/Code/theme/src/i18n/mod.rs)
+
+### `vt100`
+
+- Version: `0.15.2`
+- Role: terminal escape-sequence parsing and screen-state reconstruction
+- Why: converts PTY byte streams into a stable terminal grid/document model that the shared preview view can render
+- Main usage: [src/platform/tui/preview.rs](/Users/ysl/Code/theme/src/platform/tui/preview.rs)
 
 ## Build Dependencies
 

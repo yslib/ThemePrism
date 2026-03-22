@@ -13,7 +13,7 @@ use super::project_tab::{
     build_editor_preferences_panel, build_export_targets_panel, build_project_config_panel,
 };
 use super::theme_tab::{
-    build_code_panel, build_inspector_panel, build_palette_panel, build_params_panel,
+    build_inspector_panel, build_palette_panel, build_params_panel, build_preview_panel,
     build_token_panel, build_token_swatch_panel,
 };
 use super::{
@@ -72,7 +72,7 @@ fn build_panel_for_slot(state: &AppState, slot: PanelId, visible_panels: &[Panel
     let mut panel = match slot {
         PanelId::Tokens => build_token_panel(state),
         PanelId::Params => build_params_panel(state),
-        PanelId::Preview => build_code_panel(state),
+        PanelId::Preview => build_preview_panel(state),
         PanelId::Palette => build_palette_panel(state),
         PanelId::ResolvedPrimary => {
             build_token_swatch_panel(state, "Resolved Tokens", &TokenRole::ALL[..10])

@@ -78,14 +78,22 @@ pub struct PanelView {
     pub title: String,
     pub active: bool,
     pub shortcut: Option<u8>,
+    pub tabs: Vec<PanelTabView>,
+    pub header_lines: Vec<StyledLine>,
     pub body: PanelBody,
+}
+
+#[derive(Debug, Clone)]
+pub struct PanelTabView {
+    pub label: String,
+    pub active: bool,
 }
 
 #[derive(Debug, Clone)]
 pub enum PanelBody {
     SelectionList(SelectionListView),
     Form(FormView),
-    CodePreview(CodePreviewView),
+    Document(DocumentView),
     SwatchList(SwatchListView),
 }
 
@@ -118,7 +126,7 @@ pub struct FormFieldView {
 }
 
 #[derive(Debug, Clone)]
-pub struct CodePreviewView {
+pub struct DocumentView {
     pub lines: Vec<StyledLine>,
 }
 

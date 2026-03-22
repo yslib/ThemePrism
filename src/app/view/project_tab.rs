@@ -19,6 +19,8 @@ pub(crate) fn build_project_config_panel(state: &AppState) -> PanelView {
         title: i18n::text(state.locale(), UiText::PanelProjectConfig),
         active: false,
         shortcut: None,
+        tabs: Vec::new(),
+        header_lines: Vec::new(),
         body: PanelBody::Form(FormView {
             header_lines: Vec::new(),
             fields,
@@ -40,6 +42,8 @@ pub(crate) fn build_export_targets_panel(state: &AppState) -> PanelView {
         title: i18n::text(state.locale(), UiText::PanelExportTargets),
         active: false,
         shortcut: None,
+        tabs: Vec::new(),
+        header_lines: Vec::new(),
         body: PanelBody::Form(FormView {
             header_lines: Vec::new(),
             fields,
@@ -61,6 +65,8 @@ pub(crate) fn build_editor_preferences_panel(state: &AppState) -> PanelView {
         title: i18n::text(state.locale(), UiText::PanelEditorPreferences),
         active: false,
         shortcut: None,
+        tabs: Vec::new(),
+        header_lines: Vec::new(),
         body: PanelBody::Form(FormView {
             header_lines: Vec::new(),
             fields,

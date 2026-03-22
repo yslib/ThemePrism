@@ -3,7 +3,7 @@ use serde::Serialize;
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::state::{AppState, FocusPane};
 use crate::app::update::current_source_for_control;
-use crate::domain::preview::sample_code;
+use crate::domain::preview::{PreviewFrame, sample_document};
 use crate::domain::rules::{AdjustOp, Rule, RuleKind, SourceRef, available_source_options};
 use crate::domain::tokens::{PaletteSlot, TokenRole};
 use crate::i18n::{self, UiText};
@@ -313,19 +313,61 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
         })
         .collect();
 
-    let background_hex = state.theme_color(TokenRole::Background).to_hex();
-    let preview = sample_code()
+    let preview_document = match state.preview.active_mode {
+        crate::domain::preview::PreviewMode::Code => {
+            sample_document(|role| state.theme_color(role))
+        }
+        _ => match &state.preview.runtime_frame {
+            PreviewFrame::Document(document) => document.clone(),
+            PreviewFrame::Placeholder(message) | PreviewFrame::Error(message) => {
+                crate::domain::preview::PreviewDocument {
+                    lines: vec![
+                        crate::domain::preview::PreviewLine {
+                            spans: vec![crate::domain::preview::PreviewSpan {
+                                text: message.title.clone(),
+                                style: crate::domain::preview::PreviewSpanStyle {
+                                    fg: Some(state.theme_color(TokenRole::TextMuted)),
+                                    bg: Some(state.theme_color(TokenRole::Background)),
+                                    bold: true,
+                                    italic: false,
+                                },
+                            }],
+                        },
+                        crate::domain::preview::PreviewLine {
+                            spans: vec![crate::domain::preview::PreviewSpan {
+                                text: message.detail.clone(),
+                                style: crate::domain::preview::PreviewSpanStyle {
+                                    fg: Some(state.theme_color(TokenRole::TextMuted)),
+                                    bg: Some(state.theme_color(TokenRole::Background)),
+                                    bold: false,
+                                    italic: false,
+                                },
+                            }],
+                        },
+                    ],
+                }
+            }
+        },
+    };
+    let preview = preview_document
+        .lines
         .into_iter()
         .map(|line| PreviewLineSnapshot {
             segments: line
+                .spans
                 .into_iter()
-                .map(|segment| {
-                    let role = segment.role.unwrap_or(TokenRole::Text);
-                    PreviewSegmentSnapshot {
-                        text: segment.text.to_string(),
-                        foreground_hex: state.theme_color(role).to_hex(),
-                        background_hex: background_hex.clone(),
-                    }
+                .map(|span| PreviewSegmentSnapshot {
+                    text: span.text,
+                    foreground_hex: span
+                        .style
+                        .fg
+                        .unwrap_or_else(|| state.theme_color(TokenRole::Text))
+                        .to_hex(),
+                    background_hex: span
+                        .style
+                        .bg
+                        .unwrap_or_else(|| state.theme_color(TokenRole::Background))
+                        .to_hex(),
                 })
                 .collect(),
         })

@@ -179,6 +179,11 @@ impl TuiEventAdapter {
                     state.active_control().expect("checked above"),
                 )]
             }
+            BoundAction::Activate
+                if state.active_panel() == crate::app::workspace::PanelId::Preview =>
+            {
+                vec![Intent::SetPreviewCapture(true)]
+            }
             BoundAction::Activate | BoundAction::Toggle
                 if state.active_config_field().is_some() =>
             {
@@ -186,6 +191,16 @@ impl TuiEventAdapter {
             }
             BoundAction::MoveUp => vec![Intent::MoveSelection(-1)],
             BoundAction::MoveDown => vec![Intent::MoveSelection(1)],
+            BoundAction::MoveLeft
+                if state.active_panel() == crate::app::workspace::PanelId::Preview =>
+            {
+                vec![Intent::CyclePreviewMode(-1)]
+            }
+            BoundAction::MoveRight
+                if state.active_panel() == crate::app::workspace::PanelId::Preview =>
+            {
+                vec![Intent::CyclePreviewMode(1)]
+            }
             BoundAction::MoveLeft if state.active_control().is_some() => {
                 vec![Intent::AdjustControlByStep(
                     state.active_control().expect("checked above"),
@@ -220,6 +235,7 @@ mod tests {
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
     use super::TuiEventAdapter;
+    use crate::app::workspace::PanelId;
     use crate::app::{AppState, Intent};
     use crate::persistence::editor_config::EditorKeymapPreset;
 
@@ -255,5 +271,31 @@ mod tests {
         let state = AppState::new().unwrap();
         let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Char('j')));
         assert!(intents.is_empty());
+    }
+
+    #[test]
+    fn preview_panel_left_right_cycle_modes() {
+        let mut state = AppState::new().unwrap();
+        state.ui.theme_panel = PanelId::Preview;
+
+        let left = TuiEventAdapter.map_event(&state, key(KeyCode::Left));
+        let right = TuiEventAdapter.map_event(&state, key(KeyCode::Right));
+
+        assert!(matches!(left.as_slice(), [Intent::CyclePreviewMode(-1)]));
+        assert!(matches!(right.as_slice(), [Intent::CyclePreviewMode(1)]));
+    }
+
+    #[test]
+    fn preview_panel_enter_captures_preview() {
+        let mut state = AppState::new().unwrap();
+        state.ui.theme_panel = PanelId::Preview;
+        state.preview.active_mode = crate::preview::PreviewMode::Shell;
+
+        let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Enter));
+
+        assert!(matches!(
+            intents.as_slice(),
+            [Intent::SetPreviewCapture(true)]
+        ));
     }
 }

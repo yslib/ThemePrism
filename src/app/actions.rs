@@ -20,6 +20,9 @@ pub enum ActionId {
     Apply,
     Cancel,
     Clear,
+    SwitchPreviewMode,
+    CapturePreview,
+    ReleasePreviewCapture,
     OpenConfig,
     OpenHelp,
     SaveProject,
@@ -45,6 +48,7 @@ pub enum BoundAction {
     Cancel,
     Clear,
     Backspace,
+    ReleasePreviewCapture,
     OpenConfig,
     OpenHelp,
     SaveProject,
@@ -77,6 +81,7 @@ pub struct ActionHelpEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum KeyBinding {
     Char(char),
+    Ctrl(char),
     Space,
     Enter,
     Esc,
@@ -93,8 +98,25 @@ enum KeyBinding {
 impl KeyBinding {
     fn matches(self, key: &KeyEvent) -> bool {
         match self {
-            Self::Char(ch) => matches!(key.code, KeyCode::Char(actual) if actual == ch),
-            Self::Space => matches!(key.code, KeyCode::Char(' ')),
+            Self::Char(ch) => {
+                !key.modifiers.intersects(
+                    crossterm::event::KeyModifiers::CONTROL
+                        | crossterm::event::KeyModifiers::ALT
+                        | crossterm::event::KeyModifiers::SUPER,
+                ) && matches!(key.code, KeyCode::Char(actual) if actual == ch)
+            }
+            Self::Ctrl(ch) => {
+                key.modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL)
+                    && matches!(key.code, KeyCode::Char(actual) if actual.eq_ignore_ascii_case(&ch))
+            }
+            Self::Space => {
+                !key.modifiers.intersects(
+                    crossterm::event::KeyModifiers::CONTROL
+                        | crossterm::event::KeyModifiers::ALT
+                        | crossterm::event::KeyModifiers::SUPER,
+                ) && matches!(key.code, KeyCode::Char(' '))
+            }
             Self::Enter => matches!(key.code, KeyCode::Enter),
             Self::Esc => matches!(key.code, KeyCode::Esc),
             Self::Tab => matches!(key.code, KeyCode::Tab),
@@ -118,6 +140,13 @@ impl KeyBinding {
                     const FALLBACK: &str = "";
                     if ch == ' ' { "Space" } else { FALLBACK }
                 }
+            },
+            Self::Ctrl(ch) => match ch {
+                'a'..='z' => match ch {
+                    'g' => "Ctrl+G",
+                    _ => "Ctrl",
+                },
+                _ => "Ctrl",
             },
             Self::Space => "Space",
             Self::Enter => "Enter",
@@ -245,6 +274,26 @@ pub fn shortcut_help_sections(
             ],
         },
         ActionHelpSection {
+            title: i18n::text(locale, UiText::HelpSectionPreview),
+            entries: vec![
+                entry(
+                    adjust_value_shortcut_label(preset),
+                    i18n::text(locale, UiText::HelpPreviewModeLabel),
+                    i18n::text(locale, UiText::HelpPreviewModeDesc),
+                ),
+                entry(
+                    activate_shortcut_label(preset),
+                    i18n::text(locale, UiText::HelpPreviewCaptureLabel),
+                    i18n::text(locale, UiText::HelpPreviewCaptureDesc),
+                ),
+                entry(
+                    binding_label(preset, BoundAction::ReleasePreviewCapture),
+                    i18n::text(locale, UiText::HelpPreviewReleaseLabel),
+                    i18n::text(locale, UiText::HelpPreviewReleaseDesc),
+                ),
+            ],
+        },
+        ActionHelpSection {
             title: i18n::text(locale, UiText::HelpSectionPickerInput),
             entries: vec![
                 entry(
@@ -327,6 +376,7 @@ pub fn binding_label(preset: EditorKeymapPreset, action: BoundAction) -> String 
                     continue;
                 }
             },
+            KeyBinding::Ctrl(_) => binding.label(),
             _ => binding.label(),
         });
     }
@@ -413,6 +463,7 @@ fn bindings_for(preset: EditorKeymapPreset, action: BoundAction) -> &'static [Ke
         (_, Action::Cancel) => &[Key::Esc],
         (_, Action::Clear) => &[Key::Delete],
         (_, Action::Backspace) => &[Key::Backspace],
+        (_, Action::ReleasePreviewCapture) => &[Key::Ctrl('g')],
         (_, Action::OpenConfig) => &[Key::Char('c')],
         (_, Action::OpenHelp) => &[Key::Char('?')],
         (_, Action::SaveProject) => &[Key::Char('s')],

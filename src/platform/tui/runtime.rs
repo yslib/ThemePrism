@@ -9,9 +9,11 @@ use crossterm::terminal::{
 use ratatui::Terminal;
 use ratatui::backend::Backend;
 use ratatui::backend::CrosstermBackend;
+use ratatui::layout::Rect;
 
 use crate::core::CoreSession;
 use crate::platform::tui::event_adapter::TuiEventAdapter;
+use crate::platform::tui::preview::PreviewRuntimeController;
 use crate::platform::tui::renderer::TuiRenderer;
 use crate::platform::{PlatformError, PlatformKind, PlatformRuntime};
 
@@ -53,8 +55,15 @@ fn run_terminal<B: Backend>(
 ) -> io::Result<()> {
     let adapter = TuiEventAdapter;
     let renderer = TuiRenderer;
+    let mut preview = PreviewRuntimeController::default();
 
     loop {
+        let area = terminal.size()?;
+        let area = Rect::new(0, 0, area.width, area.height);
+        let view = session.view_tree();
+        preview
+            .sync(&mut session, &view, area)
+            .map_err(io::Error::other)?;
         let view = session.view_tree();
         terminal.draw(|frame| renderer.present(frame, &view))?;
 
@@ -64,6 +73,18 @@ fn run_terminal<B: Backend>(
 
         if event::poll(Duration::from_millis(120))? {
             let event = event::read()?;
+            if let event::Event::Key(key) = event {
+                if key.kind == event::KeyEventKind::Press
+                    && preview
+                        .handle_capture_key(&mut session, key)
+                        .map_err(io::Error::other)?
+                {
+                    continue;
+                }
+                let intents = adapter.map_event(&session.state(), event::Event::Key(key));
+                session.dispatch_all(intents);
+                continue;
+            }
             let intents = adapter.map_event(session.state(), event);
             session.dispatch_all(intents);
         }

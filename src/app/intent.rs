@@ -4,6 +4,7 @@ use crate::app::controls::ControlId;
 use crate::app::effect::ProjectData;
 use crate::domain::color::Color;
 use crate::domain::params::ParamKey;
+use crate::domain::preview::PreviewRuntimeEvent;
 use crate::domain::rules::{AdjustOp, RuleKind, SourceRef};
 use crate::domain::tokens::TokenRole;
 use crate::export::ExportArtifact;
@@ -20,6 +21,8 @@ pub enum Intent {
     AdjustControlByStep(ControlId, i32),
     ActivateControl(ControlId),
     AdjustActiveNumericInputByStep(i32),
+    CyclePreviewMode(i32),
+    SetPreviewCapture(bool),
 
     SetParamValue(ParamKey, f32),
     SetRuleKind(TokenRole, RuleKind),
@@ -68,4 +71,5 @@ pub enum Intent {
     ProjectLoaded(Result<ProjectData, String>),
     EditorConfigSaved(Result<PathBuf, String>),
     ThemeExported(Result<Vec<ExportArtifact>, String>),
+    PreviewRuntimeEvent(PreviewRuntimeEvent),
 }

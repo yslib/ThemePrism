@@ -7,7 +7,7 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 
 use crate::app::controls::ControlSpec;
 use crate::app::view::{
-    Axis, CodePreviewView, FormFieldView, FormView, MainWindowView, MenuBarView, OverlayView,
+    Axis, DocumentView, FormFieldView, FormView, MainWindowView, MenuBarView, OverlayView,
     PanelBody, PanelView, PickerOverlayView, SelectionListView, SelectionRowView, Size, SpanStyle,
     StatusBarView, StyledLine, StyledSpan, SurfaceBody, SurfaceSize, SurfaceView, SwatchItemView,
     SwatchListView, TabBarView, ViewNode, ViewTheme, ViewTree,
@@ -141,12 +141,75 @@ impl TuiRenderer {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        match &view.body {
-            PanelBody::SelectionList(list) => self.render_selection_list(frame, inner, list, theme),
-            PanelBody::Form(form) => self.render_form(frame, inner, form, theme),
-            PanelBody::CodePreview(code) => self.render_code_preview(frame, inner, code),
-            PanelBody::SwatchList(list) => self.render_swatch_list(frame, inner, list, theme),
+        let tab_height = u16::from(!view.tabs.is_empty());
+        let header_height = view.header_lines.len() as u16;
+        let sections = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(tab_height),
+                Constraint::Length(header_height),
+                Constraint::Min(1),
+            ])
+            .split(inner);
+
+        if !view.tabs.is_empty() {
+            self.render_panel_tabs(frame, sections[0], &view.tabs, theme);
         }
+
+        if !view.header_lines.is_empty() {
+            let header = view
+                .header_lines
+                .iter()
+                .map(|line| styled_line_to_tui(line, theme))
+                .collect::<Vec<_>>();
+            frame.render_widget(
+                Paragraph::new(header).wrap(Wrap { trim: false }),
+                sections[1],
+            );
+        }
+
+        match &view.body {
+            PanelBody::SelectionList(list) => {
+                self.render_selection_list(frame, sections[2], list, theme)
+            }
+            PanelBody::Form(form) => self.render_form(frame, sections[2], form, theme),
+            PanelBody::Document(document) => self.render_document(frame, sections[2], document),
+            PanelBody::SwatchList(list) => self.render_swatch_list(frame, sections[2], list, theme),
+        }
+    }
+
+    fn render_panel_tabs(
+        self,
+        frame: &mut Frame,
+        area: Rect,
+        tabs: &[crate::app::view::PanelTabView],
+        theme: &ViewTheme,
+    ) {
+        let mut spans = Vec::new();
+        for (index, tab) in tabs.iter().enumerate() {
+            if index > 0 {
+                spans.push(Span::raw(" "));
+            }
+
+            let style = if tab.active {
+                Style::default()
+                    .bg(tui(theme.selection))
+                    .fg(tui(theme.background))
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+                    .bg(tui(theme.surface))
+                    .fg(tui(theme.text_muted))
+            };
+
+            spans.push(Span::styled(format!(" {} ", tab.label), style));
+        }
+
+        frame.render_widget(
+            Paragraph::new(Line::from(spans))
+                .style(Style::default().bg(tui(theme.surface)).fg(tui(theme.text))),
+            area,
+        );
     }
 
     fn render_selection_list(
@@ -251,8 +314,8 @@ impl TuiRenderer {
         Line::from(spans)
     }
 
-    fn render_code_preview(self, frame: &mut Frame, area: Rect, code: &CodePreviewView) {
-        let lines = code
+    fn render_document(self, frame: &mut Frame, area: Rect, document: &DocumentView) {
+        let lines = document
             .lines
             .iter()
             .map(|line| {
