@@ -107,9 +107,14 @@ pub fn preview_focus_layout() -> WorkspaceLayout {
 
 pub fn project_workspace_layout() -> WorkspaceLayout {
     row(vec![
-        child(Size::Percentage(26), panel(PanelId::ProjectConfig)),
-        child(Size::Percentage(46), panel(PanelId::ExportTargets)),
-        child(Size::Percentage(28), panel(PanelId::EditorPreferences)),
+        child(Size::Length(32), panel(PanelId::ProjectConfig)),
+        child(
+            Size::Min(46),
+            column(vec![
+                child(Size::Percentage(68), panel(PanelId::ExportTargets)),
+                child(Size::Percentage(32), panel(PanelId::EditorPreferences)),
+            ]),
+        ),
     ])
 }
 

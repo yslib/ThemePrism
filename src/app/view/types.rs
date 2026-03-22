@@ -1,0 +1,206 @@
+use crate::app::controls::ControlSpec;
+use crate::app::workspace::PanelId;
+use crate::domain::color::Color;
+
+#[derive(Debug, Clone, Copy)]
+pub enum Axis {
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Size {
+    Length(u16),
+    Min(u16),
+    Percentage(u16),
+}
+
+#[derive(Debug, Clone)]
+pub struct ViewTheme {
+    pub background: Color,
+    pub surface: Color,
+    pub border: Color,
+    pub selection: Color,
+    pub text: Color,
+    pub text_muted: Color,
+}
+
+#[derive(Debug, Clone)]
+pub struct ViewTree {
+    pub theme: ViewTheme,
+    pub main_window: MainWindowView,
+    pub overlays: Vec<OverlayView>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MainWindowView {
+    pub menu_bar: MenuBarView,
+    pub tab_bar: TabBarView,
+    pub workspace: ViewNode,
+    pub status_bar: StatusBarView,
+}
+
+#[derive(Debug, Clone)]
+pub struct MenuBarView {
+    pub title: String,
+    pub actions: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TabBarView {
+    pub tabs: Vec<TabItemView>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TabItemView {
+    pub label: String,
+    pub selected: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum ViewNode {
+    Split(SplitView),
+    Panel(PanelView),
+    StatusBar(StatusBarView),
+}
+
+#[derive(Debug, Clone)]
+pub struct SplitView {
+    pub axis: Axis,
+    pub constraints: Vec<Size>,
+    pub children: Vec<ViewNode>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PanelView {
+    pub id: PanelId,
+    pub title: String,
+    pub active: bool,
+    pub shortcut: Option<u8>,
+    pub body: PanelBody,
+}
+
+#[derive(Debug, Clone)]
+pub enum PanelBody {
+    SelectionList(SelectionListView),
+    Form(FormView),
+    CodePreview(CodePreviewView),
+    SwatchList(SwatchListView),
+}
+
+#[derive(Debug, Clone)]
+pub struct SelectionListView {
+    pub rows: Vec<SelectionRowView>,
+}
+
+#[derive(Debug, Clone)]
+pub enum SelectionRowView {
+    Header(String),
+    Item {
+        label: String,
+        color: Color,
+        selected: bool,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct FormView {
+    pub header_lines: Vec<StyledLine>,
+    pub fields: Vec<FormFieldView>,
+    pub footer: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FormFieldView {
+    pub control: ControlSpec,
+    pub selected: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CodePreviewView {
+    pub lines: Vec<StyledLine>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SwatchListView {
+    pub items: Vec<SwatchItemView>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SwatchItemView {
+    pub label: String,
+    pub color: Color,
+    pub value_text: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct StatusBarView {
+    pub focus_label: String,
+    pub help_text: String,
+    pub status_text: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum OverlayView {
+    Picker(PickerOverlayView),
+    Config(ConfigOverlayView),
+    NumericEditor(NumericEditorOverlayView),
+}
+
+#[derive(Debug, Clone)]
+pub struct PickerOverlayView {
+    pub title: String,
+    pub filter: String,
+    pub rows: Vec<PickerRowView>,
+    pub selected_row: Option<usize>,
+    pub total_matches: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct PickerRowView {
+    pub label: String,
+    pub is_header: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConfigOverlayView {
+    pub title: String,
+    pub rows: Vec<ConfigRowView>,
+    pub footer_lines: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConfigRowView {
+    pub label: String,
+    pub value_text: String,
+    pub selected: bool,
+    pub is_header: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct NumericEditorOverlayView {
+    pub title: String,
+    pub preferred_width: u16,
+    pub preferred_height: u16,
+    pub body_lines: Vec<StyledLine>,
+    pub footer_lines: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StyledLine {
+    pub spans: Vec<StyledSpan>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StyledSpan {
+    pub text: String,
+    pub style: SpanStyle,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SpanStyle {
+    pub fg: Option<Color>,
+    pub bg: Option<Color>,
+    pub bold: bool,
+    pub italic: bool,
+}
