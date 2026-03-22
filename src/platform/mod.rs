@@ -140,7 +140,8 @@ fn run_entrypoint_with_writer(
                     state.editor.auto_load_project_on_startup = config.auto_load_project_on_startup;
                     state.editor.auto_save_project_on_export = config.auto_save_project_on_export;
                     state.editor.startup_focus = config.startup_focus.into();
-                    state.ui.focus = state.editor.startup_focus;
+                    state.ui.theme_panel = state.editor.startup_focus.into();
+                    state.ui.active_tab = crate::app::workspace::WorkspaceTab::Theme;
 
                     if state.editor.auto_load_project_on_startup {
                         match load_project(&state.editor.project_path) {

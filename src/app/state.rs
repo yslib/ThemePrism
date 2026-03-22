@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::app::controls::{ControlId, ReferenceField};
+use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::color::Color;
 use crate::domain::evaluator::{EvalError, ResolvedTheme, resolve_theme};
 use crate::domain::palette::{Palette, generate_palette};
@@ -28,6 +29,7 @@ impl FocusPane {
         }
     }
 
+    #[allow(dead_code)]
     pub const fn previous(self) -> Self {
         match self {
             Self::Tokens => Self::Inspector,
@@ -106,7 +108,12 @@ pub struct UiState {
     pub selected_token: usize,
     pub selected_param: usize,
     pub inspector_field: usize,
-    pub focus: FocusPane,
+    pub active_tab: WorkspaceTab,
+    pub theme_panel: PanelId,
+    pub project_panel: PanelId,
+    pub project_field: usize,
+    pub export_field: usize,
+    pub editor_field: usize,
     pub status: String,
     pub should_quit: bool,
     pub text_input: Option<TextInputState>,
@@ -158,7 +165,12 @@ impl AppState {
                 selected_token: 0,
                 selected_param: 0,
                 inspector_field: 0,
-                focus: FocusPane::Tokens,
+                active_tab: WorkspaceTab::Theme,
+                theme_panel: PanelId::Tokens,
+                project_panel: PanelId::ProjectConfig,
+                project_field: 0,
+                export_field: 0,
+                editor_field: 0,
                 status: "Theme generator ready.".to_string(),
                 should_quit: false,
                 text_input: None,
@@ -209,7 +221,26 @@ impl AppState {
             .ui
             .inspector_field
             .min(self.inspector_field_count().saturating_sub(1));
+        self.ui.export_field = self
+            .ui
+            .export_field
+            .min(self.export_fields().len().saturating_sub(1));
         Ok(())
+    }
+
+    pub fn active_panel(&self) -> PanelId {
+        match self.ui.active_tab {
+            WorkspaceTab::Theme => self.ui.theme_panel,
+            WorkspaceTab::Project => self.ui.project_panel,
+        }
+    }
+
+    pub fn set_active_panel(&mut self, panel: PanelId) {
+        self.ui.active_tab = panel.tab();
+        match panel.tab() {
+            WorkspaceTab::Theme => self.ui.theme_panel = panel,
+            WorkspaceTab::Project => self.ui.project_panel = panel,
+        }
     }
 
     pub fn selected_role(&self) -> TokenRole {
@@ -257,11 +288,67 @@ impl AppState {
         }
     }
 
+    pub fn project_fields(&self) -> [ConfigFieldId; 1] {
+        [ConfigFieldId::ProjectName]
+    }
+
+    pub fn export_fields(&self) -> Vec<ConfigFieldId> {
+        let mut fields = Vec::new();
+        for (index, profile) in self.project.export_profiles.iter().enumerate() {
+            fields.push(ConfigFieldId::ExportEnabled(index));
+            fields.push(ConfigFieldId::ExportOutputPath(index));
+            if matches!(
+                &profile.format,
+                crate::export::ExportFormat::Template { .. }
+            ) {
+                fields.push(ConfigFieldId::ExportTemplatePath(index));
+            }
+        }
+        fields
+    }
+
+    pub fn editor_fields(&self) -> [ConfigFieldId; 4] {
+        [
+            ConfigFieldId::EditorProjectPath,
+            ConfigFieldId::EditorAutoLoadProject,
+            ConfigFieldId::EditorAutoSaveOnExport,
+            ConfigFieldId::EditorStartupFocus,
+        ]
+    }
+
+    pub fn active_config_field(&self) -> Option<ConfigFieldId> {
+        match self.active_panel() {
+            PanelId::ProjectConfig => {
+                let fields = self.project_fields();
+                fields
+                    .get(self.ui.project_field.min(fields.len().saturating_sub(1)))
+                    .copied()
+            }
+            PanelId::ExportTargets => {
+                let fields = self.export_fields();
+                fields
+                    .get(self.ui.export_field.min(fields.len().saturating_sub(1)))
+                    .copied()
+            }
+            PanelId::EditorPreferences => {
+                let fields = self.editor_fields();
+                fields
+                    .get(self.ui.editor_field.min(fields.len().saturating_sub(1)))
+                    .copied()
+            }
+            _ => None,
+        }
+    }
+
     pub fn active_control(&self) -> Option<ControlId> {
-        match self.ui.focus {
-            FocusPane::Tokens => None,
-            FocusPane::Params => Some(ControlId::Param(self.selected_param_key())),
-            FocusPane::Inspector => match (self.selected_rule(), self.ui.inspector_field) {
+        match self.active_panel() {
+            PanelId::Tokens
+            | PanelId::Preview
+            | PanelId::Palette
+            | PanelId::ResolvedPrimary
+            | PanelId::ResolvedSecondary => None,
+            PanelId::Params => Some(ControlId::Param(self.selected_param_key())),
+            PanelId::Inspector => match (self.selected_rule(), self.ui.inspector_field) {
                 (crate::domain::rules::Rule::Alias { .. }, 0) => {
                     Some(ControlId::RuleKind(self.selected_role()))
                 }
@@ -304,6 +391,7 @@ impl AppState {
                 }
                 _ => None,
             },
+            PanelId::ProjectConfig | PanelId::ExportTargets | PanelId::EditorPreferences => None,
         }
     }
 
@@ -337,6 +425,16 @@ impl From<EditorStartupFocus> for FocusPane {
 }
 
 impl From<FocusPane> for EditorStartupFocus {
+    fn from(value: FocusPane) -> Self {
+        match value {
+            FocusPane::Tokens => Self::Tokens,
+            FocusPane::Params => Self::Params,
+            FocusPane::Inspector => Self::Inspector,
+        }
+    }
+}
+
+impl From<FocusPane> for PanelId {
     fn from(value: FocusPane) -> Self {
         match value {
             FocusPane::Tokens => Self::Tokens,

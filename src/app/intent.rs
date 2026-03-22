@@ -11,6 +11,8 @@ use crate::export::ExportArtifact;
 #[derive(Debug, Clone)]
 pub enum Intent {
     QuitRequested,
+    CycleWorkspaceTab(i32),
+    FocusPanelByNumber(u8),
     MoveFocus(i32),
     MoveSelection(i32),
     SelectToken(usize),

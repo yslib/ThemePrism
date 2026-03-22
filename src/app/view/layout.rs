@@ -1,3 +1,5 @@
+use crate::app::workspace::{PanelId, WorkspaceTab};
+
 use super::{Axis, PanelView, Size, SplitView, StatusBarView, ViewNode};
 
 // A small declarative layout DSL for the TUI workspace.
@@ -5,31 +7,10 @@ use super::{Axis, PanelView, Size, SplitView, StatusBarView, ViewNode};
 // Keep this as plain Rust instead of proc-macros or codegen so layout changes stay easy to
 // debug, grep, and refactor. The intended editing loop is:
 //
-// 1. Pick a slot from `WorkspaceSlot`
+// 1. Pick a `PanelId`
 // 2. Wrap it with `panel(...)`
 // 3. Compose rows / columns with `row(...)` and `column(...)`
 // 4. Assign sizes through `child(Size::..., ...)`
-//
-// Example:
-//
-// column(vec![
-//     child(Size::Min(12), row(vec![
-//         child(Size::Length(32), panel(WorkspaceSlot::Tokens)),
-//         child(Size::Min(48), panel(WorkspaceSlot::Preview)),
-//     ])),
-//     child(Size::Length(2), status_bar()),
-// ])
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WorkspaceSlot {
-    Tokens,
-    Params,
-    Preview,
-    Palette,
-    ResolvedPrimary,
-    ResolvedSecondary,
-    Inspector,
-}
 
 #[derive(Debug, Clone)]
 pub struct LayoutChild {
@@ -41,7 +22,8 @@ pub struct LayoutChild {
 pub enum WorkspaceLayout {
     Row(Vec<LayoutChild>),
     Column(Vec<LayoutChild>),
-    Panel(WorkspaceSlot),
+    Panel(PanelId),
+    #[allow(dead_code)]
     StatusBar,
 }
 
@@ -57,80 +39,96 @@ pub fn column(children: impl Into<Vec<LayoutChild>>) -> WorkspaceLayout {
     WorkspaceLayout::Column(children.into())
 }
 
-pub fn panel(slot: WorkspaceSlot) -> WorkspaceLayout {
-    WorkspaceLayout::Panel(slot)
+pub fn panel(id: PanelId) -> WorkspaceLayout {
+    WorkspaceLayout::Panel(id)
 }
 
+#[allow(dead_code)]
 pub fn status_bar() -> WorkspaceLayout {
     WorkspaceLayout::StatusBar
 }
 
+pub fn workspace_layout_for_tab(tab: WorkspaceTab) -> WorkspaceLayout {
+    match tab {
+        WorkspaceTab::Theme => default_workspace_layout(),
+        WorkspaceTab::Project => project_workspace_layout(),
+    }
+}
+
 pub fn default_workspace_layout() -> WorkspaceLayout {
-    column(vec![
+    row(vec![
         child(
-            Size::Min(12),
-            row(vec![
-                child(
-                    Size::Length(34),
-                    column(vec![
-                        child(Size::Percentage(58), panel(WorkspaceSlot::Tokens)),
-                        child(Size::Percentage(42), panel(WorkspaceSlot::Params)),
-                    ]),
-                ),
-                child(
-                    Size::Min(48),
-                    column(vec![
-                        child(Size::Percentage(45), panel(WorkspaceSlot::Preview)),
-                        child(Size::Percentage(28), panel(WorkspaceSlot::Palette)),
-                        child(
-                            Size::Percentage(27),
-                            row(vec![
-                                child(Size::Percentage(50), panel(WorkspaceSlot::ResolvedPrimary)),
-                                child(
-                                    Size::Percentage(50),
-                                    panel(WorkspaceSlot::ResolvedSecondary),
-                                ),
-                            ]),
-                        ),
-                    ]),
-                ),
-                child(Size::Length(38), panel(WorkspaceSlot::Inspector)),
+            Size::Length(34),
+            column(vec![
+                child(Size::Percentage(58), panel(PanelId::Tokens)),
+                child(Size::Percentage(42), panel(PanelId::Params)),
             ]),
         ),
-        child(Size::Length(2), status_bar()),
+        child(
+            Size::Min(48),
+            column(vec![
+                child(Size::Percentage(28), panel(PanelId::Palette)),
+                child(
+                    Size::Percentage(27),
+                    row(vec![
+                        child(Size::Percentage(50), panel(PanelId::ResolvedPrimary)),
+                        child(Size::Percentage(50), panel(PanelId::ResolvedSecondary)),
+                    ]),
+                ),
+                child(Size::Percentage(45), panel(PanelId::Preview)),
+            ]),
+        ),
+        child(Size::Length(38), panel(PanelId::Inspector)),
     ])
 }
 
 #[allow(dead_code)]
 pub fn preview_focus_layout() -> WorkspaceLayout {
-    column(vec![
+    row(vec![
         child(
-            Size::Min(12),
-            row(vec![
-                child(
-                    Size::Length(34),
-                    column(vec![
-                        child(Size::Percentage(55), panel(WorkspaceSlot::Tokens)),
-                        child(Size::Percentage(45), panel(WorkspaceSlot::Params)),
-                    ]),
-                ),
-                child(Size::Min(56), panel(WorkspaceSlot::Preview)),
-                child(
-                    Size::Length(36),
-                    column(vec![
-                        child(Size::Percentage(38), panel(WorkspaceSlot::Inspector)),
-                        child(Size::Percentage(28), panel(WorkspaceSlot::Palette)),
-                        child(Size::Percentage(17), panel(WorkspaceSlot::ResolvedPrimary)),
-                        child(
-                            Size::Percentage(17),
-                            panel(WorkspaceSlot::ResolvedSecondary),
-                        ),
-                    ]),
-                ),
+            Size::Length(34),
+            column(vec![
+                child(Size::Percentage(55), panel(PanelId::Tokens)),
+                child(Size::Percentage(45), panel(PanelId::Params)),
             ]),
         ),
-        child(Size::Length(2), status_bar()),
+        child(Size::Min(56), panel(PanelId::Preview)),
+        child(
+            Size::Length(36),
+            column(vec![
+                child(Size::Percentage(38), panel(PanelId::Inspector)),
+                child(Size::Percentage(28), panel(PanelId::Palette)),
+                child(Size::Percentage(17), panel(PanelId::ResolvedPrimary)),
+                child(Size::Percentage(17), panel(PanelId::ResolvedSecondary)),
+            ]),
+        ),
     ])
+}
+
+pub fn project_workspace_layout() -> WorkspaceLayout {
+    row(vec![
+        child(Size::Percentage(26), panel(PanelId::ProjectConfig)),
+        child(Size::Percentage(46), panel(PanelId::ExportTargets)),
+        child(Size::Percentage(28), panel(PanelId::EditorPreferences)),
+    ])
+}
+
+pub fn panel_order(layout: &WorkspaceLayout) -> Vec<PanelId> {
+    let mut panels = Vec::new();
+    collect_panel_order(layout, &mut panels);
+    panels
+}
+
+fn collect_panel_order(layout: &WorkspaceLayout, panels: &mut Vec<PanelId>) {
+    match layout {
+        WorkspaceLayout::Row(children) | WorkspaceLayout::Column(children) => {
+            for child in children {
+                collect_panel_order(&child.node, panels);
+            }
+        }
+        WorkspaceLayout::Panel(id) => panels.push(*id),
+        WorkspaceLayout::StatusBar => {}
+    }
 }
 
 pub fn compose_layout<P, S>(
@@ -139,7 +137,7 @@ pub fn compose_layout<P, S>(
     status_bar_view: &mut S,
 ) -> ViewNode
 where
-    P: FnMut(WorkspaceSlot) -> PanelView,
+    P: FnMut(PanelId) -> PanelView,
     S: FnMut() -> StatusBarView,
 {
     match layout {

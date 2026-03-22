@@ -2,8 +2,9 @@ use crate::app::controls::{
     ChoiceControlSpec, ColorControlSpec, ControlId, ControlSpec, DisplayFieldSpec, ReferenceField,
     ReferencePickerControlSpec, ScalarControlSpec,
 };
-use crate::app::state::{AppState, ConfigFieldId, FocusPane, TextInputTarget};
+use crate::app::state::{AppState, ConfigFieldId, TextInputTarget};
 use crate::app::update::{config_fields, default_input_buffer, filtered_source_options};
+use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::color::Color;
 use crate::domain::preview::sample_code;
 use crate::domain::rules::Rule;
@@ -13,8 +14,9 @@ mod layout;
 
 #[allow(unused_imports)]
 pub use layout::{
-    LayoutChild, WorkspaceLayout, WorkspaceSlot, child, column, compose_layout,
-    default_workspace_layout, panel, preview_focus_layout, row, status_bar,
+    LayoutChild, WorkspaceLayout, child, column, compose_layout, default_workspace_layout, panel,
+    panel_order, preview_focus_layout, project_workspace_layout, row, status_bar,
+    workspace_layout_for_tab,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -43,8 +45,33 @@ pub struct ViewTheme {
 #[derive(Debug, Clone)]
 pub struct ViewTree {
     pub theme: ViewTheme,
-    pub root: ViewNode,
+    pub main_window: MainWindowView,
     pub overlays: Vec<OverlayView>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MainWindowView {
+    pub menu_bar: MenuBarView,
+    pub tab_bar: TabBarView,
+    pub workspace: ViewNode,
+    pub status_bar: StatusBarView,
+}
+
+#[derive(Debug, Clone)]
+pub struct MenuBarView {
+    pub title: String,
+    pub actions: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TabBarView {
+    pub tabs: Vec<TabItemView>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TabItemView {
+    pub label: String,
+    pub selected: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -63,8 +90,10 @@ pub struct SplitView {
 
 #[derive(Debug, Clone)]
 pub struct PanelView {
+    pub id: PanelId,
     pub title: String,
     pub active: bool,
+    pub shortcut: Option<u8>,
     pub body: PanelBody,
 }
 
@@ -209,7 +238,8 @@ pub struct SpanStyle {
 }
 
 pub fn build_view(state: &AppState) -> ViewTree {
-    build_view_with_layout(state, &default_workspace_layout())
+    let workspace_layout = workspace_layout_for_tab(state.ui.active_tab);
+    build_view_with_layout(state, &workspace_layout)
 }
 
 pub fn build_view_with_layout(state: &AppState, workspace_layout: &WorkspaceLayout) -> ViewTree {
@@ -222,9 +252,16 @@ pub fn build_view_with_layout(state: &AppState, workspace_layout: &WorkspaceLayo
         text_muted: state.theme_color(TokenRole::TextMuted),
     };
 
-    let mut panel_for_slot = |slot| build_panel_for_slot(state, slot);
+    let visible_panels = panel_order(workspace_layout);
+    let mut panel_for_slot = |slot| build_panel_for_slot(state, slot, &visible_panels);
     let mut status_bar_view = || build_status_bar_view(state);
-    let root = compose_layout(workspace_layout, &mut panel_for_slot, &mut status_bar_view);
+    let workspace = compose_layout(workspace_layout, &mut panel_for_slot, &mut status_bar_view);
+    let main_window = MainWindowView {
+        menu_bar: build_menu_bar_view(),
+        tab_bar: build_tab_bar_view(state),
+        workspace,
+        status_bar: build_status_bar_view(state),
+    };
 
     let mut overlays = Vec::new();
     if let Some(picker) = build_picker_overlay(state) {
@@ -239,30 +276,74 @@ pub fn build_view_with_layout(state: &AppState, workspace_layout: &WorkspaceLayo
 
     ViewTree {
         theme,
-        root,
+        main_window,
         overlays,
     }
 }
 
-fn build_panel_for_slot(state: &AppState, slot: WorkspaceSlot) -> PanelView {
-    match slot {
-        WorkspaceSlot::Tokens => build_token_panel(state),
-        WorkspaceSlot::Params => build_params_panel(state),
-        WorkspaceSlot::Preview => build_code_panel(state),
-        WorkspaceSlot::Palette => build_palette_panel(state),
-        WorkspaceSlot::ResolvedPrimary => {
+fn build_panel_for_slot(state: &AppState, slot: PanelId, visible_panels: &[PanelId]) -> PanelView {
+    let mut panel = match slot {
+        PanelId::Tokens => build_token_panel(state),
+        PanelId::Params => build_params_panel(state),
+        PanelId::Preview => build_code_panel(state),
+        PanelId::Palette => build_palette_panel(state),
+        PanelId::ResolvedPrimary => {
             build_token_swatch_panel(state, "Resolved Tokens", &TokenRole::ALL[..10])
         }
-        WorkspaceSlot::ResolvedSecondary => {
+        PanelId::ResolvedSecondary => {
             build_token_swatch_panel(state, "Resolved Tokens II", &TokenRole::ALL[10..])
         }
-        WorkspaceSlot::Inspector => build_inspector_panel(state),
+        PanelId::Inspector => build_inspector_panel(state),
+        PanelId::ProjectConfig => build_project_config_panel(state),
+        PanelId::ExportTargets => build_export_targets_panel(state),
+        PanelId::EditorPreferences => build_editor_preferences_panel(state),
+    };
+    panel.id = slot;
+    panel.active = state.active_panel() == slot;
+    panel.shortcut = visible_panels
+        .iter()
+        .position(|panel_id| *panel_id == slot)
+        .and_then(|index| u8::try_from(index + 1).ok());
+    panel.title = match panel.shortcut {
+        Some(shortcut) => format!("[{shortcut}] {}", panel.title),
+        None => panel.title,
+    };
+    panel
+}
+
+fn build_menu_bar_view() -> MenuBarView {
+    MenuBarView {
+        title: "Theme Generator".to_string(),
+        actions: vec![
+            "[/] Tabs".to_string(),
+            "1-9 Panels".to_string(),
+            "Enter Edit".to_string(),
+            "s Save".to_string(),
+            "o Load".to_string(),
+            "e Export".to_string(),
+        ],
+    }
+}
+
+fn build_tab_bar_view(state: &AppState) -> TabBarView {
+    TabBarView {
+        tabs: WorkspaceTab::ALL
+            .iter()
+            .map(|tab| TabItemView {
+                label: tab.label().to_string(),
+                selected: *tab == state.ui.active_tab,
+            })
+            .collect(),
     }
 }
 
 fn build_status_bar_view(state: &AppState) -> StatusBarView {
     StatusBarView {
-        focus_label: state.ui.focus.label().to_string(),
+        focus_label: format!(
+            "{} / {}",
+            state.ui.active_tab.label(),
+            state.active_panel().label()
+        ),
         help_text: status_help_text(state).to_string(),
         status_text: format!(
             "{}  |  Exports: {}",
@@ -291,8 +372,10 @@ fn build_token_panel(state: &AppState) -> PanelView {
     }
 
     PanelView {
+        id: PanelId::Tokens,
         title: "Token List".to_string(),
-        active: state.ui.focus == FocusPane::Tokens,
+        active: false,
+        shortcut: None,
         body: PanelBody::SelectionList(SelectionListView { rows }),
     }
 }
@@ -310,7 +393,7 @@ fn build_params_panel(state: &AppState) -> PanelView {
                 max: key.range().1,
                 step: key.step(),
             }),
-            selected: state.ui.focus == FocusPane::Params && key == state.selected_param_key(),
+            selected: state.active_panel() == PanelId::Params && key == state.selected_param_key(),
         })
         .collect::<Vec<_>>();
 
@@ -340,8 +423,10 @@ fn build_params_panel(state: &AppState) -> PanelView {
     });
 
     PanelView {
+        id: PanelId::Params,
         title: "Theme Params".to_string(),
-        active: state.ui.focus == FocusPane::Params,
+        active: false,
+        shortcut: None,
         body: PanelBody::Form(FormView {
             header_lines: Vec::new(),
             fields,
@@ -373,8 +458,10 @@ fn build_code_panel(state: &AppState) -> PanelView {
         .collect();
 
     PanelView {
+        id: PanelId::Preview,
         title: "Preview / Sample Code".to_string(),
         active: false,
+        shortcut: None,
         body: PanelBody::CodePreview(CodePreviewView { lines }),
     }
 }
@@ -393,8 +480,10 @@ fn build_palette_panel(state: &AppState) -> PanelView {
         .collect();
 
     PanelView {
+        id: PanelId::Palette,
         title: "Palette".to_string(),
         active: false,
+        shortcut: None,
         body: PanelBody::SwatchList(SwatchListView { items }),
     }
 }
@@ -413,8 +502,10 @@ fn build_token_swatch_panel(state: &AppState, title: &str, roles: &[TokenRole]) 
         .collect();
 
     PanelView {
+        id: PanelId::ResolvedPrimary,
         title: title.to_string(),
         active: false,
+        shortcut: None,
         body: PanelBody::SwatchList(SwatchListView { items }),
     }
 }
@@ -462,14 +553,99 @@ fn build_inspector_panel(state: &AppState) -> PanelView {
     let fields = build_inspector_fields(state);
 
     PanelView {
+        id: PanelId::Inspector,
         title: "Inspector".to_string(),
-        active: state.ui.focus == FocusPane::Inspector,
+        active: false,
+        shortcut: None,
         body: PanelBody::Form(FormView {
             header_lines,
             fields,
             footer: Some(inspector_footer_text(state).to_string()),
         }),
     }
+}
+
+fn build_project_config_panel(state: &AppState) -> PanelView {
+    let fields = config_panel_fields(
+        state,
+        PanelId::ProjectConfig,
+        state.project_fields().into_iter(),
+        state.ui.project_field,
+    );
+
+    PanelView {
+        id: PanelId::ProjectConfig,
+        title: "Project Config".to_string(),
+        active: false,
+        shortcut: None,
+        body: PanelBody::Form(FormView {
+            header_lines: Vec::new(),
+            fields,
+            footer: Some("Project data is saved with the project file.".to_string()),
+        }),
+    }
+}
+
+fn build_export_targets_panel(state: &AppState) -> PanelView {
+    let fields = config_panel_fields(
+        state,
+        PanelId::ExportTargets,
+        state.export_fields().into_iter(),
+        state.ui.export_field,
+    );
+
+    PanelView {
+        id: PanelId::ExportTargets,
+        title: "Export Targets".to_string(),
+        active: false,
+        shortcut: None,
+        body: PanelBody::Form(FormView {
+            header_lines: Vec::new(),
+            fields,
+            footer: Some("Enable targets and edit output/template paths here.".to_string()),
+        }),
+    }
+}
+
+fn build_editor_preferences_panel(state: &AppState) -> PanelView {
+    let fields = config_panel_fields(
+        state,
+        PanelId::EditorPreferences,
+        state.editor_fields().into_iter(),
+        state.ui.editor_field,
+    );
+
+    PanelView {
+        id: PanelId::EditorPreferences,
+        title: "Editor Preferences".to_string(),
+        active: false,
+        shortcut: None,
+        body: PanelBody::Form(FormView {
+            header_lines: Vec::new(),
+            fields,
+            footer: Some("Editor settings stay local to this machine.".to_string()),
+        }),
+    }
+}
+
+fn config_panel_fields(
+    state: &AppState,
+    panel_id: PanelId,
+    fields: impl IntoIterator<Item = ConfigFieldId>,
+    selected_index: usize,
+) -> Vec<FormFieldView> {
+    fields
+        .into_iter()
+        .enumerate()
+        .map(|(index, field)| FormFieldView {
+            control: ControlSpec::Display(DisplayFieldSpec {
+                label: config_field_label(field),
+                value_text: config_field_value(state, field),
+                swatch: None,
+            }),
+            selected: state.active_panel() == panel_id && index == selected_index,
+        })
+        .collect()
 }
 
 fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
@@ -480,7 +656,7 @@ fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
             label: "Rule Type".to_string(),
             value_text: state.selected_rule().kind().label().to_string(),
         }),
-        selected: state.ui.focus == FocusPane::Inspector && state.ui.inspector_field == 0,
+        selected: state.active_panel() == PanelId::Inspector && state.ui.inspector_field == 0,
     }];
 
     match state.selected_rule() {
@@ -518,7 +694,8 @@ fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
                     max: 1.0,
                     step: 0.05,
                 }),
-                selected: state.ui.focus == FocusPane::Inspector && state.ui.inspector_field == 3,
+                selected: state.active_panel() == PanelId::Inspector
+                    && state.ui.inspector_field == 3,
             });
         }
         Rule::Adjust { op, amount, .. } => {
@@ -535,7 +712,8 @@ fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
                     label: "Operation".to_string(),
                     value_text: op.label().to_string(),
                 }),
-                selected: state.ui.focus == FocusPane::Inspector && state.ui.inspector_field == 2,
+                selected: state.active_panel() == PanelId::Inspector
+                    && state.ui.inspector_field == 2,
             });
             fields.push(FormFieldView {
                 control: ControlSpec::Scalar(ScalarControlSpec {
@@ -550,7 +728,8 @@ fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
                     max: 1.0,
                     step: 0.02,
                 }),
-                selected: state.ui.focus == FocusPane::Inspector && state.ui.inspector_field == 3,
+                selected: state.active_panel() == PanelId::Inspector
+                    && state.ui.inspector_field == 3,
             });
         }
         Rule::Fixed { color } => {
@@ -564,7 +743,8 @@ fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
                     ),
                     color: *color,
                 }),
-                selected: state.ui.focus == FocusPane::Inspector && state.ui.inspector_field == 1,
+                selected: state.active_panel() == PanelId::Inspector
+                    && state.ui.inspector_field == 1,
             });
         }
     }
@@ -593,7 +773,7 @@ fn reference_field(
                 Some(active) if active == control
             ),
         }),
-        selected: state.ui.focus == FocusPane::Inspector && state.ui.inspector_field == index,
+        selected: state.active_panel() == PanelId::Inspector && state.ui.inspector_field == index,
     }
 }
 
@@ -963,8 +1143,10 @@ fn status_help_text(state: &AppState) -> &'static str {
         }
     } else if state.ui.config_modal.is_some() {
         "↑↓ select  |  Enter edit/toggle  |  Space toggle  |  Esc close"
+    } else if state.active_config_field().is_some() {
+        "[ ] tabs  |  1-9 panels  |  ↑↓ fields  |  Enter edit/toggle  |  c modal  |  q quit"
     } else {
-        "Tab focus  |  ↑↓ select  |  ←→ adjust  |  Enter/i activate  |  c config  |  s save  |  o load  |  e export  |  r reset  |  q quit"
+        "[ ] tabs  |  1-9 panels  |  Tab cycle  |  ↑↓ select  |  ←→ adjust  |  Enter edit  |  q quit"
     }
 }
 

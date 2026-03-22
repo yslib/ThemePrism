@@ -1,0 +1,84 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspaceTab {
+    Theme,
+    Project,
+}
+
+impl WorkspaceTab {
+    pub const ALL: [Self; 2] = [Self::Theme, Self::Project];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Theme => "Theme",
+            Self::Project => "Project",
+        }
+    }
+
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Theme => Self::Project,
+            Self::Project => Self::Theme,
+        }
+    }
+
+    pub const fn previous(self) -> Self {
+        match self {
+            Self::Theme => Self::Project,
+            Self::Project => Self::Theme,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub const fn default_panel(self) -> PanelId {
+        match self {
+            Self::Theme => PanelId::Tokens,
+            Self::Project => PanelId::ProjectConfig,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelId {
+    Tokens,
+    Params,
+    Preview,
+    Palette,
+    ResolvedPrimary,
+    ResolvedSecondary,
+    Inspector,
+    ProjectConfig,
+    ExportTargets,
+    EditorPreferences,
+}
+
+impl PanelId {
+    pub const fn tab(self) -> WorkspaceTab {
+        match self {
+            Self::Tokens
+            | Self::Params
+            | Self::Preview
+            | Self::Palette
+            | Self::ResolvedPrimary
+            | Self::ResolvedSecondary
+            | Self::Inspector => WorkspaceTab::Theme,
+            Self::ProjectConfig | Self::ExportTargets | Self::EditorPreferences => {
+                WorkspaceTab::Project
+            }
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Tokens => "Token List",
+            Self::Params => "Theme Params",
+            Self::Preview => "Preview / Sample Code",
+            Self::Palette => "Palette",
+            Self::ResolvedPrimary => "Resolved Tokens",
+            Self::ResolvedSecondary => "Resolved Tokens II",
+            Self::Inspector => "Inspector",
+            Self::ProjectConfig => "Project Config",
+            Self::ExportTargets => "Export Targets",
+            Self::EditorPreferences => "Editor Preferences",
+        }
+    }
+}

@@ -64,24 +64,13 @@ impl TuiEventAdapter {
             };
         }
 
-        let Some(control) = state.active_control() else {
-            return match key.code {
-                KeyCode::Char('q') => vec![Intent::QuitRequested],
-                KeyCode::Tab => vec![Intent::MoveFocus(1)],
-                KeyCode::BackTab => vec![Intent::MoveFocus(-1)],
-                KeyCode::Char('c') => vec![Intent::OpenConfigRequested],
-                KeyCode::Char('s') => vec![Intent::SaveProjectRequested],
-                KeyCode::Char('o') => vec![Intent::LoadProjectRequested],
-                KeyCode::Char('e') => vec![Intent::ExportThemeRequested],
-                KeyCode::Char('r') => vec![Intent::ResetRequested],
-                KeyCode::Up | KeyCode::Char('k') => vec![Intent::MoveSelection(-1)],
-                KeyCode::Down | KeyCode::Char('j') => vec![Intent::MoveSelection(1)],
-                _ => Vec::new(),
-            };
-        };
-
         match key.code {
             KeyCode::Char('q') => vec![Intent::QuitRequested],
+            KeyCode::Char('[') => vec![Intent::CycleWorkspaceTab(-1)],
+            KeyCode::Char(']') => vec![Intent::CycleWorkspaceTab(1)],
+            KeyCode::Char(ch) if ('1'..='9').contains(&ch) => {
+                vec![Intent::FocusPanelByNumber(ch as u8 - b'0')]
+            }
             KeyCode::Tab => vec![Intent::MoveFocus(1)],
             KeyCode::BackTab => vec![Intent::MoveFocus(-1)],
             KeyCode::Char('c') => vec![Intent::OpenConfigRequested],
@@ -89,11 +78,30 @@ impl TuiEventAdapter {
             KeyCode::Char('o') => vec![Intent::LoadProjectRequested],
             KeyCode::Char('e') => vec![Intent::ExportThemeRequested],
             KeyCode::Char('r') => vec![Intent::ResetRequested],
-            KeyCode::Enter | KeyCode::Char('i') => vec![Intent::ActivateControl(control)],
+            KeyCode::Enter | KeyCode::Char('i') if state.active_control().is_some() => {
+                vec![Intent::ActivateControl(
+                    state.active_control().expect("checked above"),
+                )]
+            }
+            KeyCode::Enter | KeyCode::Char('i') | KeyCode::Char(' ')
+                if state.active_config_field().is_some() =>
+            {
+                vec![Intent::ActivateConfigField]
+            }
             KeyCode::Up | KeyCode::Char('k') => vec![Intent::MoveSelection(-1)],
             KeyCode::Down | KeyCode::Char('j') => vec![Intent::MoveSelection(1)],
-            KeyCode::Left | KeyCode::Char('h') => vec![Intent::AdjustControlByStep(control, -1)],
-            KeyCode::Right | KeyCode::Char('l') => vec![Intent::AdjustControlByStep(control, 1)],
+            KeyCode::Left | KeyCode::Char('h') if state.active_control().is_some() => {
+                vec![Intent::AdjustControlByStep(
+                    state.active_control().expect("checked above"),
+                    -1,
+                )]
+            }
+            KeyCode::Right | KeyCode::Char('l') if state.active_control().is_some() => {
+                vec![Intent::AdjustControlByStep(
+                    state.active_control().expect("checked above"),
+                    1,
+                )]
+            }
             _ => Vec::new(),
         }
     }

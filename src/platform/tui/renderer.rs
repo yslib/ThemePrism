@@ -6,10 +6,10 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 
 use crate::app::controls::ControlSpec;
 use crate::app::view::{
-    Axis, CodePreviewView, ConfigOverlayView, FormFieldView, FormView, NumericEditorOverlayView,
-    OverlayView, PanelBody, PanelView, PickerOverlayView, SelectionListView, SelectionRowView,
-    Size, SpanStyle, StatusBarView, StyledLine, StyledSpan, SwatchItemView, SwatchListView,
-    ViewNode, ViewTheme, ViewTree,
+    Axis, CodePreviewView, ConfigOverlayView, FormFieldView, FormView, MainWindowView, MenuBarView,
+    NumericEditorOverlayView, OverlayView, PanelBody, PanelView, PickerOverlayView,
+    SelectionListView, SelectionRowView, Size, SpanStyle, StatusBarView, StyledLine, StyledSpan,
+    SwatchItemView, SwatchListView, TabBarView, ViewNode, ViewTheme, ViewTree,
 };
 use crate::domain::color::Color;
 
@@ -18,11 +18,34 @@ pub struct TuiRenderer;
 
 impl TuiRenderer {
     pub fn present(self, frame: &mut Frame, tree: &ViewTree) {
-        self.render_node(frame, frame.area(), &tree.root, &tree.theme);
+        self.render_main_window(frame, frame.area(), &tree.main_window, &tree.theme);
 
         for overlay in &tree.overlays {
             self.render_overlay(frame, frame.area(), overlay, &tree.theme);
         }
+    }
+
+    fn render_main_window(
+        self,
+        frame: &mut Frame,
+        area: Rect,
+        window: &MainWindowView,
+        theme: &ViewTheme,
+    ) {
+        let sections = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Min(8),
+                Constraint::Length(1),
+            ])
+            .split(area);
+
+        self.render_menu_bar(frame, sections[0], &window.menu_bar, theme);
+        self.render_tab_bar(frame, sections[1], &window.tab_bar, theme);
+        self.render_node(frame, sections[2], &window.workspace, theme);
+        self.render_status_bar(frame, sections[3], &window.status_bar, theme);
     }
 
     fn render_node(self, frame: &mut Frame, area: Rect, node: &ViewNode, theme: &ViewTheme) {
@@ -43,6 +66,61 @@ impl TuiRenderer {
             ViewNode::Panel(view) => self.render_panel(frame, area, view, theme),
             ViewNode::StatusBar(view) => self.render_status_bar(frame, area, view, theme),
         }
+    }
+
+    fn render_menu_bar(self, frame: &mut Frame, area: Rect, view: &MenuBarView, theme: &ViewTheme) {
+        let mut spans = vec![Span::styled(
+            format!(" {} ", view.title),
+            Style::default()
+                .bg(tui(theme.selection))
+                .fg(tui(theme.background))
+                .add_modifier(Modifier::BOLD),
+        )];
+        for action in &view.actions {
+            spans.push(Span::styled(
+                format!("  {action}"),
+                Style::default().fg(tui(theme.text)),
+            ));
+        }
+
+        frame.render_widget(
+            Paragraph::new(Line::from(spans))
+                .style(Style::default().bg(tui(theme.surface)).fg(tui(theme.text))),
+            area,
+        );
+    }
+
+    fn render_tab_bar(self, frame: &mut Frame, area: Rect, view: &TabBarView, theme: &ViewTheme) {
+        let mut spans = Vec::new();
+        for (index, tab) in view.tabs.iter().enumerate() {
+            if index > 0 {
+                spans.push(Span::styled(
+                    "  ",
+                    Style::default().bg(tui(theme.background)),
+                ));
+            }
+
+            let style = if tab.selected {
+                Style::default()
+                    .bg(tui(theme.selection))
+                    .fg(tui(theme.background))
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+                    .bg(tui(theme.background))
+                    .fg(tui(theme.text_muted))
+            };
+            spans.push(Span::styled(format!(" {} ", tab.label), style));
+        }
+
+        frame.render_widget(
+            Paragraph::new(Line::from(spans)).style(
+                Style::default()
+                    .bg(tui(theme.background))
+                    .fg(tui(theme.text)),
+            ),
+            area,
+        );
     }
 
     fn render_panel(self, frame: &mut Frame, area: Rect, view: &PanelView, theme: &ViewTheme) {
@@ -146,7 +224,7 @@ impl TuiRenderer {
         };
 
         let prefix = if field.selected { "> " } else { "  " };
-        let label = format!("{:<11}", field.control.label());
+        let label = format!("{:<14}", field.control.label());
         let value = field.control.value_text();
 
         let mut spans = vec![Span::styled(prefix, style), Span::styled(label, style)];

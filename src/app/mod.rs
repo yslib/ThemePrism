@@ -5,6 +5,7 @@ pub mod snapshot;
 pub mod state;
 pub mod update;
 pub mod view;
+pub mod workspace;
 
 pub use effect::Effect;
 pub use intent::Intent;

@@ -5,6 +5,8 @@ use crate::app::state::{
     AppState, ConfigFieldId, ConfigModalState, FocusPane, SourcePickerState, TextInputState,
     TextInputTarget,
 };
+use crate::app::view::{panel_order, workspace_layout_for_tab};
+use crate::app::workspace::PanelId;
 use crate::domain::color::Color;
 use crate::domain::params::{ParamKey, ThemeParams};
 use crate::domain::rules::{
@@ -20,6 +22,26 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             state.ui.should_quit = true;
             Vec::new()
         }
+        Intent::CycleWorkspaceTab(delta) => {
+            if state.ui.source_picker.is_some()
+                || state.ui.text_input.is_some()
+                || state.ui.config_modal.is_some()
+            {
+                return Vec::new();
+            }
+            cycle_workspace_tab(state, delta);
+            Vec::new()
+        }
+        Intent::FocusPanelByNumber(number) => {
+            if state.ui.source_picker.is_some()
+                || state.ui.text_input.is_some()
+                || state.ui.config_modal.is_some()
+            {
+                return Vec::new();
+            }
+            focus_panel_by_number(state, number);
+            Vec::new()
+        }
         Intent::MoveFocus(delta) => {
             if state.ui.source_picker.is_some()
                 || state.ui.text_input.is_some()
@@ -27,11 +49,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             {
                 return Vec::new();
             }
-            state.ui.focus = if delta >= 0 {
-                state.ui.focus.next()
-            } else {
-                state.ui.focus.previous()
-            };
+            move_panel_focus(state, delta);
             Vec::new()
         }
         Intent::MoveSelection(delta) => {
@@ -248,9 +266,57 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
     }
 }
 
+fn cycle_workspace_tab(state: &mut AppState, delta: i32) {
+    state.ui.active_tab = if delta >= 0 {
+        state.ui.active_tab.next()
+    } else {
+        state.ui.active_tab.previous()
+    };
+    let panel = state.active_panel();
+    state.ui.status = format!(
+        "Switched to {} tab ({})",
+        state.ui.active_tab.label(),
+        panel.label()
+    );
+}
+
+fn move_panel_focus(state: &mut AppState, delta: i32) {
+    let layout = workspace_layout_for_tab(state.ui.active_tab);
+    let panels = panel_order(&layout);
+    if panels.is_empty() {
+        return;
+    }
+
+    let current = state.active_panel();
+    let index = panels
+        .iter()
+        .position(|panel| *panel == current)
+        .unwrap_or(0);
+    let next = panels[cycle_index(index, panels.len(), delta)];
+    state.set_active_panel(next);
+    state.ui.status = format!("Focused panel {}", next.label());
+}
+
+fn focus_panel_by_number(state: &mut AppState, number: u8) {
+    let layout = workspace_layout_for_tab(state.ui.active_tab);
+    let panels = panel_order(&layout);
+    let index = number.saturating_sub(1) as usize;
+
+    if let Some(panel) = panels.get(index).copied() {
+        state.set_active_panel(panel);
+        state.ui.status = format!("Focused panel {}", panel.label());
+    } else {
+        state.ui.status = format!(
+            "{} tab only has {} panels.",
+            state.ui.active_tab.label(),
+            panels.len()
+        );
+    }
+}
+
 fn move_selection(state: &mut AppState, delta: i32) {
-    match state.ui.focus {
-        FocusPane::Tokens => {
+    match state.active_panel() {
+        PanelId::Tokens => {
             state.ui.selected_token =
                 cycle_index(state.ui.selected_token, TokenRole::ALL.len(), delta);
             state.ui.inspector_field = state
@@ -260,13 +326,13 @@ fn move_selection(state: &mut AppState, delta: i32) {
             state.ui.source_picker = None;
             state.ui.status = format!("Selected token {}", state.selected_role().label());
         }
-        FocusPane::Params => {
+        PanelId::Params => {
             state.ui.selected_param =
                 cycle_index(state.ui.selected_param, ParamKey::ALL.len(), delta);
             state.ui.source_picker = None;
             state.ui.status = format!("Selected param {}", state.selected_param_key().label());
         }
-        FocusPane::Inspector => {
+        PanelId::Inspector => {
             state.ui.inspector_field = cycle_index(
                 state.ui.inspector_field,
                 state.inspector_field_count(),
@@ -274,6 +340,53 @@ fn move_selection(state: &mut AppState, delta: i32) {
             );
             state.ui.source_picker = None;
         }
+        PanelId::ProjectConfig => {
+            move_project_field_selection(state, PanelId::ProjectConfig, delta)
+        }
+        PanelId::ExportTargets => {
+            move_project_field_selection(state, PanelId::ExportTargets, delta)
+        }
+        PanelId::EditorPreferences => {
+            move_project_field_selection(state, PanelId::EditorPreferences, delta)
+        }
+        PanelId::Preview
+        | PanelId::Palette
+        | PanelId::ResolvedPrimary
+        | PanelId::ResolvedSecondary => {
+            state.ui.status = format!("{} has no list selection.", state.active_panel().label());
+        }
+    }
+}
+
+fn move_project_field_selection(state: &mut AppState, panel: PanelId, delta: i32) {
+    let len = match panel {
+        PanelId::ProjectConfig => state.project_fields().len(),
+        PanelId::ExportTargets => state.export_fields().len(),
+        PanelId::EditorPreferences => state.editor_fields().len(),
+        _ => 0,
+    };
+    if len == 0 {
+        state.ui.status = format!("{} has no editable fields.", panel.label());
+        return;
+    }
+
+    match panel {
+        PanelId::ProjectConfig => {
+            state.ui.project_field = cycle_index(state.ui.project_field.min(len - 1), len, delta)
+        }
+        PanelId::ExportTargets => {
+            state.ui.export_field = cycle_index(state.ui.export_field.min(len - 1), len, delta)
+        }
+        PanelId::EditorPreferences => {
+            state.ui.editor_field = cycle_index(state.ui.editor_field.min(len - 1), len, delta)
+        }
+        _ => {}
+    }
+    if let Some(field) = state.active_config_field() {
+        state.ui.status = format!(
+            "Selected {}",
+            input_target_label(TextInputTarget::Config(field))
+        );
     }
 }
 
@@ -889,7 +1002,7 @@ fn set_editor_auto_save_on_export(state: &mut AppState, enabled: bool) -> Vec<Ef
 
 fn set_editor_startup_focus(state: &mut AppState, focus: FocusPane) -> Vec<Effect> {
     state.editor.startup_focus = focus;
-    state.ui.focus = focus;
+    state.ui.theme_panel = focus.into();
     state.ui.status = format!("Startup focus -> {}.", focus.label());
     save_editor_config_effects(state)
 }
@@ -951,18 +1064,26 @@ fn move_config_selection(state: &mut AppState, delta: i32) {
 }
 
 fn activate_config_field(state: &mut AppState) -> Vec<Effect> {
-    let Some(modal) = &state.ui.config_modal else {
-        return Vec::new();
+    let field = if let Some(modal) = &state.ui.config_modal {
+        let fields = config_fields(state);
+        match fields
+            .get(modal.selected_field.min(fields.len().saturating_sub(1)))
+            .copied()
+        {
+            Some(field) => field,
+            None => return Vec::new(),
+        }
+    } else {
+        match state.active_config_field() {
+            Some(field) => field,
+            None => return Vec::new(),
+        }
     };
 
-    let fields = config_fields(state);
-    let Some(field) = fields
-        .get(modal.selected_field.min(fields.len().saturating_sub(1)))
-        .copied()
-    else {
-        return Vec::new();
-    };
+    activate_config_field_by_id(state, field)
+}
 
+fn activate_config_field_by_id(state: &mut AppState, field: ConfigFieldId) -> Vec<Effect> {
     if field.supports_text_input() {
         open_text_input(state, TextInputTarget::Config(field));
         return Vec::new();
@@ -1287,6 +1408,7 @@ pub fn apply_source_to_control(control: ControlId, rule: &mut Rule, source: Sour
 mod tests {
     use super::*;
     use crate::app::controls::ControlId;
+    use crate::app::workspace::{PanelId, WorkspaceTab};
     use crate::domain::params::ParamKey;
 
     #[test]
@@ -1309,5 +1431,31 @@ mod tests {
                 .map(|input| input.buffer.as_str()),
             Some("210.0")
         );
+    }
+
+    #[test]
+    fn workspace_tabs_restore_panel_focus() {
+        let mut state = AppState::new().expect("state should build");
+        state.ui.theme_panel = PanelId::Inspector;
+
+        update(&mut state, Intent::CycleWorkspaceTab(1));
+        assert_eq!(state.ui.active_tab, WorkspaceTab::Project);
+        assert_eq!(state.active_panel(), PanelId::ProjectConfig);
+
+        update(&mut state, Intent::CycleWorkspaceTab(1));
+        assert_eq!(state.ui.active_tab, WorkspaceTab::Theme);
+        assert_eq!(state.active_panel(), PanelId::Inspector);
+    }
+
+    #[test]
+    fn digit_navigation_focuses_visible_panel_in_current_tab() {
+        let mut state = AppState::new().expect("state should build");
+
+        update(&mut state, Intent::FocusPanelByNumber(6));
+        assert_eq!(state.active_panel(), PanelId::Preview);
+
+        update(&mut state, Intent::CycleWorkspaceTab(1));
+        update(&mut state, Intent::FocusPanelByNumber(3));
+        assert_eq!(state.active_panel(), PanelId::EditorPreferences);
     }
 }
