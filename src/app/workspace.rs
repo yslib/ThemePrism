@@ -7,13 +7,6 @@ pub enum WorkspaceTab {
 impl WorkspaceTab {
     pub const ALL: [Self; 2] = [Self::Theme, Self::Project];
 
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Theme => "Theme",
-            Self::Project => "Project",
-        }
-    }
-
     pub const fn next(self) -> Self {
         match self {
             Self::Theme => Self::Project,
@@ -64,21 +57,6 @@ impl PanelId {
             Self::ProjectConfig | Self::ExportTargets | Self::EditorPreferences => {
                 WorkspaceTab::Project
             }
-        }
-    }
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Tokens => "Token List",
-            Self::Params => "Theme Params",
-            Self::Preview => "Preview / Sample Code",
-            Self::Palette => "Palette",
-            Self::ResolvedPrimary => "Resolved Tokens",
-            Self::ResolvedSecondary => "Resolved Tokens II",
-            Self::Inspector => "Inspector",
-            Self::ProjectConfig => "Project Config",
-            Self::ExportTargets => "Export Targets",
-            Self::EditorPreferences => "Editor Preferences",
         }
     }
 }

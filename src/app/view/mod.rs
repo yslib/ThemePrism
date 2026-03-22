@@ -14,11 +14,11 @@ pub use layout::{
     workspace_layout_for_tab,
 };
 pub use types::{
-    Axis, CodePreviewView, ConfigOverlayView, ConfigRowView, FormFieldView, FormView,
-    MainWindowView, MenuBarView, NumericEditorOverlayView, OverlayView, PanelBody, PanelView,
-    PickerOverlayView, PickerRowView, SelectionListView, SelectionRowView, Size, SpanStyle,
-    SplitView, StatusBarView, StyledLine, StyledSpan, SwatchItemView, SwatchListView, TabBarView,
-    TabItemView, ViewNode, ViewTheme, ViewTree,
+    Axis, CodePreviewView, FormFieldView, FormView, MainWindowView, MenuBarView, OverlayView,
+    PanelBody, PanelView, PickerOverlayView, PickerRowView, SelectionListView, SelectionRowView,
+    Size, SpanStyle, SplitView, StatusBarView, StyledLine, StyledSpan, SurfaceBody, SurfaceSize,
+    SurfaceView, SwatchItemView, SwatchListView, TabBarView, TabItemView, ViewNode, ViewTheme,
+    ViewTree,
 };
 #[allow(unused_imports)]
 pub use window::{build_view, build_view_with_layout};

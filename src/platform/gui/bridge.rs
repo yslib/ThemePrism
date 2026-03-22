@@ -8,6 +8,7 @@ use crate::domain::color::Color;
 use crate::domain::params::ParamKey;
 use crate::domain::rules::{AdjustOp, RuleKind, SourceRef};
 use crate::domain::tokens::{PaletteSlot, TokenRole};
+use crate::persistence::editor_config::{EditorKeymapPreset, EditorLocale};
 
 #[derive(Debug)]
 pub struct GuiBridgeSession {
@@ -200,6 +201,10 @@ fn parse_command(command: &str) -> Result<Intent, String> {
 
             match field {
                 "startup_focus" => Ok(Intent::SetEditorStartupFocus(parse_focus_pane(selected)?)),
+                "keymap_preset" => Ok(Intent::SetEditorKeymapPreset(parse_keymap_preset(
+                    selected,
+                )?)),
+                "locale" => Ok(Intent::SetEditorLocale(parse_editor_locale(selected)?)),
                 _ => Err(format!("unknown editor choice field: {field}")),
             }
         }
@@ -324,6 +329,22 @@ fn parse_focus_pane(raw: &str) -> Result<FocusPane, String> {
         "params" => Ok(FocusPane::Params),
         "inspector" => Ok(FocusPane::Inspector),
         _ => Err(format!("unknown focus pane: {raw}")),
+    }
+}
+
+fn parse_keymap_preset(raw: &str) -> Result<EditorKeymapPreset, String> {
+    match raw {
+        "standard" => Ok(EditorKeymapPreset::Standard),
+        "vim" => Ok(EditorKeymapPreset::Vim),
+        _ => Err(format!("unknown keymap preset: {raw}")),
+    }
+}
+
+fn parse_editor_locale(raw: &str) -> Result<EditorLocale, String> {
+    match raw {
+        "en_us" => Ok(EditorLocale::EnUs),
+        "zh_cn" => Ok(EditorLocale::ZhCn),
+        _ => Err(format!("unknown editor locale: {raw}")),
     }
 }
 

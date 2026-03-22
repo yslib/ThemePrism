@@ -1,15 +1,17 @@
+use crate::app::actions::shortcut_help_sections;
 use crate::app::controls::ControlId;
 use crate::app::state::{AppState, ConfigFieldId, TextInputTarget};
 use crate::app::update::{config_fields, filtered_source_options};
 use crate::domain::color::Color;
 use crate::domain::rules::Rule;
 use crate::domain::tokens::TokenRole;
+use crate::i18n::{self, UiText};
 
 use super::helpers::{config_field_label, config_field_value, input_preview};
 use super::styled::{colored_span, plain_span};
 use super::{
-    ConfigOverlayView, ConfigRowView, NumericEditorOverlayView, PickerOverlayView, PickerRowView,
-    SpanStyle, StyledLine, StyledSpan,
+    OverlayView, PickerOverlayView, PickerRowView, SpanStyle, StyledLine, StyledSpan, SurfaceBody,
+    SurfaceSize, SurfaceView,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -60,7 +62,12 @@ pub(crate) fn build_picker_overlay(state: &AppState) -> Option<PickerOverlayView
     }
 
     Some(PickerOverlayView {
-        title: format!("Source Picker / {}", picker.control.label()),
+        title: i18n::format1(
+            state.locale(),
+            UiText::SourcePickerTitle,
+            "label",
+            picker.control.label(),
+        ),
         filter: picker.filter.clone(),
         rows,
         selected_row,
@@ -68,36 +75,32 @@ pub(crate) fn build_picker_overlay(state: &AppState) -> Option<PickerOverlayView
     })
 }
 
-pub(crate) fn build_config_overlay(state: &AppState) -> Option<ConfigOverlayView> {
+pub(crate) fn build_config_overlay(state: &AppState) -> Option<OverlayView> {
     let modal = state.ui.config_modal.as_ref()?;
     let fields = config_fields(state);
     let selected = fields
         .get(modal.selected_field.min(fields.len().saturating_sub(1)))
         .copied();
 
-    let mut rows = vec![
-        ConfigRowView {
-            label: "Project Config (saved with project)".to_string(),
-            value_text: String::new(),
-            selected: false,
-            is_header: true,
-        },
-        config_field_row(state, ConfigFieldId::ProjectName, selected),
-        ConfigRowView {
-            label: "Export Targets (saved with project)".to_string(),
-            value_text: String::new(),
-            selected: false,
-            is_header: true,
-        },
+    let mut lines = vec![
+        section_header_line(
+            state,
+            &i18n::text(state.locale(), UiText::ConfigSectionProjectSaved),
+        ),
+        config_field_line(state, ConfigFieldId::ProjectName, selected),
+        section_header_line(
+            state,
+            &i18n::text(state.locale(), UiText::ConfigSectionExportSaved),
+        ),
     ];
 
     for (index, profile) in state.project.export_profiles.iter().enumerate() {
-        rows.push(config_field_row(
+        lines.push(config_field_line(
             state,
             ConfigFieldId::ExportEnabled(index),
             selected,
         ));
-        rows.push(config_field_row(
+        lines.push(config_field_line(
             state,
             ConfigFieldId::ExportOutputPath(index),
             selected,
@@ -106,7 +109,7 @@ pub(crate) fn build_config_overlay(state: &AppState) -> Option<ConfigOverlayView
             &profile.format,
             crate::export::ExportFormat::Template { .. }
         ) {
-            rows.push(config_field_row(
+            lines.push(config_field_line(
                 state,
                 ConfigFieldId::ExportTemplatePath(index),
                 selected,
@@ -114,76 +117,134 @@ pub(crate) fn build_config_overlay(state: &AppState) -> Option<ConfigOverlayView
         }
     }
 
-    rows.push(ConfigRowView {
-        label: "Editor Config (local only)".to_string(),
-        value_text: String::new(),
-        selected: false,
-        is_header: true,
-    });
-    rows.push(config_field_row(
+    lines.push(section_header_line(
+        state,
+        &i18n::text(state.locale(), UiText::ConfigSectionEditorLocal),
+    ));
+    lines.push(config_field_line(
         state,
         ConfigFieldId::EditorProjectPath,
         selected,
     ));
-    rows.push(config_field_row(
+    lines.push(config_field_line(
         state,
         ConfigFieldId::EditorAutoLoadProject,
         selected,
     ));
-    rows.push(config_field_row(
+    lines.push(config_field_line(
         state,
         ConfigFieldId::EditorAutoSaveOnExport,
         selected,
     ));
-    rows.push(config_field_row(
+    lines.push(config_field_line(
         state,
         ConfigFieldId::EditorStartupFocus,
         selected,
     ));
+    lines.push(config_field_line(
+        state,
+        ConfigFieldId::EditorKeymapPreset,
+        selected,
+    ));
+    lines.push(config_field_line(
+        state,
+        ConfigFieldId::EditorLocale,
+        selected,
+    ));
 
-    Some(ConfigOverlayView {
-        title: "Configuration".to_string(),
-        rows,
-        footer_lines: vec![
-            "Enter edits text fields. Enter or Space toggles targets and cycles editor prefs."
-                .to_string(),
-            "Project config is saved with the project file.".to_string(),
-            "Editor config stays local to this machine and editor instance.".to_string(),
-            "Esc closes the panel.".to_string(),
-        ],
-    })
+    let config_footer_edit = i18n::text(state.locale(), UiText::ConfigFooterEditHint);
+    let config_footer_saved = i18n::text(state.locale(), UiText::ConfigFooterProjectSaved);
+    let config_footer_local = i18n::text(state.locale(), UiText::ConfigFooterEditorLocal);
+    let config_footer_close = i18n::text(state.locale(), UiText::ConfigFooterCloseHint);
+
+    Some(OverlayView::Surface(SurfaceView {
+        title: i18n::text(state.locale(), UiText::ConfigTitle),
+        size: SurfaceSize::Percent {
+            width: 68,
+            height: 74,
+        },
+        body: SurfaceBody::Lines { lines, scroll: 0 },
+        footer_lines: surface_footer_lines(
+            state,
+            &[
+                &config_footer_edit,
+                &config_footer_saved,
+                &config_footer_local,
+                &config_footer_close,
+            ],
+        ),
+    }))
 }
 
-pub(crate) fn build_numeric_editor_overlay(state: &AppState) -> Option<NumericEditorOverlayView> {
+pub(crate) fn build_numeric_editor_overlay(state: &AppState) -> Option<OverlayView> {
     let input = state.ui.text_input.as_ref()?;
     let TextInputTarget::Control(control) = input.target else {
         return None;
     };
     let spec = numeric_editor_spec(state, control)?;
     let body_lines = vec![build_numeric_track_line(state, &spec, &input.buffer)];
-    let footer_lines = vec!["←→ nudge  |  Enter apply  |  Esc close".to_string()];
+    let numeric_footer = i18n::text(state.locale(), UiText::NumericFooter);
+    let footer_lines = surface_footer_lines(state, &[&numeric_footer]);
     let preferred_height = body_lines.len() as u16 + footer_lines.len() as u16 + 4;
 
-    Some(NumericEditorOverlayView {
-        title: format!("Numeric Editor / {}", spec.label),
-        preferred_width: 54,
-        preferred_height,
-        body_lines,
+    Some(OverlayView::Surface(SurfaceView {
+        title: i18n::format1(
+            state.locale(),
+            UiText::NumericEditorTitle,
+            "label",
+            &spec.label,
+        ),
+        size: SurfaceSize::Absolute {
+            width: 54,
+            height: preferred_height,
+        },
+        body: SurfaceBody::Lines {
+            lines: body_lines,
+            scroll: 0,
+        },
         footer_lines,
-    })
+    }))
 }
 
-fn config_field_row(
-    state: &AppState,
-    field: ConfigFieldId,
-    selected: Option<ConfigFieldId>,
-) -> ConfigRowView {
-    ConfigRowView {
-        label: config_field_label(field),
-        value_text: config_field_value(state, field),
-        selected: selected == Some(field),
-        is_header: false,
+pub(crate) fn build_help_overlay(state: &AppState) -> Option<OverlayView> {
+    if !state.ui.shortcut_help_open {
+        return None;
     }
+
+    let mut lines = Vec::new();
+    for (section_index, section) in
+        shortcut_help_sections(state.locale(), state.editor.keymap_preset)
+            .into_iter()
+            .enumerate()
+    {
+        if section_index > 0 {
+            lines.push(StyledLine { spans: Vec::new() });
+        }
+        lines.push(section_header_line(state, &section.title));
+        for entry in section.entries {
+            lines.push(help_entry_line(
+                state,
+                &entry.shortcut,
+                &entry.label,
+                &entry.description,
+            ));
+        }
+    }
+
+    let help_footer_scroll = i18n::text(state.locale(), UiText::HelpFooterScroll);
+    let help_footer_keymap = i18n::text(state.locale(), UiText::HelpFooterKeymap);
+    Some(OverlayView::Surface(SurfaceView {
+        title: i18n::text(state.locale(), UiText::HelpTitle),
+        size: SurfaceSize::Percent {
+            width: 78,
+            height: 80,
+        },
+        body: SurfaceBody::Lines {
+            lines,
+            scroll: state.ui.shortcut_help_scroll,
+        },
+        footer_lines: surface_footer_lines(state, &[&help_footer_scroll, &help_footer_keymap]),
+    }))
 }
 
 fn numeric_editor_spec(state: &AppState, control: ControlId) -> Option<NumericEditorSpec> {
@@ -201,7 +262,11 @@ fn numeric_editor_spec(state: &AppState, control: ControlId) -> Option<NumericEd
         }),
         ControlId::MixRatio(role) => match state.domain.rules.get(role) {
             Some(Rule::Mix { ratio, .. }) => Some(NumericEditorSpec {
-                label: format!("{} / Blend", role.label()),
+                label: format!(
+                    "{} / {}",
+                    role.label(),
+                    i18n::text(state.locale(), UiText::InspectorBlend)
+                ),
                 current: *ratio,
                 min: 0.0,
                 max: 1.0,
@@ -211,7 +276,11 @@ fn numeric_editor_spec(state: &AppState, control: ControlId) -> Option<NumericEd
         },
         ControlId::AdjustAmount(role) => match state.domain.rules.get(role) {
             Some(Rule::Adjust { amount, .. }) => Some(NumericEditorSpec {
-                label: format!("{} / Amount", role.label()),
+                label: format!(
+                    "{} / {}",
+                    role.label(),
+                    i18n::text(state.locale(), UiText::InspectorAmount)
+                ),
                 current: *amount,
                 min: 0.0,
                 max: 1.0,
@@ -271,6 +340,104 @@ fn build_numeric_track_line(
         false,
     ));
     StyledLine { spans }
+}
+
+fn config_field_line(
+    state: &AppState,
+    field: ConfigFieldId,
+    selected: Option<ConfigFieldId>,
+) -> StyledLine {
+    let is_selected = selected == Some(field);
+    let label = format!("{:<12}", config_field_label(state.locale(), field));
+    let value = config_field_value(state, field);
+    let fg = if is_selected {
+        state.theme_color(TokenRole::Background)
+    } else {
+        state.theme_color(TokenRole::Text)
+    };
+    let bg = is_selected.then_some(state.theme_color(TokenRole::Selection));
+
+    StyledLine {
+        spans: vec![
+            styled_text_span(
+                if is_selected { "> " } else { "  " },
+                fg,
+                bg,
+                is_selected,
+                false,
+            ),
+            styled_text_span(label, fg, bg, is_selected, false),
+            styled_text_span(value, fg, bg, is_selected, false),
+        ],
+    }
+}
+
+fn section_header_line(state: &AppState, title: &str) -> StyledLine {
+    StyledLine {
+        spans: vec![colored_span(
+            title.to_string(),
+            state.theme_color(TokenRole::TextMuted),
+            true,
+            false,
+        )],
+    }
+}
+
+fn help_entry_line(state: &AppState, shortcut: &str, label: &str, description: &str) -> StyledLine {
+    StyledLine {
+        spans: vec![
+            colored_span(
+                format!("{:<16}", shortcut),
+                state.theme_color(TokenRole::Selection),
+                true,
+                false,
+            ),
+            colored_span(
+                format!("{:<16}", label),
+                state.theme_color(TokenRole::Text),
+                false,
+                false,
+            ),
+            colored_span(
+                description.to_string(),
+                state.theme_color(TokenRole::TextMuted),
+                false,
+                false,
+            ),
+        ],
+    }
+}
+
+fn surface_footer_lines(state: &AppState, lines: &[&str]) -> Vec<StyledLine> {
+    lines
+        .iter()
+        .map(|line| StyledLine {
+            spans: vec![colored_span(
+                (*line).to_string(),
+                state.theme_color(TokenRole::TextMuted),
+                false,
+                false,
+            )],
+        })
+        .collect()
+}
+
+fn styled_text_span(
+    text: impl Into<String>,
+    fg: Color,
+    bg: Option<Color>,
+    bold: bool,
+    italic: bool,
+) -> StyledSpan {
+    StyledSpan {
+        text: text.into(),
+        style: SpanStyle {
+            fg: Some(fg),
+            bg,
+            bold,
+            italic,
+        },
+    }
 }
 
 fn scalar_track_color(state: &AppState, position: f32, fill: f32) -> Color {

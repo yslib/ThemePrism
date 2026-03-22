@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod controls;
 pub mod effect;
 pub mod intent;

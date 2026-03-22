@@ -1,6 +1,7 @@
 use crate::app::controls::{ControlSpec, DisplayFieldSpec};
 use crate::app::state::{AppState, ConfigFieldId};
 use crate::app::workspace::PanelId;
+use crate::i18n::{self, UiText};
 
 use super::helpers::{config_field_label, config_field_value};
 use super::{FormFieldView, FormView, PanelBody, PanelView};
@@ -15,13 +16,13 @@ pub(crate) fn build_project_config_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::ProjectConfig,
-        title: "Project Config".to_string(),
+        title: i18n::text(state.locale(), UiText::PanelProjectConfig),
         active: false,
         shortcut: None,
         body: PanelBody::Form(FormView {
             header_lines: Vec::new(),
             fields,
-            footer: Some("Project data is saved with the project file.".to_string()),
+            footer: Some(i18n::text(state.locale(), UiText::ProjectConfigFooter)),
         }),
     }
 }
@@ -36,13 +37,13 @@ pub(crate) fn build_export_targets_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::ExportTargets,
-        title: "Export Targets".to_string(),
+        title: i18n::text(state.locale(), UiText::PanelExportTargets),
         active: false,
         shortcut: None,
         body: PanelBody::Form(FormView {
             header_lines: Vec::new(),
             fields,
-            footer: Some("Enable targets and edit output/template paths here.".to_string()),
+            footer: Some(i18n::text(state.locale(), UiText::ExportTargetsFooter)),
         }),
     }
 }
@@ -57,13 +58,13 @@ pub(crate) fn build_editor_preferences_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::EditorPreferences,
-        title: "Editor Preferences".to_string(),
+        title: i18n::text(state.locale(), UiText::PanelEditorPreferences),
         active: false,
         shortcut: None,
         body: PanelBody::Form(FormView {
             header_lines: Vec::new(),
             fields,
-            footer: Some("Editor settings stay local to this machine.".to_string()),
+            footer: Some(i18n::text(state.locale(), UiText::EditorPreferencesFooter)),
         }),
     }
 }
@@ -79,7 +80,7 @@ fn config_panel_fields(
         .enumerate()
         .map(|(index, field)| FormFieldView {
             control: ControlSpec::Display(DisplayFieldSpec {
-                label: config_field_label(field),
+                label: config_field_label(state.locale(), field),
                 value_text: config_field_value(state, field),
                 swatch: None,
             }),

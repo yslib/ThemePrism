@@ -15,6 +15,8 @@ use crate::domain::rules::{
 };
 use crate::domain::tokens::TokenRole;
 use crate::export::{ExportFormat, default_export_profiles};
+use crate::i18n::{self, UiText};
+use crate::persistence::editor_config::EditorKeymapPreset;
 
 pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
     match intent {
@@ -26,6 +28,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             if state.ui.source_picker.is_some()
                 || state.ui.text_input.is_some()
                 || state.ui.config_modal.is_some()
+                || state.ui.shortcut_help_open
             {
                 return Vec::new();
             }
@@ -36,6 +39,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             if state.ui.source_picker.is_some()
                 || state.ui.text_input.is_some()
                 || state.ui.config_modal.is_some()
+                || state.ui.shortcut_help_open
             {
                 return Vec::new();
             }
@@ -46,6 +50,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             if state.ui.source_picker.is_some()
                 || state.ui.text_input.is_some()
                 || state.ui.config_modal.is_some()
+                || state.ui.shortcut_help_open
             {
                 return Vec::new();
             }
@@ -56,6 +61,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             if state.ui.source_picker.is_some()
                 || state.ui.text_input.is_some()
                 || state.ui.config_modal.is_some()
+                || state.ui.shortcut_help_open
             {
                 return Vec::new();
             }
@@ -70,6 +76,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             if state.ui.source_picker.is_some()
                 || state.ui.text_input.is_some()
                 || state.ui.config_modal.is_some()
+                || state.ui.shortcut_help_open
             {
                 return Vec::new();
             }
@@ -80,6 +87,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             if state.ui.source_picker.is_some()
                 || state.ui.text_input.is_some()
                 || state.ui.config_modal.is_some()
+                || state.ui.shortcut_help_open
             {
                 return Vec::new();
             }
@@ -128,6 +136,8 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             set_editor_auto_save_on_export(state, enabled)
         }
         Intent::SetEditorStartupFocus(focus) => set_editor_startup_focus(state, focus),
+        Intent::SetEditorKeymapPreset(preset) => set_editor_keymap_preset(state, preset),
+        Intent::SetEditorLocale(locale) => set_editor_locale(state, locale),
         Intent::AppendTextInput(ch) => {
             append_text_input(state, ch);
             Vec::new()
@@ -147,7 +157,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         Intent::CommitTextInput => commit_text_input(state),
         Intent::CancelTextInput => {
             state.ui.text_input = None;
-            state.ui.status = "Input cancelled.".to_string();
+            state.ui.status = tr(state, UiText::StatusInputCancelled);
             Vec::new()
         }
         Intent::AppendSourcePickerFilter(ch) => {
@@ -181,7 +191,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         }
         Intent::CloseSourcePicker => {
             state.ui.source_picker = None;
-            state.ui.status = "Source picker closed.".to_string();
+            state.ui.status = tr(state, UiText::StatusSourcePickerClosed);
             Vec::new()
         }
         Intent::OpenConfigRequested => {
@@ -190,6 +200,14 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         }
         Intent::CloseConfigRequested => {
             close_config_modal(state);
+            Vec::new()
+        }
+        Intent::ToggleShortcutHelpRequested => {
+            toggle_shortcut_help(state);
+            Vec::new()
+        }
+        Intent::ScrollShortcutHelp(delta) => {
+            scroll_shortcut_help(state, delta);
             Vec::new()
         }
         Intent::MoveConfigSelection(delta) => {
@@ -218,8 +236,8 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         }
         Intent::ProjectSaved(result) => {
             state.ui.status = match result {
-                Ok(path) => format!("Saved project to {}", path.display()),
-                Err(err) => format!("Save failed: {err}"),
+                Ok(path) => tr1(state, UiText::StatusSavedProject, "path", path.display()),
+                Err(err) => tr1(state, UiText::StatusSaveFailed, "error", err),
             };
             Vec::new()
         }
@@ -227,43 +245,66 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             match result {
                 Ok(project) => match state.apply_project_data(project) {
                     Ok(()) => {
-                        state.ui.status = format!(
-                            "Loaded project from {}",
-                            state.editor.project_path.display()
+                        state.ui.status = tr1(
+                            state,
+                            UiText::StatusLoadedProject,
+                            "path",
+                            state.editor.project_path.display(),
                         );
                     }
                     Err(err) => {
-                        state.ui.status = format!("Load recompute failed: {err}");
+                        state.ui.status =
+                            tr1(state, UiText::StatusLoadRecomputeFailed, "error", err);
                     }
                 },
                 Err(err) => {
-                    state.ui.status = format!("Load failed: {err}");
+                    state.ui.status = tr1(state, UiText::StatusLoadFailed, "error", err);
                 }
             }
             Vec::new()
         }
         Intent::ThemeExported(result) => {
             state.ui.status = match result {
-                Ok(artifacts) if artifacts.is_empty() => {
-                    "Export completed with no output.".to_string()
-                }
-                Ok(artifacts) if artifacts.len() == 1 => format!(
-                    "Exported {} to {}",
-                    artifacts[0].profile_name,
-                    artifacts[0].output_path.display()
+                Ok(artifacts) if artifacts.is_empty() => tr(state, UiText::StatusExportNoOutput),
+                Ok(artifacts) if artifacts.len() == 1 => tr2(
+                    state,
+                    UiText::StatusExportedSingle,
+                    "profile",
+                    &artifacts[0].profile_name,
+                    "path",
+                    artifacts[0].output_path.display(),
                 ),
-                Ok(artifacts) => format!("Exported {} targets.", artifacts.len()),
-                Err(err) => format!("Export failed: {err}"),
+                Ok(artifacts) => tr1(state, UiText::StatusExportedCount, "count", artifacts.len()),
+                Err(err) => tr1(state, UiText::StatusExportFailed, "error", err),
             };
             Vec::new()
         }
         Intent::EditorConfigSaved(result) => {
             if let Err(err) = result {
-                state.ui.status = format!("Editor config save failed: {err}");
+                state.ui.status = tr1(state, UiText::StatusEditorConfigSaveFailed, "error", err);
             }
             Vec::new()
         }
     }
+}
+
+fn tr(state: &AppState, key: UiText) -> String {
+    i18n::text(state.locale(), key)
+}
+
+fn tr1(state: &AppState, key: UiText, name: &str, value: impl ToString) -> String {
+    i18n::format1(state.locale(), key, name, value)
+}
+
+fn tr2(
+    state: &AppState,
+    key: UiText,
+    name1: &str,
+    value1: impl ToString,
+    name2: &str,
+    value2: impl ToString,
+) -> String {
+    i18n::format2(state.locale(), key, name1, value1, name2, value2)
 }
 
 fn cycle_workspace_tab(state: &mut AppState, delta: i32) {
@@ -273,10 +314,13 @@ fn cycle_workspace_tab(state: &mut AppState, delta: i32) {
         state.ui.active_tab.previous()
     };
     let panel = state.active_panel();
-    state.ui.status = format!(
-        "Switched to {} tab ({})",
-        state.ui.active_tab.label(),
-        panel.label()
+    state.ui.status = tr2(
+        state,
+        UiText::StatusSwitchedTab,
+        "tab",
+        i18n::workspace_tab_label(state.locale(), state.ui.active_tab),
+        "panel",
+        i18n::panel_label(state.locale(), panel),
     );
 }
 
@@ -294,7 +338,12 @@ fn move_panel_focus(state: &mut AppState, delta: i32) {
         .unwrap_or(0);
     let next = panels[cycle_index(index, panels.len(), delta)];
     state.set_active_panel(next);
-    state.ui.status = format!("Focused panel {}", next.label());
+    state.ui.status = tr1(
+        state,
+        UiText::StatusFocusedPanel,
+        "panel",
+        i18n::panel_label(state.locale(), next),
+    );
 }
 
 fn focus_panel_by_number(state: &mut AppState, number: u8) {
@@ -304,12 +353,20 @@ fn focus_panel_by_number(state: &mut AppState, number: u8) {
 
     if let Some(panel) = panels.get(index).copied() {
         state.set_active_panel(panel);
-        state.ui.status = format!("Focused panel {}", panel.label());
+        state.ui.status = tr1(
+            state,
+            UiText::StatusFocusedPanel,
+            "panel",
+            i18n::panel_label(state.locale(), panel),
+        );
     } else {
-        state.ui.status = format!(
-            "{} tab only has {} panels.",
-            state.ui.active_tab.label(),
-            panels.len()
+        state.ui.status = tr2(
+            state,
+            UiText::StatusTabOnlyHasPanels,
+            "tab",
+            i18n::workspace_tab_label(state.locale(), state.ui.active_tab),
+            "count",
+            panels.len(),
         );
     }
 }
@@ -324,13 +381,23 @@ fn move_selection(state: &mut AppState, delta: i32) {
                 .inspector_field
                 .min(state.inspector_field_count().saturating_sub(1));
             state.ui.source_picker = None;
-            state.ui.status = format!("Selected token {}", state.selected_role().label());
+            state.ui.status = tr1(
+                state,
+                UiText::StatusSelectedToken,
+                "token",
+                state.selected_role().label(),
+            );
         }
         PanelId::Params => {
             state.ui.selected_param =
                 cycle_index(state.ui.selected_param, ParamKey::ALL.len(), delta);
             state.ui.source_picker = None;
-            state.ui.status = format!("Selected param {}", state.selected_param_key().label());
+            state.ui.status = tr1(
+                state,
+                UiText::StatusSelectedParam,
+                "param",
+                state.selected_param_key().label(),
+            );
         }
         PanelId::Inspector => {
             state.ui.inspector_field = cycle_index(
@@ -353,7 +420,12 @@ fn move_selection(state: &mut AppState, delta: i32) {
         | PanelId::Palette
         | PanelId::ResolvedPrimary
         | PanelId::ResolvedSecondary => {
-            state.ui.status = format!("{} has no list selection.", state.active_panel().label());
+            state.ui.status = tr1(
+                state,
+                UiText::StatusPanelNoListSelection,
+                "panel",
+                i18n::panel_label(state.locale(), state.active_panel()),
+            );
         }
     }
 }
@@ -366,7 +438,12 @@ fn move_project_field_selection(state: &mut AppState, panel: PanelId, delta: i32
         _ => 0,
     };
     if len == 0 {
-        state.ui.status = format!("{} has no editable fields.", panel.label());
+        state.ui.status = tr1(
+            state,
+            UiText::StatusPanelNoEditableFields,
+            "panel",
+            i18n::panel_label(state.locale(), panel),
+        );
         return;
     }
 
@@ -383,9 +460,11 @@ fn move_project_field_selection(state: &mut AppState, panel: PanelId, delta: i32
         _ => {}
     }
     if let Some(field) = state.active_config_field() {
-        state.ui.status = format!(
-            "Selected {}",
-            input_target_label(TextInputTarget::Config(field))
+        state.ui.status = tr1(
+            state,
+            UiText::StatusSelectedField,
+            "field",
+            input_target_label(state, TextInputTarget::Config(field)),
         );
     }
 }
@@ -398,7 +477,13 @@ fn select_token(state: &mut AppState, index: usize) {
         .min(state.inspector_field_count().saturating_sub(1));
     state.ui.source_picker = None;
     state.ui.text_input = None;
-    state.ui.status = format!("Selected token {}", state.selected_role().label());
+    state.ui.shortcut_help_open = false;
+    state.ui.status = tr1(
+        state,
+        UiText::StatusSelectedToken,
+        "token",
+        state.selected_role().label(),
+    );
 }
 
 fn adjust_control_by_step(state: &mut AppState, control: ControlId, delta: i32) {
@@ -419,7 +504,12 @@ fn activate_control(state: &mut AppState, control: ControlId) {
     } else if control.supports_text_input() {
         open_text_input(state, TextInputTarget::Control(control));
     } else {
-        state.ui.status = format!("{} does not support activation.", control.label());
+        state.ui.status = tr1(
+            state,
+            UiText::StatusControlNoActivation,
+            "control",
+            control.label(),
+        );
     }
 }
 
@@ -428,12 +518,22 @@ fn set_param_value(state: &mut AppState, key: ParamKey, value: f32) {
     key.set(&mut params, value);
     state.domain.params = params;
     if let Err(err) = state.recompute() {
-        state.ui.status = format!("Failed to update {}: {err}", key.label());
-    } else {
-        state.ui.status = format!(
-            "{} -> {}",
+        state.ui.status = tr2(
+            state,
+            UiText::StatusFailedToUpdateField,
+            "field",
             key.label(),
-            key.format_value(&state.domain.params)
+            "error",
+            err,
+        );
+    } else {
+        state.ui.status = tr2(
+            state,
+            UiText::StatusUpdatedFieldValue,
+            "field",
+            key.label(),
+            "value",
+            key.format_value(&state.domain.params),
         );
     }
 }
@@ -443,12 +543,22 @@ fn adjust_param_by_step(state: &mut AppState, key: ParamKey, delta: i32) {
     key.adjust(&mut params, delta);
     state.domain.params = params;
     if let Err(err) = state.recompute() {
-        state.ui.status = format!("Failed to update {}: {err}", key.label());
-    } else {
-        state.ui.status = format!(
-            "{} -> {}",
+        state.ui.status = tr2(
+            state,
+            UiText::StatusFailedToUpdateField,
+            "field",
             key.label(),
-            key.format_value(&state.domain.params)
+            "error",
+            err,
+        );
+    } else {
+        state.ui.status = tr2(
+            state,
+            UiText::StatusUpdatedFieldValue,
+            "field",
+            key.label(),
+            "value",
+            key.format_value(&state.domain.params),
         );
     }
 }
@@ -468,8 +578,8 @@ fn set_rule_kind_for_role(state: &mut AppState, role: TokenRole, kind: RuleKind)
     });
 
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", role.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(state, UiText::StatusUpdatedEntity, "entity", role.label()),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
@@ -490,8 +600,8 @@ fn cycle_rule_kind_for_role(state: &mut AppState, role: TokenRole, delta: i32) {
     });
 
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", role.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(state, UiText::StatusUpdatedEntity, "entity", role.label()),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
@@ -506,8 +616,13 @@ fn set_reference_source(state: &mut AppState, control: ControlId, source: Source
     });
 
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", control.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(
+            state,
+            UiText::StatusUpdatedEntity,
+            "entity",
+            control.label(),
+        ),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
@@ -522,8 +637,8 @@ fn cycle_reference_source(state: &mut AppState, control: ControlId, role: TokenR
     });
 
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", role.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(state, UiText::StatusUpdatedEntity, "entity", role.label()),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
@@ -534,8 +649,8 @@ fn set_mix_ratio(state: &mut AppState, role: TokenRole, ratio: f32) {
         }
     });
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", role.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(state, UiText::StatusUpdatedEntity, "entity", role.label()),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
@@ -546,8 +661,8 @@ fn set_mix_ratio_by_step(state: &mut AppState, role: TokenRole, delta: i32) {
         }
     });
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", role.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(state, UiText::StatusUpdatedEntity, "entity", role.label()),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
@@ -558,8 +673,8 @@ fn set_adjust_op(state: &mut AppState, role: TokenRole, next: AdjustOp) {
         }
     });
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", role.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(state, UiText::StatusUpdatedEntity, "entity", role.label()),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
@@ -570,8 +685,8 @@ fn cycle_adjust_op_for_role(state: &mut AppState, role: TokenRole, delta: i32) {
         }
     });
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", role.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(state, UiText::StatusUpdatedEntity, "entity", role.label()),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
@@ -585,8 +700,8 @@ fn set_adjust_amount(state: &mut AppState, role: TokenRole, amount: f32) {
         }
     });
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", role.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(state, UiText::StatusUpdatedEntity, "entity", role.label()),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
@@ -597,8 +712,8 @@ fn set_adjust_amount_by_step(state: &mut AppState, role: TokenRole, delta: i32) 
         }
     });
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", role.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(state, UiText::StatusUpdatedEntity, "entity", role.label()),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
@@ -609,8 +724,8 @@ fn set_fixed_color(state: &mut AppState, role: TokenRole, next: Color) {
         }
     });
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", role.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(state, UiText::StatusUpdatedEntity, "entity", role.label()),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
@@ -622,22 +737,27 @@ fn cycle_fixed_color_for_role(state: &mut AppState, role: TokenRole, delta: i32)
         }
     });
     state.ui.status = match result {
-        Ok(()) => format!("Updated {}", role.label()),
-        Err(err) => format!("Rule change rejected: {err}"),
+        Ok(()) => tr1(state, UiText::StatusUpdatedEntity, "entity", role.label()),
+        Err(err) => tr1(state, UiText::StatusRuleChangeRejected, "error", err),
     };
 }
 
 fn open_text_input(state: &mut AppState, target: TextInputTarget) {
     let buffer = default_input_buffer(state, target);
+    state.ui.shortcut_help_open = false;
     state.ui.text_input = Some(TextInputState { target, buffer });
     state.ui.status = match target {
-        TextInputTarget::Control(control) if control.supports_numeric_editor() => format!(
-            "Adjusting {}. Left/right nudges live values; Enter applies typed input.",
-            input_target_label(target)
+        TextInputTarget::Control(control) if control.supports_numeric_editor() => tr1(
+            state,
+            UiText::StatusEditingNumeric,
+            "field",
+            input_target_label(state, target),
         ),
-        _ => format!(
-            "Editing {}. Press Enter to apply or Esc to cancel.",
-            input_target_label(target)
+        _ => tr1(
+            state,
+            UiText::StatusEditingText,
+            "field",
+            input_target_label(state, target),
         ),
     };
 }
@@ -655,12 +775,18 @@ fn open_source_picker(state: &mut AppState, control: ControlId) {
         .and_then(|source| options.iter().position(|option| option.source == *source))
         .unwrap_or_default();
 
+    state.ui.shortcut_help_open = false;
     state.ui.source_picker = Some(SourcePickerState {
         control,
         filter: String::new(),
         selected,
     });
-    state.ui.status = format!("Selecting source for {}. Type to filter.", control.label());
+    state.ui.status = tr1(
+        state,
+        UiText::StatusSelectingSource,
+        "control",
+        control.label(),
+    );
 }
 
 fn adjust_active_numeric_input(state: &mut AppState, delta: i32) {
@@ -686,7 +812,7 @@ fn append_text_input(state: &mut AppState, ch: char) {
         .ui
         .text_input
         .as_ref()
-        .map(|input| input_target_label(input.target))
+        .map(|input| input_target_label(state, input.target))
         .unwrap_or_else(|| "input field".to_string());
 
     if let Some(input) = &mut state.ui.text_input {
@@ -697,7 +823,14 @@ fn append_text_input(state: &mut AppState, ch: char) {
             };
             input.buffer.push(ch);
         } else {
-            state.ui.status = format!("Character '{}' is not valid for {}.", ch, label);
+            state.ui.status = tr2(
+                state,
+                UiText::StatusInvalidCharacter,
+                "char",
+                ch,
+                "field",
+                label,
+            );
         }
     }
 }
@@ -713,7 +846,12 @@ fn commit_text_input(state: &mut AppState) -> Vec<Effect> {
             ControlId::MixRatio(role) => apply_mix_ratio_input(state, role, &input.buffer),
             ControlId::AdjustAmount(role) => apply_adjust_amount_input(state, role, &input.buffer),
             ControlId::FixedColor(role) => apply_fixed_color_input(state, role, &input.buffer),
-            _ => Err(format!("{} does not support text input.", control.label())),
+            _ => Err(tr1(
+                state,
+                UiText::ErrorControlNoTextInput,
+                "control",
+                control.label(),
+            )),
         },
         TextInputTarget::Config(field) => apply_config_input(state, field, &input.buffer),
     };
@@ -754,7 +892,7 @@ fn apply_source_picker_selection(state: &mut AppState) {
 
     let options = filtered_source_options(&picker);
     if options.is_empty() {
-        state.ui.status = "No sources match the current filter.".to_string();
+        state.ui.status = tr(state, UiText::ErrorNoSourcesMatch);
         return;
     }
 
@@ -772,24 +910,34 @@ fn apply_source_picker_selection(state: &mut AppState) {
     match result {
         Ok(()) => {
             state.ui.source_picker = None;
-            state.ui.status = format!("{} -> {}", picker.control.label(), source_label);
+            state.ui.status = tr2(
+                state,
+                UiText::StatusSourceApplied,
+                "control",
+                picker.control.label(),
+                "source",
+                source_label,
+            );
         }
         Err(err) => {
-            state.ui.status = format!("Source change rejected: {err}");
+            state.ui.status = tr1(state, UiText::StatusSourceChangeRejected, "error", err);
         }
     }
 }
 
 fn apply_param_input(state: &mut AppState, key: ParamKey, buffer: &str) -> Result<String, String> {
-    let value = parse_param_input(key, buffer)?;
+    let value = parse_param_input(state, key, buffer)?;
     let mut params = state.domain.params.clone();
     key.set(&mut params, value);
     state.domain.params = params;
     state.recompute().map_err(|err| err.to_string())?;
-    Ok(format!(
-        "{} -> {}",
+    Ok(tr2(
+        state,
+        UiText::StatusUpdatedFieldValue,
+        "field",
         key.label(),
-        key.format_value(&state.domain.params)
+        "value",
+        key.format_value(&state.domain.params),
     ))
 }
 
@@ -798,13 +946,20 @@ fn apply_mix_ratio_input(
     role: TokenRole,
     buffer: &str,
 ) -> Result<String, String> {
-    let ratio = parse_fraction_input(buffer)?;
+    let ratio = parse_fraction_input(state, buffer)?;
     try_mutate_rules(state, |rules| {
         if let Some(Rule::Mix { ratio: current, .. }) = rules.get_mut(role) {
             *current = ratio;
         }
     })?;
-    Ok(format!("{} blend -> {:>3.0}%", role.label(), ratio * 100.0))
+    Ok(tr2(
+        state,
+        UiText::StatusBlendUpdated,
+        "token",
+        role.label(),
+        "value",
+        format!("{:>3.0}%", ratio * 100.0),
+    ))
 }
 
 fn apply_adjust_amount_input(
@@ -812,7 +967,7 @@ fn apply_adjust_amount_input(
     role: TokenRole,
     buffer: &str,
 ) -> Result<String, String> {
-    let amount = parse_fraction_input(buffer)?;
+    let amount = parse_fraction_input(state, buffer)?;
     try_mutate_rules(state, |rules| {
         if let Some(Rule::Adjust {
             amount: current, ..
@@ -821,10 +976,13 @@ fn apply_adjust_amount_input(
             *current = amount;
         }
     })?;
-    Ok(format!(
-        "{} amount -> {:>3.0}%",
+    Ok(tr2(
+        state,
+        UiText::StatusAmountUpdated,
+        "token",
         role.label(),
-        amount * 100.0
+        "value",
+        format!("{:>3.0}%", amount * 100.0),
     ))
 }
 
@@ -833,17 +991,19 @@ fn apply_fixed_color_input(
     role: TokenRole,
     buffer: &str,
 ) -> Result<String, String> {
-    let color = Color::from_hex(buffer)
-        .map_err(|_| "Invalid hex color. Use #C586C0 or #C586C080.".to_string())?;
+    let color = Color::from_hex(buffer).map_err(|_| tr(state, UiText::ErrorInvalidHexColor))?;
     try_mutate_rules(state, |rules| {
         if let Some(Rule::Fixed { color: current }) = rules.get_mut(role) {
             *current = color;
         }
     })?;
-    Ok(format!(
-        "{} fixed color -> {}",
+    Ok(tr2(
+        state,
+        UiText::StatusFixedColorUpdated,
+        "token",
         role.label(),
-        color.to_hex()
+        "value",
+        color.to_hex(),
     ))
 }
 
@@ -875,9 +1035,10 @@ fn reset_state(state: &mut AppState) {
     state.ui.text_input = None;
     state.ui.source_picker = None;
     state.ui.config_modal = None;
+    state.ui.shortcut_help_open = false;
     match state.recompute() {
-        Ok(()) => state.ui.status = "Reset to defaults.".to_string(),
-        Err(err) => state.ui.status = format!("Reset failed: {err}"),
+        Ok(()) => state.ui.status = tr(state, UiText::StatusResetDefaults),
+        Err(err) => state.ui.status = tr1(state, UiText::StatusResetFailed, "error", err),
     }
 }
 
@@ -904,24 +1065,48 @@ fn save_editor_config_effects(state: &AppState) -> Vec<Effect> {
 fn set_project_name(state: &mut AppState, name: String) -> Vec<Effect> {
     let value = name.trim();
     if value.is_empty() {
-        state.ui.status = "Project name cannot be empty.".to_string();
+        state.ui.status = tr(state, UiText::ErrorProjectNameEmpty);
         return Vec::new();
     }
 
     state.project.name = value.to_string();
-    state.ui.status = format!("Project name -> {}", state.project.name);
+    state.ui.status = tr1(
+        state,
+        UiText::StatusProjectNameUpdated,
+        "name",
+        &state.project.name,
+    );
     Vec::new()
 }
 
 fn set_export_enabled(state: &mut AppState, index: usize, enabled: bool) -> Vec<Effect> {
+    let locale = state.locale();
     match state.project.export_profiles.get_mut(index) {
         Some(profile) => {
             profile.enabled = enabled;
-            let status = if enabled { "enabled" } else { "disabled" };
-            state.ui.status = format!("{} {status}.", profile.name);
+            state.ui.status = if enabled {
+                i18n::format1(
+                    locale,
+                    UiText::StatusExportTargetEnabled,
+                    "name",
+                    &profile.name,
+                )
+            } else {
+                i18n::format1(
+                    locale,
+                    UiText::StatusExportTargetDisabled,
+                    "name",
+                    &profile.name,
+                )
+            };
         }
         None => {
-            state.ui.status = format!("Missing export target {}.", index + 1);
+            state.ui.status = i18n::format1(
+                locale,
+                UiText::StatusMissingExportTarget,
+                "index",
+                index + 1,
+            );
         }
     }
     Vec::new()
@@ -932,17 +1117,26 @@ fn set_export_output_path(
     index: usize,
     path: std::path::PathBuf,
 ) -> Vec<Effect> {
+    let locale = state.locale();
     match state.project.export_profiles.get_mut(index) {
         Some(profile) => {
             profile.output_path = path;
-            state.ui.status = format!(
-                "{} output -> {}",
-                profile.name,
-                profile.output_path.display()
+            state.ui.status = i18n::format2(
+                locale,
+                UiText::StatusExportOutputUpdated,
+                "name",
+                &profile.name,
+                "path",
+                profile.output_path.display(),
             );
         }
         None => {
-            state.ui.status = format!("Missing export target {}.", index + 1);
+            state.ui.status = i18n::format1(
+                locale,
+                UiText::StatusMissingExportTarget,
+                "index",
+                index + 1,
+            );
         }
     }
     Vec::new()
@@ -953,19 +1147,36 @@ fn set_export_template_path(
     index: usize,
     path: std::path::PathBuf,
 ) -> Vec<Effect> {
+    let locale = state.locale();
     match state.project.export_profiles.get_mut(index) {
         Some(profile) => match &mut profile.format {
             ExportFormat::Template { template_path } => {
                 *template_path = path;
-                state.ui.status =
-                    format!("{} template -> {}", profile.name, template_path.display());
+                state.ui.status = i18n::format2(
+                    locale,
+                    UiText::StatusExportTemplateUpdated,
+                    "name",
+                    &profile.name,
+                    "path",
+                    template_path.display(),
+                );
             }
             ExportFormat::Alacritty => {
-                state.ui.status = format!("{} does not use a template path.", profile.name);
+                state.ui.status = i18n::format1(
+                    locale,
+                    UiText::ErrorExportNoTemplatePath,
+                    "name",
+                    &profile.name,
+                );
             }
         },
         None => {
-            state.ui.status = format!("Missing export target {}.", index + 1);
+            state.ui.status = i18n::format1(
+                locale,
+                UiText::StatusMissingExportTarget,
+                "index",
+                index + 1,
+            );
         }
     }
     Vec::new()
@@ -973,9 +1184,11 @@ fn set_export_template_path(
 
 fn set_editor_project_path(state: &mut AppState, path: std::path::PathBuf) -> Vec<Effect> {
     state.editor.project_path = path;
-    state.ui.status = format!(
-        "Project file path -> {}",
-        state.editor.project_path.display()
+    state.ui.status = tr1(
+        state,
+        UiText::StatusProjectFilePathUpdated,
+        "path",
+        state.editor.project_path.display(),
     );
     save_editor_config_effects(state)
 }
@@ -983,9 +1196,9 @@ fn set_editor_project_path(state: &mut AppState, path: std::path::PathBuf) -> Ve
 fn set_editor_auto_load_project(state: &mut AppState, enabled: bool) -> Vec<Effect> {
     state.editor.auto_load_project_on_startup = enabled;
     state.ui.status = if enabled {
-        "Auto-load project on startup enabled.".to_string()
+        tr(state, UiText::StatusAutoLoadEnabled)
     } else {
-        "Auto-load project on startup disabled.".to_string()
+        tr(state, UiText::StatusAutoLoadDisabled)
     };
     save_editor_config_effects(state)
 }
@@ -993,9 +1206,9 @@ fn set_editor_auto_load_project(state: &mut AppState, enabled: bool) -> Vec<Effe
 fn set_editor_auto_save_on_export(state: &mut AppState, enabled: bool) -> Vec<Effect> {
     state.editor.auto_save_project_on_export = enabled;
     state.ui.status = if enabled {
-        "Auto-save project on export enabled.".to_string()
+        tr(state, UiText::StatusAutoSaveEnabled)
     } else {
-        "Auto-save project on export disabled.".to_string()
+        tr(state, UiText::StatusAutoSaveDisabled)
     };
     save_editor_config_effects(state)
 }
@@ -1003,7 +1216,37 @@ fn set_editor_auto_save_on_export(state: &mut AppState, enabled: bool) -> Vec<Ef
 fn set_editor_startup_focus(state: &mut AppState, focus: FocusPane) -> Vec<Effect> {
     state.editor.startup_focus = focus;
     state.ui.theme_panel = focus.into();
-    state.ui.status = format!("Startup focus -> {}.", focus.label());
+    state.ui.status = tr1(
+        state,
+        UiText::StatusStartupFocusUpdated,
+        "focus",
+        i18n::focus_pane_label(state.locale(), focus),
+    );
+    save_editor_config_effects(state)
+}
+
+fn set_editor_keymap_preset(state: &mut AppState, preset: EditorKeymapPreset) -> Vec<Effect> {
+    state.editor.keymap_preset = preset;
+    state.ui.status = tr1(
+        state,
+        UiText::StatusKeymapUpdated,
+        "preset",
+        i18n::keymap_preset_label(state.locale(), preset),
+    );
+    save_editor_config_effects(state)
+}
+
+fn set_editor_locale(
+    state: &mut AppState,
+    locale: crate::persistence::editor_config::EditorLocale,
+) -> Vec<Effect> {
+    state.editor.locale = locale;
+    state.ui.status = tr1(
+        state,
+        UiText::StatusLanguageUpdated,
+        "locale",
+        i18n::locale_label(state.locale(), locale),
+    );
     save_editor_config_effects(state)
 }
 
@@ -1013,26 +1256,34 @@ fn effects_for_text_target(state: &AppState, target: TextInputTarget) -> Vec<Eff
             ConfigFieldId::EditorProjectPath
             | ConfigFieldId::EditorAutoLoadProject
             | ConfigFieldId::EditorAutoSaveOnExport
-            | ConfigFieldId::EditorStartupFocus,
+            | ConfigFieldId::EditorStartupFocus
+            | ConfigFieldId::EditorKeymapPreset
+            | ConfigFieldId::EditorLocale,
         ) => save_editor_config_effects(state),
         _ => Vec::new(),
     }
 }
 
-fn input_target_label(target: TextInputTarget) -> String {
+fn input_target_label(state: &AppState, target: TextInputTarget) -> String {
     match target {
         TextInputTarget::Control(control) => control.label().to_string(),
         TextInputTarget::Config(field) => match field {
-            ConfigFieldId::ProjectName => "project name".to_string(),
-            ConfigFieldId::ExportEnabled(index) => format!("export target {}", index + 1),
-            ConfigFieldId::ExportOutputPath(index) => format!("export {} output path", index + 1),
-            ConfigFieldId::ExportTemplatePath(index) => {
-                format!("export {} template path", index + 1)
+            ConfigFieldId::ProjectName => tr(state, UiText::FieldProjectNameLower),
+            ConfigFieldId::ExportEnabled(index) => {
+                tr1(state, UiText::FieldExportTarget, "index", index + 1)
             }
-            ConfigFieldId::EditorProjectPath => "project file path".to_string(),
-            ConfigFieldId::EditorAutoLoadProject => "auto load project on startup".to_string(),
-            ConfigFieldId::EditorAutoSaveOnExport => "auto save project on export".to_string(),
-            ConfigFieldId::EditorStartupFocus => "startup focus".to_string(),
+            ConfigFieldId::ExportOutputPath(index) => {
+                tr1(state, UiText::FieldExportOutputPath, "index", index + 1)
+            }
+            ConfigFieldId::ExportTemplatePath(index) => {
+                tr1(state, UiText::FieldExportTemplatePath, "index", index + 1)
+            }
+            ConfigFieldId::EditorProjectPath => tr(state, UiText::FieldProjectFilePath),
+            ConfigFieldId::EditorAutoLoadProject => tr(state, UiText::FieldAutoLoadProject),
+            ConfigFieldId::EditorAutoSaveOnExport => tr(state, UiText::FieldAutoSaveProject),
+            ConfigFieldId::EditorStartupFocus => tr(state, UiText::FieldStartupFocusLower),
+            ConfigFieldId::EditorKeymapPreset => tr(state, UiText::FieldKeymapPresetLower),
+            ConfigFieldId::EditorLocale => tr(state, UiText::FieldLanguageLower),
         },
     }
 }
@@ -1040,16 +1291,49 @@ fn input_target_label(target: TextInputTarget) -> String {
 fn open_config_modal(state: &mut AppState) {
     state.ui.source_picker = None;
     state.ui.text_input = None;
+    state.ui.shortcut_help_open = false;
     state.ui.config_modal = Some(ConfigModalState { selected_field: 0 });
-    state.ui.status = "Opened configuration panel.".to_string();
+    state.ui.status = tr(state, UiText::StatusConfigOpened);
 }
 
 fn close_config_modal(state: &mut AppState) {
     let was_open = state.ui.config_modal.take().is_some();
     state.ui.text_input = None;
     if was_open {
-        state.ui.status = "Configuration panel closed.".to_string();
+        state.ui.status = tr(state, UiText::StatusConfigClosed);
     }
+}
+
+fn toggle_shortcut_help(state: &mut AppState) {
+    let next = !state.ui.shortcut_help_open;
+    if next {
+        state.ui.source_picker = None;
+        state.ui.text_input = None;
+        state.ui.config_modal = None;
+        state.ui.shortcut_help_open = true;
+        state.ui.shortcut_help_scroll = 0;
+        state.ui.status = tr(state, UiText::StatusHelpOpened);
+    } else {
+        state.ui.shortcut_help_open = false;
+        state.ui.shortcut_help_scroll = 0;
+        state.ui.status = tr(state, UiText::StatusHelpClosed);
+    }
+}
+
+fn scroll_shortcut_help(state: &mut AppState, delta: i32) {
+    if !state.ui.shortcut_help_open {
+        return;
+    }
+
+    let next = if delta < 0 {
+        state
+            .ui
+            .shortcut_help_scroll
+            .saturating_sub(delta.unsigned_abs() as u16)
+    } else {
+        state.ui.shortcut_help_scroll.saturating_add(delta as u16)
+    };
+    state.ui.shortcut_help_scroll = next;
 }
 
 fn move_config_selection(state: &mut AppState, delta: i32) {
@@ -1091,16 +1375,31 @@ fn activate_config_field_by_id(state: &mut AppState, field: ConfigFieldId) -> Ve
 
     match field {
         ConfigFieldId::ExportEnabled(index) => {
+            let locale = state.locale();
             if let Some(profile) = state.project.export_profiles.get_mut(index) {
                 profile.enabled = !profile.enabled;
-                let status = if profile.enabled {
-                    "enabled"
+                state.ui.status = if profile.enabled {
+                    i18n::format1(
+                        locale,
+                        UiText::StatusExportTargetEnabled,
+                        "name",
+                        &profile.name,
+                    )
                 } else {
-                    "disabled"
+                    i18n::format1(
+                        locale,
+                        UiText::StatusExportTargetDisabled,
+                        "name",
+                        &profile.name,
+                    )
                 };
-                state.ui.status = format!("{} {status}.", profile.name);
             } else {
-                state.ui.status = format!("Missing export target {}.", index + 1);
+                state.ui.status = i18n::format1(
+                    locale,
+                    UiText::StatusMissingExportTarget,
+                    "index",
+                    index + 1,
+                );
             }
         }
         ConfigFieldId::EditorAutoLoadProject => {
@@ -1114,6 +1413,12 @@ fn activate_config_field_by_id(state: &mut AppState, field: ConfigFieldId) -> Ve
         }
         ConfigFieldId::EditorStartupFocus => {
             return set_editor_startup_focus(state, state.editor.startup_focus.next());
+        }
+        ConfigFieldId::EditorKeymapPreset => {
+            return set_editor_keymap_preset(state, state.editor.keymap_preset.next());
+        }
+        ConfigFieldId::EditorLocale => {
+            return set_editor_locale(state, state.editor.locale.next());
         }
         ConfigFieldId::ProjectName
         | ConfigFieldId::ExportOutputPath(_)
@@ -1131,37 +1436,55 @@ fn apply_config_input(
 ) -> Result<String, String> {
     let value = buffer.trim();
     if value.is_empty() {
-        return Err("Input is empty.".to_string());
+        return Err(tr(state, UiText::ErrorInputEmpty));
     }
 
+    let locale = state.locale();
     match field {
         ConfigFieldId::ProjectName => {
             state.project.name = value.to_string();
-            Ok(format!("Project name -> {}", state.project.name))
+            Ok(tr1(
+                state,
+                UiText::StatusProjectNameUpdated,
+                "name",
+                &state.project.name,
+            ))
         }
         ConfigFieldId::EditorProjectPath => {
             state.editor.project_path = value.into();
-            Ok(format!(
-                "Project file path -> {}",
-                state.editor.project_path.display()
+            Ok(tr1(
+                state,
+                UiText::StatusProjectFilePathUpdated,
+                "path",
+                state.editor.project_path.display(),
             ))
         }
         ConfigFieldId::EditorAutoLoadProject
         | ConfigFieldId::EditorAutoSaveOnExport
-        | ConfigFieldId::EditorStartupFocus => {
-            Err("Use Enter or Space to cycle this editor preference.".to_string())
-        }
+        | ConfigFieldId::EditorStartupFocus
+        | ConfigFieldId::EditorKeymapPreset
+        | ConfigFieldId::EditorLocale => Err(tr(state, UiText::ErrorUseToggleChoicePreference)),
         ConfigFieldId::ExportOutputPath(index) => {
             let profile = state
                 .project
                 .export_profiles
                 .get_mut(index)
-                .ok_or_else(|| format!("Missing export target {}.", index + 1))?;
+                .ok_or_else(|| {
+                    i18n::format1(
+                        locale,
+                        UiText::StatusMissingExportTarget,
+                        "index",
+                        index + 1,
+                    )
+                })?;
             profile.output_path = value.into();
-            Ok(format!(
-                "{} output -> {}",
-                profile.name,
-                profile.output_path.display()
+            Ok(i18n::format2(
+                locale,
+                UiText::StatusExportOutputUpdated,
+                "name",
+                &profile.name,
+                "path",
+                profile.output_path.display(),
             ))
         }
         ConfigFieldId::ExportTemplatePath(index) => {
@@ -1169,24 +1492,39 @@ fn apply_config_input(
                 .project
                 .export_profiles
                 .get_mut(index)
-                .ok_or_else(|| format!("Missing export target {}.", index + 1))?;
+                .ok_or_else(|| {
+                    i18n::format1(
+                        locale,
+                        UiText::StatusMissingExportTarget,
+                        "index",
+                        index + 1,
+                    )
+                })?;
             match &mut profile.format {
                 ExportFormat::Template { template_path } => {
                     *template_path = value.into();
-                    Ok(format!(
-                        "{} template -> {}",
-                        profile.name,
-                        template_path.display()
+                    Ok(i18n::format2(
+                        locale,
+                        UiText::StatusExportTemplateUpdated,
+                        "name",
+                        &profile.name,
+                        "path",
+                        template_path.display(),
                     ))
                 }
-                ExportFormat::Alacritty => {
-                    Err(format!("{} does not use a template path.", profile.name))
-                }
+                ExportFormat::Alacritty => Err(i18n::format1(
+                    locale,
+                    UiText::ErrorExportNoTemplatePath,
+                    "name",
+                    &profile.name,
+                )),
             }
         }
-        ConfigFieldId::ExportEnabled(index) => Err(format!(
-            "Use Enter or Space to toggle export target {}.",
-            index + 1
+        ConfigFieldId::ExportEnabled(index) => Err(tr1(
+            state,
+            UiText::ErrorToggleExportTarget,
+            "index",
+            index + 1,
         )),
     }
 }
@@ -1218,6 +1556,8 @@ pub fn config_fields(state: &AppState) -> Vec<ConfigFieldId> {
     fields.push(ConfigFieldId::EditorAutoLoadProject);
     fields.push(ConfigFieldId::EditorAutoSaveOnExport);
     fields.push(ConfigFieldId::EditorStartupFocus);
+    fields.push(ConfigFieldId::EditorKeymapPreset);
+    fields.push(ConfigFieldId::EditorLocale);
     fields
 }
 
@@ -1249,7 +1589,9 @@ pub fn default_input_buffer(state: &AppState, target: TextInputTarget) -> String
             ConfigFieldId::EditorProjectPath => state.editor.project_path.display().to_string(),
             ConfigFieldId::EditorAutoLoadProject
             | ConfigFieldId::EditorAutoSaveOnExport
-            | ConfigFieldId::EditorStartupFocus => String::new(),
+            | ConfigFieldId::EditorStartupFocus
+            | ConfigFieldId::EditorKeymapPreset
+            | ConfigFieldId::EditorLocale => String::new(),
             ConfigFieldId::ExportOutputPath(index) => state
                 .project
                 .export_profiles
@@ -1272,27 +1614,27 @@ pub fn default_input_buffer(state: &AppState, target: TextInputTarget) -> String
     }
 }
 
-fn parse_param_input(key: ParamKey, buffer: &str) -> Result<f32, String> {
+fn parse_param_input(state: &AppState, key: ParamKey, buffer: &str) -> Result<f32, String> {
     match key {
-        ParamKey::BackgroundHue | ParamKey::AccentHue => parse_float_input(buffer),
-        _ => parse_fraction_input(buffer),
+        ParamKey::BackgroundHue | ParamKey::AccentHue => parse_float_input(state, buffer),
+        _ => parse_fraction_input(state, buffer),
     }
 }
 
-fn parse_float_input(buffer: &str) -> Result<f32, String> {
+fn parse_float_input(state: &AppState, buffer: &str) -> Result<f32, String> {
     let trimmed = buffer.trim().trim_end_matches('%').trim();
     if trimmed.is_empty() {
-        return Err("Input is empty.".to_string());
+        return Err(tr(state, UiText::ErrorInputEmpty));
     }
     trimmed
         .parse::<f32>()
-        .map_err(|_| format!("Invalid number: {buffer}"))
+        .map_err(|_| tr1(state, UiText::ErrorInvalidNumber, "value", buffer))
 }
 
-fn parse_fraction_input(buffer: &str) -> Result<f32, String> {
+fn parse_fraction_input(state: &AppState, buffer: &str) -> Result<f32, String> {
     let trimmed = buffer.trim();
     if trimmed.is_empty() {
-        return Err("Input is empty.".to_string());
+        return Err(tr(state, UiText::ErrorInputEmpty));
     }
 
     let is_percent = trimmed.ends_with('%');
@@ -1300,7 +1642,7 @@ fn parse_fraction_input(buffer: &str) -> Result<f32, String> {
         .trim_end_matches('%')
         .trim()
         .parse::<f32>()
-        .map_err(|_| format!("Invalid number: {buffer}"))?;
+        .map_err(|_| tr1(state, UiText::ErrorInvalidNumber, "value", buffer))?;
 
     let value = if is_percent || number > 1.0 {
         number / 100.0

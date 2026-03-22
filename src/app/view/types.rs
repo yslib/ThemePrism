@@ -1,3 +1,4 @@
+use crate::app::actions::ActionHint;
 use crate::app::controls::ControlSpec;
 use crate::app::workspace::PanelId;
 use crate::domain::color::Color;
@@ -43,7 +44,7 @@ pub struct MainWindowView {
 #[derive(Debug, Clone)]
 pub struct MenuBarView {
     pub title: String,
-    pub actions: Vec<String>,
+    pub actions: Vec<ActionHint>,
 }
 
 #[derive(Debug, Clone)]
@@ -136,15 +137,13 @@ pub struct SwatchItemView {
 #[derive(Debug, Clone)]
 pub struct StatusBarView {
     pub focus_label: String,
-    pub help_text: String,
     pub status_text: String,
 }
 
 #[derive(Debug, Clone)]
 pub enum OverlayView {
     Picker(PickerOverlayView),
-    Config(ConfigOverlayView),
-    NumericEditor(NumericEditorOverlayView),
+    Surface(SurfaceView),
 }
 
 #[derive(Debug, Clone)]
@@ -162,28 +161,26 @@ pub struct PickerRowView {
     pub is_header: bool,
 }
 
-#[derive(Debug, Clone)]
-pub struct ConfigOverlayView {
-    pub title: String,
-    pub rows: Vec<ConfigRowView>,
-    pub footer_lines: Vec<String>,
+#[derive(Debug, Clone, Copy)]
+pub enum SurfaceSize {
+    Percent { width: u16, height: u16 },
+    Absolute { width: u16, height: u16 },
 }
 
 #[derive(Debug, Clone)]
-pub struct ConfigRowView {
-    pub label: String,
-    pub value_text: String,
-    pub selected: bool,
-    pub is_header: bool,
+pub struct SurfaceView {
+    pub title: String,
+    pub size: SurfaceSize,
+    pub body: SurfaceBody,
+    pub footer_lines: Vec<StyledLine>,
 }
 
 #[derive(Debug, Clone)]
-pub struct NumericEditorOverlayView {
-    pub title: String,
-    pub preferred_width: u16,
-    pub preferred_height: u16,
-    pub body_lines: Vec<StyledLine>,
-    pub footer_lines: Vec<String>,
+#[allow(dead_code)]
+pub enum SurfaceBody {
+    Lines { lines: Vec<StyledLine>, scroll: u16 },
+    Node(Box<ViewNode>),
+    Window(Box<MainWindowView>),
 }
 
 #[derive(Debug, Clone)]

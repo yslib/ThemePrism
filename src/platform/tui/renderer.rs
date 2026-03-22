@@ -1,3 +1,4 @@
+use crate::app::actions::ActionHint;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -6,10 +7,10 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 
 use crate::app::controls::ControlSpec;
 use crate::app::view::{
-    Axis, CodePreviewView, ConfigOverlayView, FormFieldView, FormView, MainWindowView, MenuBarView,
-    NumericEditorOverlayView, OverlayView, PanelBody, PanelView, PickerOverlayView,
-    SelectionListView, SelectionRowView, Size, SpanStyle, StatusBarView, StyledLine, StyledSpan,
-    SwatchItemView, SwatchListView, TabBarView, ViewNode, ViewTheme, ViewTree,
+    Axis, CodePreviewView, FormFieldView, FormView, MainWindowView, MenuBarView, OverlayView,
+    PanelBody, PanelView, PickerOverlayView, SelectionListView, SelectionRowView, Size, SpanStyle,
+    StatusBarView, StyledLine, StyledSpan, SurfaceBody, SurfaceSize, SurfaceView, SwatchItemView,
+    SwatchListView, TabBarView, ViewNode, ViewTheme, ViewTree,
 };
 use crate::domain::color::Color;
 
@@ -76,10 +77,14 @@ impl TuiRenderer {
                 .fg(tui(theme.background))
                 .add_modifier(Modifier::BOLD),
         )];
-        for action in &view.actions {
-            spans.push(Span::styled(
-                format!("  {action}"),
-                Style::default().fg(tui(theme.text)),
+        let title_width = view.title.chars().count() + 2;
+        let available = area.width as usize;
+        if available > title_width + 2 {
+            spans.push(Span::raw("  "));
+            spans.extend(fitting_action_spans(
+                &view.actions,
+                available - title_width - 2,
+                theme,
             ));
         }
 
@@ -310,10 +315,6 @@ impl TuiRenderer {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                format!("{}  ", view.help_text),
-                Style::default().fg(tui(theme.text)),
-            ),
-            Span::styled(
                 view.status_text.as_str(),
                 Style::default().fg(tui(theme.text_muted)),
             ),
@@ -334,10 +335,7 @@ impl TuiRenderer {
     ) {
         match overlay {
             OverlayView::Picker(view) => self.render_picker(frame, area, view, theme),
-            OverlayView::Config(view) => self.render_config(frame, area, view, theme),
-            OverlayView::NumericEditor(view) => {
-                self.render_numeric_editor(frame, area, view, theme)
-            }
+            OverlayView::Surface(view) => self.render_surface(frame, area, view, theme),
         }
     }
 
@@ -426,122 +424,111 @@ impl TuiRenderer {
         );
     }
 
-    fn render_config(
+    fn render_surface(
         self,
         frame: &mut Frame,
         area: Rect,
-        overlay: &ConfigOverlayView,
+        surface: &SurfaceView,
         theme: &ViewTheme,
     ) {
-        let area = centered_rect(68, 74, area);
+        let area = match surface.size {
+            SurfaceSize::Percent { width, height } => centered_rect(width, height, area),
+            SurfaceSize::Absolute { width, height } => centered_rect_absolute(width, height, area),
+        };
         frame.render_widget(Clear, area);
 
         let block = Block::default()
-            .title(overlay.title.as_str())
+            .title(surface.title.as_str())
             .borders(Borders::ALL)
             .border_style(Style::default().fg(tui(theme.selection)))
             .style(Style::default().bg(tui(theme.surface)).fg(tui(theme.text)));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let footer_height = overlay.footer_lines.len() as u16 + 1;
+        let footer_height = if surface.footer_lines.is_empty() {
+            0
+        } else {
+            surface.footer_lines.len() as u16 + 1
+        };
         let sections = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(8), Constraint::Length(footer_height)])
             .split(inner);
 
-        let rows = overlay
-            .rows
-            .iter()
-            .map(|row| {
-                if row.is_header {
-                    Line::from(Span::styled(
-                        row.label.as_str(),
-                        Style::default()
-                            .fg(tui(theme.text_muted))
-                            .add_modifier(Modifier::BOLD),
-                    ))
-                } else {
-                    let style = if row.selected {
-                        Style::default()
-                            .bg(tui(theme.selection))
-                            .fg(tui(theme.background))
-                            .add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default().fg(tui(theme.text))
-                    };
-                    Line::from(vec![
-                        Span::styled(if row.selected { "> " } else { "  " }, style),
-                        Span::styled(format!("{:<12}", row.label), style),
-                        Span::styled(row.value_text.clone(), style),
-                    ])
-                }
-            })
-            .collect::<Vec<_>>();
-        frame.render_widget(Paragraph::new(rows).wrap(Wrap { trim: false }), sections[0]);
+        match &surface.body {
+            SurfaceBody::Lines { lines, scroll } => {
+                let body = lines
+                    .iter()
+                    .map(|line| styled_line_to_tui(line, theme))
+                    .collect::<Vec<_>>();
+                frame.render_widget(
+                    Paragraph::new(body)
+                        .wrap(Wrap { trim: false })
+                        .scroll((*scroll, 0)),
+                    sections[0],
+                );
+            }
+            SurfaceBody::Node(node) => self.render_node(frame, sections[0], node, theme),
+            SurfaceBody::Window(window) => {
+                self.render_main_window(frame, sections[0], window, theme)
+            }
+        }
 
-        let footer = overlay
+        let footer = surface
             .footer_lines
-            .iter()
-            .map(|line| {
-                Line::from(Span::styled(
-                    line.as_str(),
-                    Style::default().fg(tui(theme.text_muted)),
-                ))
-            })
-            .collect::<Vec<_>>();
-        frame.render_widget(
-            Paragraph::new(footer).wrap(Wrap { trim: false }),
-            sections[1],
-        );
-    }
-
-    fn render_numeric_editor(
-        self,
-        frame: &mut Frame,
-        area: Rect,
-        overlay: &NumericEditorOverlayView,
-        theme: &ViewTheme,
-    ) {
-        let area = centered_rect_absolute(overlay.preferred_width, overlay.preferred_height, area);
-        frame.render_widget(Clear, area);
-
-        let block = Block::default()
-            .title(overlay.title.as_str())
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(tui(theme.selection)))
-            .style(Style::default().bg(tui(theme.surface)).fg(tui(theme.text)));
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let footer_height = overlay.footer_lines.len() as u16 + 1;
-        let sections = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(8), Constraint::Length(footer_height)])
-            .split(inner);
-
-        let body = overlay
-            .body_lines
             .iter()
             .map(|line| styled_line_to_tui(line, theme))
             .collect::<Vec<_>>();
-        frame.render_widget(Paragraph::new(body).wrap(Wrap { trim: false }), sections[0]);
-
-        let footer = overlay
-            .footer_lines
-            .iter()
-            .map(|line| {
-                Line::from(Span::styled(
-                    line.as_str(),
-                    Style::default().fg(tui(theme.text_muted)),
-                ))
-            })
-            .collect::<Vec<_>>();
         frame.render_widget(
             Paragraph::new(footer).wrap(Wrap { trim: false }),
             sections[1],
         );
     }
+}
+
+fn fitting_action_spans(
+    actions: &[ActionHint],
+    max_width: usize,
+    theme: &ViewTheme,
+) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    let mut used_width = 0;
+
+    for (index, action) in actions.iter().enumerate() {
+        let action_width = action.shortcut.chars().count() + 1 + action.label.chars().count();
+        let separator_width = if index > 0 { 2 } else { 0 };
+        if used_width + separator_width + action_width > max_width {
+            break;
+        }
+        if index > 0 {
+            spans.push(Span::styled(
+                "  ",
+                Style::default().fg(tui(theme.text_muted)),
+            ));
+            used_width += 2;
+        }
+        spans.extend(action_hint_spans(
+            action,
+            Style::default()
+                .fg(tui(theme.text_muted))
+                .add_modifier(Modifier::BOLD),
+            Style::default().fg(tui(theme.text)),
+        ));
+        used_width += action_width;
+    }
+
+    spans
+}
+
+fn action_hint_spans(
+    action: &ActionHint,
+    shortcut_style: Style,
+    label_style: Style,
+) -> Vec<Span<'static>> {
+    vec![
+        Span::styled(format!("{} ", action.shortcut), shortcut_style),
+        Span::styled(action.label.clone(), label_style),
+    ]
 }
 
 fn to_constraint(size: Size) -> Constraint {

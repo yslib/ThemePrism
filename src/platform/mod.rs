@@ -8,6 +8,7 @@ use clap::{ArgAction, Parser, ValueEnum, error::ErrorKind};
 use thiserror::Error;
 
 use crate::core::{AppState, CoreSession};
+use crate::i18n::{self, UiText};
 use crate::persistence::editor_config::load_editor_config;
 use crate::persistence::project_file::load_project;
 
@@ -140,6 +141,8 @@ fn run_entrypoint_with_writer(
                     state.editor.auto_load_project_on_startup = config.auto_load_project_on_startup;
                     state.editor.auto_save_project_on_export = config.auto_save_project_on_export;
                     state.editor.startup_focus = config.startup_focus.into();
+                    state.editor.keymap_preset = config.keymap_preset;
+                    state.editor.locale = config.locale;
                     state.ui.theme_panel = state.editor.startup_focus.into();
                     state.ui.active_tab = crate::app::workspace::WorkspaceTab::Theme;
 
@@ -147,22 +150,39 @@ fn run_entrypoint_with_writer(
                         match load_project(&state.editor.project_path) {
                             Ok(project) => {
                                 if let Err(err) = state.apply_project_data(project) {
-                                    state.ui.status = format!("Auto-load recompute failed: {err}");
+                                    state.ui.status = i18n::format1(
+                                        state.locale(),
+                                        UiText::StatusAutoLoadRecomputeFailed,
+                                        "error",
+                                        err,
+                                    );
                                 } else {
-                                    state.ui.status = format!(
-                                        "Auto-loaded project from {}",
-                                        state.editor.project_path.display()
+                                    state.ui.status = i18n::format1(
+                                        state.locale(),
+                                        UiText::StatusAutoLoadedProject,
+                                        "path",
+                                        state.editor.project_path.display(),
                                     );
                                 }
                             }
                             Err(err) => {
-                                state.ui.status = format!("Auto-load failed: {err}");
+                                state.ui.status = i18n::format1(
+                                    state.locale(),
+                                    UiText::StatusAutoLoadFailed,
+                                    "error",
+                                    err,
+                                );
                             }
                         }
                     }
                 }
                 Err(err) => {
-                    state.ui.status = format!("Editor config load failed: {err}");
+                    state.ui.status = i18n::format1(
+                        state.locale(),
+                        UiText::StatusEditorConfigLoadFailed,
+                        "error",
+                        err,
+                    );
                 }
             }
             launch(state, options)

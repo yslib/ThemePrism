@@ -64,13 +64,26 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
 @property (nonatomic, strong) NSStackView *paletteStack;
 @property (nonatomic, strong) NSTextView *previewTextView;
 @property (nonatomic, strong) NSTextField *statusLabel;
+@property (nonatomic, strong) NSTextField *themeParametersSectionLabel;
+@property (nonatomic, strong) NSTextField *paletteSectionLabel;
+@property (nonatomic, strong) NSTextField *previewSectionLabel;
+@property (nonatomic, strong) NSTextField *inspectorSectionLabel;
 @property (nonatomic, strong) NSTextField *inspectorTitleLabel;
 @property (nonatomic, strong) NSTextField *inspectorSummaryLabel;
 @property (nonatomic, strong) NSView *inspectorSwatch;
 @property (nonatomic, strong) NSStackView *inspectorFieldsStack;
+@property (nonatomic, strong) NSTextField *editorPreferencesSectionLabel;
 @property (nonatomic, strong) NSStackView *editorConfigStack;
+@property (nonatomic, strong) NSTextField *actionsSectionLabel;
+@property (nonatomic, strong) NSButton *configActionButton;
+@property (nonatomic, strong) NSButton *saveActionButton;
+@property (nonatomic, strong) NSButton *loadActionButton;
+@property (nonatomic, strong) NSButton *exportActionButton;
+@property (nonatomic, strong) NSButton *resetActionButton;
 @property (nonatomic, strong) NSWindow *configSheet;
 @property (nonatomic, strong) NSStackView *configSheetStack;
+@property (nonatomic, strong) NSTextField *configSheetSubtitleLabel;
+@property (nonatomic, strong) NSButton *configSheetDoneButton;
 @property (nonatomic, strong) NSArray<NSDictionary *> *tokens;
 @property (nonatomic, strong) NSDictionary *snapshot;
 @property (nonatomic, assign) BOOL suppressTokenSelection;
@@ -123,9 +136,17 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification;
+    NSDictionary *snapshot = [self fetchSnapshot];
+    if (snapshot != nil) {
+        self.snapshot = snapshot;
+    }
     [self installMainMenu];
     [self buildWindow];
-    [self refreshUI];
+    if (snapshot != nil) {
+        [self applySnapshot:snapshot rebuildControls:YES preservingSliderId:nil];
+    } else {
+        [self refreshUI];
+    }
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
 }
@@ -161,7 +182,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
                                                   defer:NO];
     self.window.opaque = YES;
     self.window.backgroundColor = NSColor.windowBackgroundColor;
-    self.window.title = @"Theme Generator";
+    self.window.title = [self uiTextValue:@"window_title" fallback:@"Theme Generator"];
     self.window.titlebarAppearsTransparent = NO;
     self.window.toolbarStyle = NSWindowToolbarStyleUnified;
     self.window.minSize = NSMakeSize(1180, 760);
@@ -206,7 +227,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     statusBar.layer.backgroundColor =
         [[[NSColor windowBackgroundColor] colorWithAlphaComponent:0.03] CGColor];
 
-    self.statusLabel = [NSTextField labelWithString:@"Ready"];
+    self.statusLabel = [NSTextField labelWithString:(self.snapshot[@"status"] ?: @"")];
     self.statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.statusLabel.font = [NSFont systemFontOfSize:12.0 weight:NSFontWeightRegular];
     self.statusLabel.textColor = NSColor.secondaryLabelColor;
@@ -299,15 +320,21 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     stack.edgeInsets = NSEdgeInsetsMake(20.0, 20.0, 20.0, 20.0);
     stack.translatesAutoresizingMaskIntoConstraints = NO;
 
-    [stack addArrangedSubview:[self sectionLabel:@"Theme Parameters"]];
+    self.themeParametersSectionLabel =
+        [self sectionLabel:[self uiTextValue:@"theme_parameters_title" fallback:@"Theme Parameters"]];
+    [stack addArrangedSubview:self.themeParametersSectionLabel];
     self.paramsStack = [self verticalSectionStack];
     [stack addArrangedSubview:self.paramsStack];
 
-    [stack addArrangedSubview:[self sectionLabel:@"Palette"]];
+    self.paletteSectionLabel =
+        [self sectionLabel:[self uiTextValue:@"palette_title" fallback:@"Palette"]];
+    [stack addArrangedSubview:self.paletteSectionLabel];
     self.paletteStack = [self verticalSectionStack];
     [stack addArrangedSubview:self.paletteStack];
 
-    [stack addArrangedSubview:[self sectionLabel:@"Preview"]];
+    self.previewSectionLabel =
+        [self sectionLabel:[self uiTextValue:@"preview_title" fallback:@"Preview"]];
+    [stack addArrangedSubview:self.previewSectionLabel];
     NSScrollView *previewScroll = [[NSScrollView alloc] init];
     previewScroll.translatesAutoresizingMaskIntoConstraints = NO;
     previewScroll.hasVerticalScroller = YES;
@@ -346,7 +373,9 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     stack.edgeInsets = NSEdgeInsetsMake(20.0, 20.0, 20.0, 20.0);
     stack.translatesAutoresizingMaskIntoConstraints = NO;
 
-    [stack addArrangedSubview:[self sectionLabel:@"Inspector"]];
+    self.inspectorSectionLabel =
+        [self sectionLabel:[self uiTextValue:@"inspector_title" fallback:@"Inspector"]];
+    [stack addArrangedSubview:self.inspectorSectionLabel];
     self.inspectorTitleLabel = [NSTextField labelWithString:@"Token"];
     self.inspectorTitleLabel.font = [NSFont systemFontOfSize:20.0 weight:NSFontWeightSemibold];
     [stack addArrangedSubview:self.inspectorTitleLabel];
@@ -369,21 +398,40 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     self.inspectorFieldsStack = [self verticalSectionStack];
     [stack addArrangedSubview:self.inspectorFieldsStack];
 
-    [stack addArrangedSubview:[self sectionLabel:@"Editor Preferences"]];
+    self.editorPreferencesSectionLabel = [self
+        sectionLabel:[self uiTextValue:@"editor_preferences_title" fallback:@"Editor Preferences"]];
+    [stack addArrangedSubview:self.editorPreferencesSectionLabel];
     self.editorConfigStack = [self verticalSectionStack];
     [stack addArrangedSubview:self.editorConfigStack];
 
-    [stack addArrangedSubview:[self sectionLabel:@"Actions"]];
+    self.actionsSectionLabel =
+        [self sectionLabel:[self uiTextValue:@"actions_title" fallback:@"Actions"]];
+    [stack addArrangedSubview:self.actionsSectionLabel];
     NSStackView *actions = [[NSStackView alloc] init];
     actions.orientation = NSUserInterfaceLayoutOrientationHorizontal;
     actions.spacing = 10.0;
     actions.distribution = NSStackViewDistributionFillEqually;
     actions.translatesAutoresizingMaskIntoConstraints = NO;
-    [actions addArrangedSubview:[self dialogButtonWithTitle:@"Config" action:@selector(openConfigSheet:)]];
-    [actions addArrangedSubview:[self actionButtonWithTitle:@"Save" command:@"save"]];
-    [actions addArrangedSubview:[self actionButtonWithTitle:@"Load" command:@"load"]];
-    [actions addArrangedSubview:[self actionButtonWithTitle:@"Export" command:@"export"]];
-    [actions addArrangedSubview:[self actionButtonWithTitle:@"Reset" command:@"reset"]];
+    self.configActionButton =
+        [self dialogButtonWithTitle:[self uiTextValue:@"config_button_title" fallback:@"Config"]
+                              action:@selector(openConfigSheet:)];
+    self.saveActionButton =
+        [self actionButtonWithTitle:[self uiTextValue:@"save_button_title" fallback:@"Save"]
+                            command:@"save"];
+    self.loadActionButton =
+        [self actionButtonWithTitle:[self uiTextValue:@"load_button_title" fallback:@"Load"]
+                            command:@"load"];
+    self.exportActionButton =
+        [self actionButtonWithTitle:[self uiTextValue:@"export_button_title" fallback:@"Export"]
+                            command:@"export"];
+    self.resetActionButton =
+        [self actionButtonWithTitle:[self uiTextValue:@"reset_button_title" fallback:@"Reset"]
+                            command:@"reset"];
+    [actions addArrangedSubview:self.configActionButton];
+    [actions addArrangedSubview:self.saveActionButton];
+    [actions addArrangedSubview:self.loadActionButton];
+    [actions addArrangedSubview:self.exportActionButton];
+    [actions addArrangedSubview:self.resetActionButton];
     [stack addArrangedSubview:actions];
 
     NSScrollView *scrollView = [[NSScrollView alloc] init];
@@ -624,7 +672,8 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     NSTextField *textField = [[NSTextField alloc] init];
     textField.identifier = fieldId;
     textField.stringValue = value;
-    textField.placeholderString = @"#224466 or #224466CC";
+    textField.placeholderString = [self uiTextValue:@"fixed_hex_placeholder"
+                                           fallback:@"#224466 or #224466CC"];
     textField.font = [NSFont monospacedSystemFontOfSize:12.0 weight:NSFontWeightRegular];
     textField.target = self;
     textField.action = @selector(textCommitted:);
@@ -734,7 +783,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
                                                    styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
-    self.configSheet.title = @"Configuration";
+    self.configSheet.title = [self uiTextValue:@"config_sheet_title" fallback:@"Configuration"];
     self.configSheet.releasedWhenClosed = NO;
 
     NSView *contentView = self.configSheet.contentView;
@@ -761,8 +810,14 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     actions.distribution = NSStackViewDistributionGravityAreas;
     actions.translatesAutoresizingMaskIntoConstraints = NO;
 
-    [actions addArrangedSubview:[NSTextField labelWithString:@"Project settings and editor preferences"]];
-    [actions addArrangedSubview:[self dialogButtonWithTitle:@"Done" action:@selector(closeConfigSheet:)]];
+    self.configSheetSubtitleLabel = [NSTextField
+        labelWithString:[self uiTextValue:@"config_sheet_subtitle"
+                                  fallback:@"Project settings and editor preferences"]];
+    self.configSheetDoneButton =
+        [self dialogButtonWithTitle:[self uiTextValue:@"config_sheet_done_title" fallback:@"Done"]
+                              action:@selector(closeConfigSheet:)];
+    [actions addArrangedSubview:self.configSheetSubtitleLabel];
+    [actions addArrangedSubview:self.configSheetDoneButton];
 
     [root addArrangedSubview:scrollView];
     [root addArrangedSubview:actions];
@@ -800,17 +855,23 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
 
     [self clearStack:self.configSheetStack];
 
-    [self.configSheetStack addArrangedSubview:[self sectionLabel:@"Project"]];
+    [self.configSheetStack
+        addArrangedSubview:[self sectionLabel:[self uiTextValue:@"config_sheet_project_title"
+                                                       fallback:@"Project"]]];
     NSDictionary *projectName = sheet[@"project_name"] ?: @{};
     [self.configSheetStack addArrangedSubview:[self configTextRowForField:projectName]];
 
-    [self.configSheetStack addArrangedSubview:[self sectionLabel:@"Export Targets"]];
+    [self.configSheetStack addArrangedSubview:[self
+        sectionLabel:[self uiTextValue:@"config_sheet_export_targets_title"
+                               fallback:@"Export Targets"]]];
     NSArray<NSDictionary *> *targets = sheet[@"export_targets"] ?: @[];
     for (NSDictionary *target in targets) {
         [self.configSheetStack addArrangedSubview:[self exportTargetBlockForItem:target]];
     }
 
-    [self.configSheetStack addArrangedSubview:[self sectionLabel:@"Editor Preferences"]];
+    [self.configSheetStack addArrangedSubview:[self
+        sectionLabel:[self uiTextValue:@"config_sheet_editor_preferences_title"
+                               fallback:@"Editor Preferences"]]];
     NSArray<NSDictionary *> *editorFields = sheet[@"editor_fields"] ?: @[];
     for (NSDictionary *field in editorFields) {
         NSString *kind = field[@"kind"] ?: @"";
@@ -841,7 +902,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
 
     NSDictionary *outputField = @{
         @"id": [NSString stringWithFormat:@"export_output:%ld", (long)index],
-        @"label": @"Output",
+        @"label": [self uiTextValue:@"config_output_label" fallback:@"Output"],
         @"value_text": outputPath,
     };
     [stack addArrangedSubview:[self configTextRowForField:outputField]];
@@ -849,7 +910,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     if ([templatePath isKindOfClass:[NSString class]]) {
         NSDictionary *templateField = @{
             @"id": [NSString stringWithFormat:@"export_template:%ld", (long)index],
-            @"label": @"Template",
+            @"label": [self uiTextValue:@"config_template_label" fallback:@"Template"],
             @"value_text": templatePath,
         };
         [stack addArrangedSubview:[self configTextRowForField:templateField]];
@@ -869,6 +930,52 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     NSButton *button = [NSButton buttonWithTitle:title target:self action:action];
     button.bezelStyle = NSBezelStyleRounded;
     return button;
+}
+
+- (NSString *)uiTextValue:(NSString *)key fallback:(NSString *)fallback {
+    NSDictionary *uiText = self.snapshot[@"ui_text"];
+    if (![uiText isKindOfClass:[NSDictionary class]]) {
+        return fallback;
+    }
+
+    id value = uiText[key];
+    if ([value isKindOfClass:[NSString class]]) {
+        return (NSString *)value;
+    }
+
+    return fallback;
+}
+
+- (void)applyChromeText {
+    self.themeParametersSectionLabel.stringValue =
+        [self uiTextValue:@"theme_parameters_title" fallback:@"Theme Parameters"];
+    self.paletteSectionLabel.stringValue =
+        [self uiTextValue:@"palette_title" fallback:@"Palette"];
+    self.previewSectionLabel.stringValue =
+        [self uiTextValue:@"preview_title" fallback:@"Preview"];
+    self.inspectorSectionLabel.stringValue =
+        [self uiTextValue:@"inspector_title" fallback:@"Inspector"];
+    self.editorPreferencesSectionLabel.stringValue =
+        [self uiTextValue:@"editor_preferences_title" fallback:@"Editor Preferences"];
+    self.actionsSectionLabel.stringValue =
+        [self uiTextValue:@"actions_title" fallback:@"Actions"];
+    self.configActionButton.title =
+        [self uiTextValue:@"config_button_title" fallback:@"Config"];
+    self.saveActionButton.title = [self uiTextValue:@"save_button_title" fallback:@"Save"];
+    self.loadActionButton.title = [self uiTextValue:@"load_button_title" fallback:@"Load"];
+    self.exportActionButton.title =
+        [self uiTextValue:@"export_button_title" fallback:@"Export"];
+    self.resetActionButton.title = [self uiTextValue:@"reset_button_title" fallback:@"Reset"];
+
+    if (self.configSheet != nil) {
+        self.configSheet.title =
+            [self uiTextValue:@"config_sheet_title" fallback:@"Configuration"];
+        self.configSheetSubtitleLabel.stringValue = [self
+            uiTextValue:@"config_sheet_subtitle"
+               fallback:@"Project settings and editor preferences"];
+        self.configSheetDoneButton.title =
+            [self uiTextValue:@"config_sheet_done_title" fallback:@"Done"];
+    }
 }
 
 - (NSTextField *)sectionLabel:(NSString *)title {
@@ -1029,6 +1136,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     self.tokens = snapshot[@"tokens"] ?: @[];
     self.window.title = snapshot[@"window_title"] ?: @"Theme Generator";
     self.statusLabel.stringValue = snapshot[@"status"] ?: @"";
+    [self applyChromeText];
 
     [self.tokenTable reloadData];
     NSInteger selectedToken = [self selectedTokenIndex];
@@ -1261,6 +1369,8 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
     labelView.stringValue = field[@"label"] ?: @"";
     [self configureSwatchView:swatch withHex:field[@"color_hex"] ?: @"#000000"];
     textField.identifier = field[@"id"] ?: @"";
+    textField.placeholderString = [self uiTextValue:@"fixed_hex_placeholder"
+                                           fallback:@"#224466 or #224466CC"];
     if (textField.currentEditor == nil) {
         textField.stringValue = field[@"value_text"] ?: @"";
     }

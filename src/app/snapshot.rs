@@ -6,11 +6,14 @@ use crate::app::update::current_source_for_control;
 use crate::domain::preview::sample_code;
 use crate::domain::rules::{AdjustOp, Rule, RuleKind, SourceRef, available_source_options};
 use crate::domain::tokens::{PaletteSlot, TokenRole};
+use crate::i18n::{self, UiText};
+use crate::persistence::editor_config::{EditorKeymapPreset, EditorLocale};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AppSnapshot {
     pub window_title: String,
     pub status: String,
+    pub ui_text: GuiChromeSnapshot,
     pub project: ProjectSnapshot,
     pub config_sheet: ConfigSheetSnapshot,
     pub theme: ThemeSnapshot,
@@ -21,6 +24,30 @@ pub struct AppSnapshot {
     pub palette: Vec<SwatchSnapshot>,
     pub resolved_tokens: Vec<SwatchSnapshot>,
     pub preview: Vec<PreviewLineSnapshot>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GuiChromeSnapshot {
+    pub theme_parameters_title: String,
+    pub palette_title: String,
+    pub preview_title: String,
+    pub inspector_title: String,
+    pub editor_preferences_title: String,
+    pub actions_title: String,
+    pub config_button_title: String,
+    pub save_button_title: String,
+    pub load_button_title: String,
+    pub export_button_title: String,
+    pub reset_button_title: String,
+    pub config_sheet_title: String,
+    pub config_sheet_subtitle: String,
+    pub config_sheet_done_title: String,
+    pub config_sheet_project_title: String,
+    pub config_sheet_export_targets_title: String,
+    pub config_sheet_editor_preferences_title: String,
+    pub config_output_label: String,
+    pub config_template_label: String,
+    pub fixed_hex_placeholder: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -165,6 +192,32 @@ pub struct PreviewSegmentSnapshot {
 }
 
 pub fn build_snapshot(state: &AppState) -> AppSnapshot {
+    let locale = state.locale();
+    let ui_text = GuiChromeSnapshot {
+        theme_parameters_title: i18n::text(locale, UiText::GuiSectionThemeParameters),
+        palette_title: i18n::text(locale, UiText::GuiSectionPalette),
+        preview_title: i18n::text(locale, UiText::GuiSectionPreview),
+        inspector_title: i18n::text(locale, UiText::GuiSectionInspector),
+        editor_preferences_title: i18n::text(locale, UiText::GuiSectionEditorPreferences),
+        actions_title: i18n::text(locale, UiText::GuiSectionActions),
+        config_button_title: i18n::text(locale, UiText::GuiButtonConfig),
+        save_button_title: i18n::text(locale, UiText::GuiButtonSave),
+        load_button_title: i18n::text(locale, UiText::GuiButtonLoad),
+        export_button_title: i18n::text(locale, UiText::GuiButtonExport),
+        reset_button_title: i18n::text(locale, UiText::GuiButtonReset),
+        config_sheet_title: i18n::text(locale, UiText::GuiSheetTitle),
+        config_sheet_subtitle: i18n::text(locale, UiText::GuiSheetSubtitle),
+        config_sheet_done_title: i18n::text(locale, UiText::GuiButtonDone),
+        config_sheet_project_title: i18n::text(locale, UiText::GuiSheetSectionProject),
+        config_sheet_export_targets_title: i18n::text(locale, UiText::GuiSheetSectionExportTargets),
+        config_sheet_editor_preferences_title: i18n::text(
+            locale,
+            UiText::GuiSheetSectionEditorPreferences,
+        ),
+        config_output_label: i18n::text(locale, UiText::ConfigLabelOutput),
+        config_template_label: i18n::text(locale, UiText::ConfigLabelTemplate),
+        fixed_hex_placeholder: i18n::text(locale, UiText::GuiColorPlaceholder),
+    };
     let project = ProjectSnapshot {
         name: state.project.name.clone(),
         project_path: state.editor.project_path.display().to_string(),
@@ -174,7 +227,7 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
     let config_sheet = ConfigSheetSnapshot {
         project_name: TextFieldSnapshot {
             id: "project_name".to_string(),
-            label: "Project Name".to_string(),
+            label: i18n::text(locale, UiText::ConfigLabelProjectName),
             value_text: state.project.name.clone(),
         },
         export_targets: state
@@ -279,8 +332,9 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
         .collect();
 
     AppSnapshot {
-        window_title: format!("Theme Generator - {}", state.project.name),
+        window_title: i18n::window_title(locale, &state.project.name),
         status: state.ui.status.clone(),
+        ui_text,
         project,
         config_sheet,
         theme,
@@ -295,6 +349,7 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
 }
 
 fn export_targets_summary(state: &AppState) -> String {
+    let locale = state.locale();
     let enabled = state
         .project
         .export_profiles
@@ -304,14 +359,27 @@ fn export_targets_summary(state: &AppState) -> String {
         .collect::<Vec<_>>();
 
     match enabled.as_slice() {
-        [] => "No targets enabled".to_string(),
-        [name] => format!("1 enabled: {name}"),
-        names if names.len() <= 3 => format!("{} enabled: {}", names.len(), names.join(", ")),
-        names => format!("{} targets enabled", names.len()),
+        [] => i18n::text(locale, UiText::SummaryNoneEnabled),
+        [name] => i18n::format1(locale, UiText::SummaryOneEnabledNamed, "name", name),
+        names if names.len() <= 3 => i18n::format2(
+            locale,
+            UiText::SummaryManyEnabledNamed,
+            "count",
+            names.len(),
+            "names",
+            names.join(", "),
+        ),
+        names => i18n::format1(
+            locale,
+            UiText::SummaryManyEnabledCount,
+            "count",
+            names.len(),
+        ),
     }
 }
 
 fn export_outputs_summary(state: &AppState) -> String {
+    let locale = state.locale();
     let enabled = state
         .project
         .export_profiles
@@ -320,41 +388,73 @@ fn export_outputs_summary(state: &AppState) -> String {
         .collect::<Vec<_>>();
 
     match enabled.as_slice() {
-        [] => "No output paths".to_string(),
-        [profile] => profile.output_path.display().to_string(),
-        profiles => format!("{} output paths configured", profiles.len()),
+        [] => i18n::text(locale, UiText::OutputsNoneEnabled),
+        [profile] => i18n::format1(
+            locale,
+            UiText::OutputsOnePath,
+            "path",
+            profile.output_path.display(),
+        ),
+        profiles => i18n::format1(locale, UiText::OutputsManyPaths, "count", profiles.len()),
     }
 }
 
 fn editor_config_fields(state: &AppState) -> Vec<ConfigFieldSnapshot> {
+    let locale = state.locale();
     vec![
         ConfigFieldSnapshot::Text(TextFieldSnapshot {
             id: "project_path".to_string(),
-            label: "Project File".to_string(),
+            label: i18n::text(locale, UiText::ConfigLabelProjectFile),
             value_text: state.editor.project_path.display().to_string(),
         }),
         ConfigFieldSnapshot::Toggle(ToggleFieldSnapshot {
             id: "auto_load_project_on_startup".to_string(),
-            label: "Auto Load".to_string(),
-            value_text: "Load project on startup".to_string(),
+            label: i18n::text(locale, UiText::ConfigLabelAutoLoad),
+            value_text: i18n::text(locale, UiText::ConfigValueLoadProjectOnStartup),
             enabled: state.editor.auto_load_project_on_startup,
         }),
         ConfigFieldSnapshot::Toggle(ToggleFieldSnapshot {
             id: "auto_save_project_on_export".to_string(),
-            label: "Auto Save".to_string(),
-            value_text: "Save project before export".to_string(),
+            label: i18n::text(locale, UiText::ConfigLabelAutoSave),
+            value_text: i18n::text(locale, UiText::ConfigValueSaveProjectBeforeExport),
             enabled: state.editor.auto_save_project_on_export,
         }),
         ConfigFieldSnapshot::Choice(ChoiceFieldSnapshot {
             id: "startup_focus".to_string(),
-            label: "Startup Focus".to_string(),
-            value_text: state.editor.startup_focus.label().to_string(),
+            label: i18n::text(locale, UiText::ConfigLabelStartupFocus),
+            value_text: i18n::focus_pane_label(locale, state.editor.startup_focus),
             selected_key: encode_focus_pane(state.editor.startup_focus),
             options: [FocusPane::Tokens, FocusPane::Params, FocusPane::Inspector]
                 .into_iter()
                 .map(|focus| ChoiceOptionSnapshot {
                     key: encode_focus_pane(focus),
-                    label: focus.label().to_string(),
+                    label: i18n::focus_pane_label(locale, focus),
+                })
+                .collect(),
+        }),
+        ConfigFieldSnapshot::Choice(ChoiceFieldSnapshot {
+            id: "keymap_preset".to_string(),
+            label: i18n::text(locale, UiText::ConfigLabelKeymap),
+            value_text: i18n::keymap_preset_label(locale, state.editor.keymap_preset),
+            selected_key: encode_keymap_preset(state.editor.keymap_preset),
+            options: [EditorKeymapPreset::Standard, EditorKeymapPreset::Vim]
+                .into_iter()
+                .map(|preset| ChoiceOptionSnapshot {
+                    key: encode_keymap_preset(preset),
+                    label: i18n::keymap_preset_label(locale, preset),
+                })
+                .collect(),
+        }),
+        ConfigFieldSnapshot::Choice(ChoiceFieldSnapshot {
+            id: "locale".to_string(),
+            label: i18n::text(locale, UiText::ConfigLabelLanguage),
+            value_text: i18n::locale_label(locale, state.editor.locale),
+            selected_key: encode_locale(state.editor.locale),
+            options: EditorLocale::ALL
+                .into_iter()
+                .map(|choice| ChoiceOptionSnapshot {
+                    key: encode_locale(choice),
+                    label: i18n::locale_label(locale, choice),
                 })
                 .collect(),
         }),
@@ -362,11 +462,12 @@ fn editor_config_fields(state: &AppState) -> Vec<ConfigFieldSnapshot> {
 }
 
 fn inspector_fields(state: &AppState) -> Vec<EditorFieldSnapshot> {
+    let locale = state.locale();
     let role = state.selected_role();
     let rule = state.selected_rule();
     let mut fields = vec![EditorFieldSnapshot::Choice(ChoiceFieldSnapshot {
         id: encode_control_id(ControlId::RuleKind(role)),
-        label: "Rule Type".to_string(),
+        label: i18n::text(locale, UiText::InspectorRuleType),
         value_text: rule.kind().label().to_string(),
         selected_key: encode_rule_kind(rule.kind()),
         options: RuleKind::ALL
@@ -383,23 +484,23 @@ fn inspector_fields(state: &AppState) -> Vec<EditorFieldSnapshot> {
             fields.push(reference_field(
                 state,
                 ControlId::Reference(role, ReferenceField::AliasSource),
-                "Source",
+                &i18n::text(locale, UiText::InspectorSource),
             ));
         }
         Rule::Mix { ratio, .. } => {
             fields.push(reference_field(
                 state,
                 ControlId::Reference(role, ReferenceField::MixA),
-                "Color A",
+                &i18n::text(locale, UiText::InspectorColorA),
             ));
             fields.push(reference_field(
                 state,
                 ControlId::Reference(role, ReferenceField::MixB),
-                "Color B",
+                &i18n::text(locale, UiText::InspectorColorB),
             ));
             fields.push(EditorFieldSnapshot::Scalar(ScalarFieldSnapshot {
                 id: encode_control_id(ControlId::MixRatio(role)),
-                label: "Blend".to_string(),
+                label: i18n::text(locale, UiText::InspectorBlend),
                 value_text: format!("{:>3.0}%", ratio * 100.0),
                 current: *ratio,
                 min: 0.0,
@@ -411,11 +512,11 @@ fn inspector_fields(state: &AppState) -> Vec<EditorFieldSnapshot> {
             fields.push(reference_field(
                 state,
                 ControlId::Reference(role, ReferenceField::AdjustSource),
-                "Source",
+                &i18n::text(locale, UiText::InspectorSource),
             ));
             fields.push(EditorFieldSnapshot::Choice(ChoiceFieldSnapshot {
                 id: encode_control_id(ControlId::AdjustOp(role)),
-                label: "Operation".to_string(),
+                label: i18n::text(locale, UiText::InspectorOperation),
                 value_text: op.label().to_string(),
                 selected_key: encode_adjust_op(*op),
                 options: AdjustOp::ALL
@@ -428,7 +529,7 @@ fn inspector_fields(state: &AppState) -> Vec<EditorFieldSnapshot> {
             }));
             fields.push(EditorFieldSnapshot::Scalar(ScalarFieldSnapshot {
                 id: encode_control_id(ControlId::AdjustAmount(role)),
-                label: "Amount".to_string(),
+                label: i18n::text(locale, UiText::InspectorAmount),
                 value_text: format!("{:>3.0}%", amount * 100.0),
                 current: *amount,
                 min: 0.0,
@@ -439,7 +540,7 @@ fn inspector_fields(state: &AppState) -> Vec<EditorFieldSnapshot> {
         Rule::Fixed { color } => {
             fields.push(EditorFieldSnapshot::Color(ColorFieldSnapshot {
                 id: encode_control_id(ControlId::FixedColor(role)),
-                label: "Hex".to_string(),
+                label: i18n::text(locale, UiText::InspectorHex),
                 value_text: color.to_hex(),
                 color_hex: color.to_hex(),
             }));
@@ -519,6 +620,14 @@ pub fn encode_reference_field(field: ReferenceField) -> String {
     .to_string()
 }
 
+pub fn encode_keymap_preset(preset: EditorKeymapPreset) -> String {
+    match preset {
+        EditorKeymapPreset::Standard => "standard",
+        EditorKeymapPreset::Vim => "vim",
+    }
+    .to_string()
+}
+
 pub fn encode_rule_kind(kind: RuleKind) -> String {
     kind.label().to_ascii_lowercase()
 }
@@ -528,7 +637,20 @@ pub fn encode_adjust_op(op: AdjustOp) -> String {
 }
 
 pub fn encode_focus_pane(focus: FocusPane) -> String {
-    focus.label().to_ascii_lowercase()
+    match focus {
+        FocusPane::Tokens => "tokens",
+        FocusPane::Params => "params",
+        FocusPane::Inspector => "inspector",
+    }
+    .to_string()
+}
+
+pub fn encode_locale(locale: EditorLocale) -> String {
+    match locale {
+        EditorLocale::EnUs => "en_us",
+        EditorLocale::ZhCn => "zh_cn",
+    }
+    .to_string()
 }
 
 pub fn encode_source_ref(source: &SourceRef) -> String {

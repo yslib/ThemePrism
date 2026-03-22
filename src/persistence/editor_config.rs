@@ -4,8 +4,53 @@ use std::path::{Path, PathBuf};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use unic_langid::LanguageIdentifier;
 
 pub const DEFAULT_PROJECT_PATH: &str = "projects/theme-project.toml";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EditorKeymapPreset {
+    #[default]
+    Standard,
+    Vim,
+}
+
+impl EditorKeymapPreset {
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Standard => Self::Vim,
+            Self::Vim => Self::Standard,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EditorLocale {
+    #[default]
+    EnUs,
+    ZhCn,
+}
+
+impl EditorLocale {
+    pub const ALL: [Self; 2] = [Self::EnUs, Self::ZhCn];
+
+    pub const fn next(self) -> Self {
+        match self {
+            Self::EnUs => Self::ZhCn,
+            Self::ZhCn => Self::EnUs,
+        }
+    }
+
+    pub fn language_identifier(self) -> LanguageIdentifier {
+        let raw = match self {
+            Self::EnUs => "en-US",
+            Self::ZhCn => "zh-CN",
+        };
+        raw.parse().expect("locale identifier should be valid")
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -25,6 +70,10 @@ pub struct EditorConfig {
     pub auto_save_project_on_export: bool,
     #[serde(default)]
     pub startup_focus: EditorStartupFocus,
+    #[serde(default)]
+    pub keymap_preset: EditorKeymapPreset,
+    #[serde(default)]
+    pub locale: EditorLocale,
 }
 
 impl Default for EditorConfig {
@@ -34,6 +83,8 @@ impl Default for EditorConfig {
             auto_load_project_on_startup: false,
             auto_save_project_on_export: false,
             startup_focus: EditorStartupFocus::Tokens,
+            keymap_preset: EditorKeymapPreset::Standard,
+            locale: EditorLocale::EnUs,
         }
     }
 }
@@ -96,7 +147,8 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use super::{
-        EditorConfig, EditorStartupFocus, load_editor_config_from_path, save_editor_config_to_path,
+        EditorConfig, EditorKeymapPreset, EditorLocale, EditorStartupFocus,
+        load_editor_config_from_path, save_editor_config_to_path,
     };
 
     #[test]
@@ -107,6 +159,8 @@ mod tests {
             auto_load_project_on_startup: true,
             auto_save_project_on_export: true,
             startup_focus: EditorStartupFocus::Inspector,
+            keymap_preset: EditorKeymapPreset::Vim,
+            locale: EditorLocale::ZhCn,
         };
 
         save_editor_config_to_path(file.path(), &config).unwrap();

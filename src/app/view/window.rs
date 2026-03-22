@@ -1,10 +1,14 @@
-use crate::app::state::{AppState, TextInputTarget};
+use crate::app::actions::menu_bar_actions;
+use crate::app::state::AppState;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::tokens::TokenRole;
+use crate::i18n::{self, UiText};
 
 use super::helpers::export_status_summary;
 use super::layout::{WorkspaceLayout, compose_layout, panel_order, workspace_layout_for_tab};
-use super::overlays::{build_config_overlay, build_numeric_editor_overlay, build_picker_overlay};
+use super::overlays::{
+    build_config_overlay, build_help_overlay, build_numeric_editor_overlay, build_picker_overlay,
+};
 use super::project_tab::{
     build_editor_preferences_panel, build_export_targets_panel, build_project_config_panel,
 };
@@ -37,7 +41,7 @@ pub fn build_view_with_layout(state: &AppState, workspace_layout: &WorkspaceLayo
     let mut status_bar_view = || build_status_bar_view(state);
     let workspace = compose_layout(workspace_layout, &mut panel_for_slot, &mut status_bar_view);
     let main_window = MainWindowView {
-        menu_bar: build_menu_bar_view(),
+        menu_bar: build_menu_bar_view(state),
         tab_bar: build_tab_bar_view(state),
         workspace,
         status_bar: build_status_bar_view(state),
@@ -48,10 +52,13 @@ pub fn build_view_with_layout(state: &AppState, workspace_layout: &WorkspaceLayo
         overlays.push(OverlayView::Picker(picker));
     }
     if let Some(config) = build_config_overlay(state) {
-        overlays.push(OverlayView::Config(config));
+        overlays.push(config);
     }
     if let Some(editor) = build_numeric_editor_overlay(state) {
-        overlays.push(OverlayView::NumericEditor(editor));
+        overlays.push(editor);
+    }
+    if let Some(help) = build_help_overlay(state) {
+        overlays.push(help);
     }
 
     ViewTree {
@@ -91,17 +98,10 @@ fn build_panel_for_slot(state: &AppState, slot: PanelId, visible_panels: &[Panel
     panel
 }
 
-fn build_menu_bar_view() -> MenuBarView {
+fn build_menu_bar_view(state: &AppState) -> MenuBarView {
     MenuBarView {
-        title: "Theme Generator".to_string(),
-        actions: vec![
-            "[/] Tabs".to_string(),
-            "1-9 Panels".to_string(),
-            "Enter Edit".to_string(),
-            "s Save".to_string(),
-            "o Load".to_string(),
-            "e Export".to_string(),
-        ],
+        title: i18n::text(state.locale(), UiText::MenuTitle),
+        actions: menu_bar_actions(state.locale(), state.editor.keymap_preset),
     }
 }
 
@@ -110,7 +110,7 @@ fn build_tab_bar_view(state: &AppState) -> TabBarView {
         tabs: WorkspaceTab::ALL
             .iter()
             .map(|tab| TabItemView {
-                label: tab.label().to_string(),
+                label: i18n::workspace_tab_label(state.locale(), *tab),
                 selected: *tab == state.ui.active_tab,
             })
             .collect(),
@@ -121,33 +121,16 @@ fn build_status_bar_view(state: &AppState) -> StatusBarView {
     StatusBarView {
         focus_label: format!(
             "{} / {}",
-            state.ui.active_tab.label(),
-            state.active_panel().label()
+            i18n::workspace_tab_label(state.locale(), state.ui.active_tab),
+            i18n::panel_label(state.locale(), state.active_panel())
         ),
-        help_text: status_help_text(state).to_string(),
-        status_text: format!(
-            "{}  |  Exports: {}",
-            state.ui.status,
-            export_status_summary(state)
+        status_text: i18n::format2(
+            state.locale(),
+            UiText::StatusBarExports,
+            "status",
+            &state.ui.status,
+            "summary",
+            export_status_summary(state),
         ),
-    }
-}
-
-fn status_help_text(state: &AppState) -> &'static str {
-    if state.ui.source_picker.is_some() {
-        "↑↓ select  |  type to filter  |  Enter apply  |  Esc close"
-    } else if let Some(input) = &state.ui.text_input {
-        match input.target {
-            TextInputTarget::Control(control) if control.supports_numeric_editor() => {
-                "←→ nudge live  |  type exact value  |  Enter apply  |  Esc close  |  Del clear"
-            }
-            _ => "Enter apply  |  Esc cancel  |  Backspace delete",
-        }
-    } else if state.ui.config_modal.is_some() {
-        "↑↓ select  |  Enter edit/toggle  |  Space toggle  |  Esc close"
-    } else if state.active_config_field().is_some() {
-        "[ ] tabs  |  1-9 panels  |  ↑↓ fields  |  Enter edit/toggle  |  c modal  |  q quit"
-    } else {
-        "[ ] tabs  |  1-9 panels  |  Tab cycle  |  ↑↓ select  |  ←→ adjust  |  Enter edit  |  q quit"
     }
 }

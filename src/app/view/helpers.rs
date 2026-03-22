@@ -2,6 +2,8 @@ use crate::app::controls::ControlId;
 use crate::app::state::{AppState, ConfigFieldId, TextInputTarget};
 use crate::app::update::default_input_buffer;
 use crate::domain::rules::Rule;
+use crate::i18n::{self, UiText};
+use crate::persistence::editor_config::EditorLocale;
 
 pub(crate) fn input_preview(buffer: &str) -> String {
     if buffer.is_empty() {
@@ -36,17 +38,8 @@ pub(crate) fn display_text_for_control(state: &AppState, control: ControlId) -> 
     }
 }
 
-pub(crate) fn config_field_label(field: ConfigFieldId) -> String {
-    match field {
-        ConfigFieldId::ProjectName => "Project Name".to_string(),
-        ConfigFieldId::ExportEnabled(index) => format!("Target {}", index + 1),
-        ConfigFieldId::ExportOutputPath(index) => format!("Output {}", index + 1),
-        ConfigFieldId::ExportTemplatePath(index) => format!("Template {}", index + 1),
-        ConfigFieldId::EditorProjectPath => "Project File".to_string(),
-        ConfigFieldId::EditorAutoLoadProject => "Auto Load".to_string(),
-        ConfigFieldId::EditorAutoSaveOnExport => "Auto Save".to_string(),
-        ConfigFieldId::EditorStartupFocus => "Startup Focus".to_string(),
-    }
+pub(crate) fn config_field_label(locale: EditorLocale, field: ConfigFieldId) -> String {
+    i18n::config_field_label(locale, field)
 }
 
 pub(crate) fn config_field_value(state: &AppState, field: ConfigFieldId) -> String {
@@ -56,30 +49,49 @@ pub(crate) fn config_field_value(state: &AppState, field: ConfigFieldId) -> Stri
         }
     }
 
+    let locale = state.locale();
     match field {
         ConfigFieldId::ProjectName => state.project.name.clone(),
         ConfigFieldId::EditorProjectPath => state.editor.project_path.display().to_string(),
         ConfigFieldId::EditorAutoLoadProject => {
             if state.editor.auto_load_project_on_startup {
-                "[x] Load project on startup".to_string()
+                format!(
+                    "[x] {}",
+                    i18n::text(locale, UiText::ConfigValueLoadProjectOnStartup)
+                )
             } else {
-                "[ ] Load project on startup".to_string()
+                format!(
+                    "[ ] {}",
+                    i18n::text(locale, UiText::ConfigValueLoadProjectOnStartup)
+                )
             }
         }
         ConfigFieldId::EditorAutoSaveOnExport => {
             if state.editor.auto_save_project_on_export {
-                "[x] Save project before export".to_string()
+                format!(
+                    "[x] {}",
+                    i18n::text(locale, UiText::ConfigValueSaveProjectBeforeExport)
+                )
             } else {
-                "[ ] Save project before export".to_string()
+                format!(
+                    "[ ] {}",
+                    i18n::text(locale, UiText::ConfigValueSaveProjectBeforeExport)
+                )
             }
         }
-        ConfigFieldId::EditorStartupFocus => state.editor.startup_focus.label().to_string(),
+        ConfigFieldId::EditorStartupFocus => {
+            i18n::focus_pane_label(locale, state.editor.startup_focus)
+        }
+        ConfigFieldId::EditorKeymapPreset => {
+            i18n::keymap_preset_label(locale, state.editor.keymap_preset)
+        }
+        ConfigFieldId::EditorLocale => i18n::locale_label(locale, state.editor.locale),
         ConfigFieldId::ExportEnabled(index) => state
             .project
             .export_profiles
             .get(index)
             .map(|profile| profile.summary_label())
-            .unwrap_or_else(|| "Missing export target".to_string()),
+            .unwrap_or_else(|| i18n::text(locale, UiText::ConfigValueMissingExportTarget)),
         ConfigFieldId::ExportOutputPath(index) => state
             .project
             .export_profiles
@@ -101,6 +113,7 @@ pub(crate) fn config_field_value(state: &AppState, field: ConfigFieldId) -> Stri
 }
 
 pub(crate) fn export_targets_summary(state: &AppState) -> String {
+    let locale = state.locale();
     let enabled = state
         .project
         .export_profiles
@@ -110,14 +123,27 @@ pub(crate) fn export_targets_summary(state: &AppState) -> String {
         .collect::<Vec<_>>();
 
     match enabled.as_slice() {
-        [] => "None enabled".to_string(),
-        [name] => format!("1 enabled: {name}"),
-        names if names.len() <= 3 => format!("{} enabled: {}", names.len(), names.join(", ")),
-        names => format!("{} enabled", names.len()),
+        [] => i18n::text(locale, UiText::SummaryNoneEnabled),
+        [name] => i18n::format1(locale, UiText::SummaryOneEnabledNamed, "name", name),
+        names if names.len() <= 3 => i18n::format2(
+            locale,
+            UiText::SummaryManyEnabledNamed,
+            "count",
+            names.len(),
+            "names",
+            names.join(", "),
+        ),
+        names => i18n::format1(
+            locale,
+            UiText::SummaryManyEnabledCount,
+            "count",
+            names.len(),
+        ),
     }
 }
 
 pub(crate) fn export_outputs_summary(state: &AppState) -> String {
+    let locale = state.locale();
     let enabled = state
         .project
         .export_profiles
@@ -126,13 +152,19 @@ pub(crate) fn export_outputs_summary(state: &AppState) -> String {
         .collect::<Vec<_>>();
 
     match enabled.as_slice() {
-        [] => "No export targets enabled".to_string(),
-        [profile] => profile.output_path.display().to_string(),
-        profiles => format!("{} output targets", profiles.len()),
+        [] => i18n::text(locale, UiText::OutputsNoneEnabled),
+        [profile] => i18n::format1(
+            locale,
+            UiText::OutputsOnePath,
+            "path",
+            profile.output_path.display(),
+        ),
+        profiles => i18n::format1(locale, UiText::OutputsManyPaths, "count", profiles.len()),
     }
 }
 
 pub(crate) fn export_status_summary(state: &AppState) -> String {
+    let locale = state.locale();
     let enabled = state
         .project
         .export_profiles
@@ -142,9 +174,11 @@ pub(crate) fn export_status_summary(state: &AppState) -> String {
         .collect::<Vec<_>>();
 
     match enabled.as_slice() {
-        [] => "none enabled".to_string(),
-        [name] => format!("{name} enabled"),
-        names if names.len() <= 3 => format!("{} enabled", names.join(", ")),
-        names => format!("{} targets enabled", names.len()),
+        [] => i18n::text(locale, UiText::ExportStatusNoneEnabled),
+        [name] => i18n::format1(locale, UiText::ExportStatusOneEnabled, "name", name),
+        names if names.len() <= 3 => {
+            i18n::format1(locale, UiText::ExportStatusNamed, "names", names.join(", "))
+        }
+        names => i18n::format1(locale, UiText::ExportStatusCount, "count", names.len()),
     }
 }

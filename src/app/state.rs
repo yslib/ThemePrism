@@ -11,7 +11,10 @@ use crate::domain::params::{ParamKey, ThemeParams};
 use crate::domain::rules::RuleSet;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
 use crate::export::{ExportProfile, default_export_profiles};
-use crate::persistence::editor_config::{DEFAULT_PROJECT_PATH, EditorConfig, EditorStartupFocus};
+use crate::i18n::{self, UiText};
+use crate::persistence::editor_config::{
+    DEFAULT_PROJECT_PATH, EditorConfig, EditorKeymapPreset, EditorLocale, EditorStartupFocus,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusPane {
@@ -35,14 +38,6 @@ impl FocusPane {
             Self::Tokens => Self::Inspector,
             Self::Params => Self::Tokens,
             Self::Inspector => Self::Params,
-        }
-    }
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Tokens => "Tokens",
-            Self::Params => "Params",
-            Self::Inspector => "Inspector",
         }
     }
 }
@@ -76,6 +71,8 @@ pub enum ConfigFieldId {
     EditorAutoLoadProject,
     EditorAutoSaveOnExport,
     EditorStartupFocus,
+    EditorKeymapPreset,
+    EditorLocale,
 }
 
 impl ConfigFieldId {
@@ -119,6 +116,8 @@ pub struct UiState {
     pub text_input: Option<TextInputState>,
     pub source_picker: Option<SourcePickerState>,
     pub config_modal: Option<ConfigModalState>,
+    pub shortcut_help_open: bool,
+    pub shortcut_help_scroll: u16,
 }
 
 #[derive(Debug, Clone)]
@@ -133,6 +132,8 @@ pub struct EditorState {
     pub auto_load_project_on_startup: bool,
     pub auto_save_project_on_export: bool,
     pub startup_focus: FocusPane,
+    pub keymap_preset: EditorKeymapPreset,
+    pub locale: EditorLocale,
 }
 
 #[derive(Debug, Clone)]
@@ -171,11 +172,13 @@ impl AppState {
                 project_field: 0,
                 export_field: 0,
                 editor_field: 0,
-                status: "Theme generator ready.".to_string(),
+                status: i18n::text(EditorLocale::EnUs, UiText::StatusReady),
                 should_quit: false,
                 text_input: None,
                 source_picker: None,
                 config_modal: None,
+                shortcut_help_open: false,
+                shortcut_help_scroll: 0,
             },
             project: ProjectState {
                 name: "Untitled Theme".to_string(),
@@ -186,6 +189,8 @@ impl AppState {
                 auto_load_project_on_startup: false,
                 auto_save_project_on_export: false,
                 startup_focus: FocusPane::Tokens,
+                keymap_preset: EditorKeymapPreset::Standard,
+                locale: EditorLocale::EnUs,
             },
         })
     }
@@ -202,7 +207,13 @@ impl AppState {
             auto_load_project_on_startup: self.editor.auto_load_project_on_startup,
             auto_save_project_on_export: self.editor.auto_save_project_on_export,
             startup_focus: self.editor.startup_focus.into(),
+            keymap_preset: self.editor.keymap_preset,
+            locale: self.editor.locale,
         }
+    }
+
+    pub const fn locale(&self) -> EditorLocale {
+        self.editor.locale
     }
 
     pub fn apply_project_data(
@@ -216,6 +227,7 @@ impl AppState {
         self.ui.text_input = None;
         self.ui.source_picker = None;
         self.ui.config_modal = None;
+        self.ui.shortcut_help_open = false;
         self.recompute().map_err(|err| err.to_string())?;
         self.ui.inspector_field = self
             .ui
@@ -307,12 +319,14 @@ impl AppState {
         fields
     }
 
-    pub fn editor_fields(&self) -> [ConfigFieldId; 4] {
+    pub fn editor_fields(&self) -> [ConfigFieldId; 6] {
         [
             ConfigFieldId::EditorProjectPath,
             ConfigFieldId::EditorAutoLoadProject,
             ConfigFieldId::EditorAutoSaveOnExport,
             ConfigFieldId::EditorStartupFocus,
+            ConfigFieldId::EditorKeymapPreset,
+            ConfigFieldId::EditorLocale,
         ]
     }
 

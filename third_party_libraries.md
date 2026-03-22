@@ -36,6 +36,23 @@ Applied to this codebase, that means:
 - Why: editor-only local configuration should live in the platform's normal config location, not in ad-hoc hardcoded paths
 - Main usage: [src/persistence/editor_config.rs](/Users/ysl/Code/theme/src/persistence/editor_config.rs)
 
+### `fluent-bundle`
+
+- Version: `0.16.0`
+- Role: Fluent message argument/value model
+- Why: supports parameterized UI translations without hand-rolling interpolation logic
+- Main usage: [src/i18n/mod.rs](/Users/ysl/Code/theme/src/i18n/mod.rs)
+
+### `fluent-templates`
+
+- Version: `0.13.2`
+- Role: static Fluent resource loading
+- Why: provides declarative `.ftl`-based i18n resources for shared TUI/GUI UI copy
+- Main usage:
+  - [src/i18n/mod.rs](/Users/ysl/Code/theme/src/i18n/mod.rs)
+  - [locales/en-US/ui.ftl](/Users/ysl/Code/theme/locales/en-US/ui.ftl)
+  - [locales/zh-CN/ui.ftl](/Users/ysl/Code/theme/locales/zh-CN/ui.ftl)
+
 ### `palette`
 
 - Version: `0.7.6`
@@ -83,6 +100,15 @@ Applied to this codebase, that means:
   - [src/persistence/project_file.rs](/Users/ysl/Code/theme/src/persistence/project_file.rs)
   - [src/evaluator.rs](/Users/ysl/Code/theme/src/evaluator.rs)
   - [src/app/state.rs](/Users/ysl/Code/theme/src/app/state.rs)
+
+### `unic-langid`
+
+- Version: `0.9.6`
+- Role: locale identifiers
+- Why: keeps supported editor locales explicit and interoperable with Fluent resources
+- Main usage:
+  - [src/persistence/editor_config.rs](/Users/ysl/Code/theme/src/persistence/editor_config.rs)
+  - [src/i18n/mod.rs](/Users/ysl/Code/theme/src/i18n/mod.rs)
 
 ## Build Dependencies
 

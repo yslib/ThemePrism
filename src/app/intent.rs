@@ -7,6 +7,7 @@ use crate::domain::params::ParamKey;
 use crate::domain::rules::{AdjustOp, RuleKind, SourceRef};
 use crate::domain::tokens::TokenRole;
 use crate::export::ExportArtifact;
+use crate::persistence::editor_config::{EditorKeymapPreset, EditorLocale};
 
 #[derive(Debug, Clone)]
 pub enum Intent {
@@ -35,6 +36,8 @@ pub enum Intent {
     SetEditorAutoLoadProject(bool),
     SetEditorAutoSaveOnExport(bool),
     SetEditorStartupFocus(crate::app::state::FocusPane),
+    SetEditorKeymapPreset(EditorKeymapPreset),
+    SetEditorLocale(EditorLocale),
 
     AppendTextInput(char),
     BackspaceTextInput,
@@ -51,6 +54,8 @@ pub enum Intent {
 
     OpenConfigRequested,
     CloseConfigRequested,
+    ToggleShortcutHelpRequested,
+    ScrollShortcutHelp(i32),
     MoveConfigSelection(i32),
     ActivateConfigField,
 

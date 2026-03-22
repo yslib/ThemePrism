@@ -7,6 +7,7 @@ use crate::app::workspace::PanelId;
 use crate::domain::preview::sample_code;
 use crate::domain::rules::Rule;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
+use crate::i18n::{self, UiText};
 
 use super::helpers::{display_text_for_control, export_outputs_summary, export_targets_summary};
 use super::styled::{colored_span, line_pair, plain_span, swatch_span};
@@ -35,7 +36,7 @@ pub(crate) fn build_token_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::Tokens,
-        title: "Token List".to_string(),
+        title: i18n::text(state.locale(), UiText::PanelTokenList),
         active: false,
         shortcut: None,
         body: PanelBody::SelectionList(SelectionListView { rows }),
@@ -43,6 +44,7 @@ pub(crate) fn build_token_panel(state: &AppState) -> PanelView {
 }
 
 pub(crate) fn build_params_panel(state: &AppState) -> PanelView {
+    let locale = state.locale();
     let mut fields = crate::domain::params::ParamKey::ALL
         .into_iter()
         .map(|key| FormFieldView {
@@ -61,7 +63,7 @@ pub(crate) fn build_params_panel(state: &AppState) -> PanelView {
 
     fields.push(FormFieldView {
         control: ControlSpec::Display(DisplayFieldSpec {
-            label: "Project".to_string(),
+            label: i18n::text(locale, UiText::FieldProject),
             value_text: state.project.name.clone(),
             swatch: None,
         }),
@@ -69,7 +71,7 @@ pub(crate) fn build_params_panel(state: &AppState) -> PanelView {
     });
     fields.push(FormFieldView {
         control: ControlSpec::Display(DisplayFieldSpec {
-            label: "Exports".to_string(),
+            label: i18n::text(locale, UiText::FieldExports),
             value_text: export_targets_summary(state),
             swatch: None,
         }),
@@ -77,7 +79,7 @@ pub(crate) fn build_params_panel(state: &AppState) -> PanelView {
     });
     fields.push(FormFieldView {
         control: ControlSpec::Display(DisplayFieldSpec {
-            label: "Outputs".to_string(),
+            label: i18n::text(locale, UiText::FieldOutputs),
             value_text: export_outputs_summary(state),
             swatch: None,
         }),
@@ -86,7 +88,7 @@ pub(crate) fn build_params_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::Params,
-        title: "Theme Params".to_string(),
+        title: i18n::text(locale, UiText::PanelThemeParams),
         active: false,
         shortcut: None,
         body: PanelBody::Form(FormView {
@@ -121,7 +123,7 @@ pub(crate) fn build_code_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::Preview,
-        title: "Preview / Sample Code".to_string(),
+        title: i18n::text(state.locale(), UiText::PanelPreviewSampleCode),
         active: false,
         shortcut: None,
         body: PanelBody::CodePreview(CodePreviewView { lines }),
@@ -143,7 +145,7 @@ pub(crate) fn build_palette_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::Palette,
-        title: "Palette".to_string(),
+        title: i18n::text(state.locale(), UiText::PanelPalette),
         active: false,
         shortcut: None,
         body: PanelBody::SwatchList(SwatchListView { items }),
@@ -169,7 +171,13 @@ pub(crate) fn build_token_swatch_panel(
 
     PanelView {
         id: PanelId::ResolvedPrimary,
-        title: title.to_string(),
+        title: match title {
+            "Resolved Tokens" => i18n::text(state.locale(), UiText::PanelResolvedTokens),
+            "Resolved Tokens II" => {
+                i18n::text(state.locale(), UiText::PanelResolvedTokensSecondary)
+            }
+            _ => title.to_string(),
+        },
         active: false,
         shortcut: None,
         body: PanelBody::SwatchList(SwatchListView { items }),
@@ -177,10 +185,11 @@ pub(crate) fn build_token_swatch_panel(
 }
 
 pub(crate) fn build_inspector_panel(state: &AppState) -> PanelView {
+    let locale = state.locale();
     let color = state.current_token_color();
     let header_lines = vec![
         line_pair(
-            "Token: ",
+            &i18n::text(locale, UiText::InspectorToken),
             state.selected_role().label(),
             state.theme_color(TokenRole::TextMuted),
             state.theme_color(TokenRole::Text),
@@ -190,7 +199,7 @@ pub(crate) fn build_inspector_panel(state: &AppState) -> PanelView {
         StyledLine {
             spans: vec![
                 colored_span(
-                    "Color: ",
+                    i18n::text(locale, UiText::InspectorColor),
                     state.theme_color(TokenRole::TextMuted),
                     false,
                     false,
@@ -206,7 +215,7 @@ pub(crate) fn build_inspector_panel(state: &AppState) -> PanelView {
             ],
         },
         line_pair(
-            "Summary: ",
+            &i18n::text(locale, UiText::InspectorSummary),
             &state.selected_rule().summary(),
             state.theme_color(TokenRole::TextMuted),
             state.theme_color(TokenRole::Text),
@@ -220,23 +229,24 @@ pub(crate) fn build_inspector_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::Inspector,
-        title: "Inspector".to_string(),
+        title: i18n::text(locale, UiText::PanelInspector),
         active: false,
         shortcut: None,
         body: PanelBody::Form(FormView {
             header_lines,
             fields,
-            footer: Some(inspector_footer_text(state).to_string()),
+            footer: Some(inspector_footer_text(state)),
         }),
     }
 }
 
 fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
+    let locale = state.locale();
     let selected_role = state.selected_role();
     let mut fields = vec![FormFieldView {
         control: ControlSpec::Choice(ChoiceControlSpec {
             id: ControlId::RuleKind(selected_role),
-            label: "Rule Type".to_string(),
+            label: i18n::text(locale, UiText::InspectorRuleType),
             value_text: state.selected_rule().kind().label().to_string(),
         }),
         selected: state.active_panel() == PanelId::Inspector && state.ui.inspector_field == 0,
@@ -247,7 +257,7 @@ fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
             fields.push(reference_field(
                 state,
                 ControlId::Reference(selected_role, ReferenceField::AliasSource),
-                "Source",
+                &i18n::text(locale, UiText::InspectorSource),
                 state.selected_rule(),
                 1,
             ));
@@ -256,21 +266,21 @@ fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
             fields.push(reference_field(
                 state,
                 ControlId::Reference(selected_role, ReferenceField::MixA),
-                "Color A",
+                &i18n::text(locale, UiText::InspectorColorA),
                 state.selected_rule(),
                 1,
             ));
             fields.push(reference_field(
                 state,
                 ControlId::Reference(selected_role, ReferenceField::MixB),
-                "Color B",
+                &i18n::text(locale, UiText::InspectorColorB),
                 state.selected_rule(),
                 2,
             ));
             fields.push(FormFieldView {
                 control: ControlSpec::Scalar(ScalarControlSpec {
                     id: ControlId::MixRatio(selected_role),
-                    label: "Blend".to_string(),
+                    label: i18n::text(locale, UiText::InspectorBlend),
                     value_text: display_text_for_control(state, ControlId::MixRatio(selected_role)),
                     current: *ratio,
                     min: 0.0,
@@ -285,14 +295,14 @@ fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
             fields.push(reference_field(
                 state,
                 ControlId::Reference(selected_role, ReferenceField::AdjustSource),
-                "Source",
+                &i18n::text(locale, UiText::InspectorSource),
                 state.selected_rule(),
                 1,
             ));
             fields.push(FormFieldView {
                 control: ControlSpec::Choice(ChoiceControlSpec {
                     id: ControlId::AdjustOp(selected_role),
-                    label: "Operation".to_string(),
+                    label: i18n::text(locale, UiText::InspectorOperation),
                     value_text: op.label().to_string(),
                 }),
                 selected: state.active_panel() == PanelId::Inspector
@@ -301,7 +311,7 @@ fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
             fields.push(FormFieldView {
                 control: ControlSpec::Scalar(ScalarControlSpec {
                     id: ControlId::AdjustAmount(selected_role),
-                    label: "Amount".to_string(),
+                    label: i18n::text(locale, UiText::InspectorAmount),
                     value_text: display_text_for_control(
                         state,
                         ControlId::AdjustAmount(selected_role),
@@ -319,7 +329,7 @@ fn build_inspector_fields(state: &AppState) -> Vec<FormFieldView> {
             fields.push(FormFieldView {
                 control: ControlSpec::Color(ColorControlSpec {
                     id: ControlId::FixedColor(selected_role),
-                    label: "Hex".to_string(),
+                    label: i18n::text(locale, UiText::InspectorHex),
                     value_text: display_text_for_control(
                         state,
                         ControlId::FixedColor(selected_role),
@@ -360,44 +370,42 @@ fn reference_field(
     }
 }
 
-fn inspector_footer_text(state: &AppState) -> &'static str {
+fn inspector_footer_text(state: &AppState) -> String {
     if state.ui.source_picker.is_some() {
-        "Filter sources by name. Tokens are common sources; palette slots are advanced."
+        i18n::text(state.locale(), UiText::FooterFilterSources)
     } else if let Some(input) = &state.ui.text_input {
         match input.target {
             crate::app::state::TextInputTarget::Control(control)
                 if control.supports_numeric_editor() =>
             {
-                "Numeric editor is open. Left/right nudges live; Enter applies the typed value."
+                i18n::text(state.locale(), UiText::FooterNumericEditorOpen)
             }
             crate::app::state::TextInputTarget::Control(ControlId::FixedColor(_)) => {
-                "Type #C586C0 or #C586C080. Enter applies, Esc cancels."
+                i18n::text(state.locale(), UiText::FooterFixedColorInput)
             }
             crate::app::state::TextInputTarget::Config(_) => {
-                "Type text. Enter applies, Esc cancels."
+                i18n::text(state.locale(), UiText::FooterTextInput)
             }
             crate::app::state::TextInputTarget::Control(_) => {
-                "Press Enter to apply or Esc to cancel."
+                i18n::text(state.locale(), UiText::FooterGenericInput)
             }
         }
     } else {
         match state.active_control() {
             Some(ControlId::Reference(_, _)) => {
-                "Left/right cycles sources. Enter opens source picker with filter."
+                i18n::text(state.locale(), UiText::FooterReferenceQuick)
             }
             Some(ControlId::FixedColor(_)) => {
-                "Left/right cycles colors. Enter or i opens hex input."
+                i18n::text(state.locale(), UiText::FooterFixedColorQuick)
             }
-            Some(ControlId::MixRatio(_)) => {
-                "Left/right nudges the value. Enter opens the numeric editor."
-            }
+            Some(ControlId::MixRatio(_)) => i18n::text(state.locale(), UiText::FooterMixQuick),
             Some(ControlId::AdjustAmount(_)) => {
-                "Left/right nudges the value. Enter opens the numeric editor."
+                i18n::text(state.locale(), UiText::FooterAdjustQuick)
             }
-            Some(ControlId::RuleKind(_)) => "Left/right cycles rule type.",
-            Some(ControlId::AdjustOp(_)) => "Left/right cycles adjust operations.",
-            Some(ControlId::Param(_)) => "Left/right steps values. Enter opens the numeric editor.",
-            None => "Use left/right for quick edits and Enter to activate supported fields.",
+            Some(ControlId::RuleKind(_)) => i18n::text(state.locale(), UiText::FooterRuleKindQuick),
+            Some(ControlId::AdjustOp(_)) => i18n::text(state.locale(), UiText::FooterAdjustOpQuick),
+            Some(ControlId::Param(_)) => i18n::text(state.locale(), UiText::FooterParamQuick),
+            None => i18n::text(state.locale(), UiText::FooterDefaultQuick),
         }
     }
 }

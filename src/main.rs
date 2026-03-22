@@ -2,6 +2,7 @@ mod app;
 mod core;
 mod domain;
 mod export;
+mod i18n;
 mod persistence;
 mod platform;
 
