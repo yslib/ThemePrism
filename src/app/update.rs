@@ -1,6 +1,7 @@
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::effect::{EditorConfigData, Effect, ProjectData};
 use crate::app::intent::Intent;
+use crate::app::interaction::{InteractionMode, SurfaceId};
 use crate::app::state::{
     AppState, ConfigFieldId, ConfigModalState, FocusPane, SourcePickerState, TextInputState,
     TextInputTarget,
@@ -56,6 +57,14 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
                 return Vec::new();
             }
             move_panel_focus(state, delta);
+            Vec::new()
+        }
+        Intent::FocusSurface(surface) => {
+            focus_surface(state, surface);
+            Vec::new()
+        }
+        Intent::SetInteractionMode(mode) => {
+            set_interaction_mode(state, mode);
             Vec::new()
         }
         Intent::MoveSelection(delta) => {
@@ -402,6 +411,12 @@ fn cycle_workspace_tab(state: &mut AppState, delta: i32) {
     } else {
         state.ui.active_tab.previous()
     };
+    if matches!(
+        state.ui.interaction.focused_workspace_surface(),
+        SurfaceId::Panel(_)
+    ) {
+        state.ui.interaction.focus_panel(state.active_panel());
+    }
     let panel = state.active_panel();
     state.ui.status = tr2(
         state,
@@ -427,6 +442,7 @@ fn move_panel_focus(state: &mut AppState, delta: i32) {
         .unwrap_or(0);
     let next = panels[cycle_index(index, panels.len(), delta)];
     state.set_active_panel(next);
+    state.ui.interaction.focus_panel(next);
     state.ui.status = tr1(
         state,
         UiText::StatusFocusedPanel,
@@ -442,6 +458,7 @@ fn focus_panel_by_number(state: &mut AppState, number: u8) {
 
     if let Some(panel) = panels.get(index).copied() {
         state.set_active_panel(panel);
+        state.ui.interaction.focus_panel(panel);
         state.ui.status = tr1(
             state,
             UiText::StatusFocusedPanel,
@@ -516,6 +533,53 @@ fn move_selection(state: &mut AppState, delta: i32) {
                 i18n::panel_label(state.locale(), state.active_panel()),
             );
         }
+    }
+}
+
+fn focus_surface(state: &mut AppState, surface: SurfaceId) {
+    match surface {
+        SurfaceId::MainWindow => {
+            state.ui.interaction.focus_root();
+            state.ui.status = tr1(
+                state,
+                UiText::StatusFocusedSurface,
+                "surface",
+                tr(state, UiText::SurfaceMainWindow),
+            );
+        }
+        SurfaceId::Panel(panel) => {
+            state.set_active_panel(panel);
+            state.ui.interaction.focus_panel(panel);
+            state.ui.status = tr1(
+                state,
+                UiText::StatusFocusedSurface,
+                "surface",
+                i18n::panel_label(state.locale(), panel),
+            );
+        }
+        SurfaceId::TextInput
+        | SurfaceId::SourcePicker
+        | SurfaceId::ConfigDialog
+        | SurfaceId::ShortcutHelp => {}
+    }
+}
+
+fn set_interaction_mode(state: &mut AppState, mode: InteractionMode) {
+    state.ui.interaction.mode = mode;
+    if let InteractionMode::NavigateChildren(surface) = mode {
+        state.ui.status = tr1(
+            state,
+            UiText::StatusSurfaceNavigationActive,
+            "surface",
+            match surface {
+                SurfaceId::MainWindow => tr(state, UiText::SurfaceMainWindow),
+                SurfaceId::Panel(panel) => i18n::panel_label(state.locale(), panel),
+                SurfaceId::TextInput => tr(state, UiText::SurfaceInputEditor),
+                SurfaceId::SourcePicker => tr(state, UiText::SurfaceSourcePicker),
+                SurfaceId::ConfigDialog => tr(state, UiText::SurfaceConfigDialog),
+                SurfaceId::ShortcutHelp => tr(state, UiText::SurfaceShortcutHelp),
+            },
+        );
     }
 }
 
@@ -833,6 +897,7 @@ fn cycle_fixed_color_for_role(state: &mut AppState, role: TokenRole, delta: i32)
 
 fn open_text_input(state: &mut AppState, target: TextInputTarget) {
     let buffer = default_input_buffer(state, target);
+    state.ui.interaction.mode = InteractionMode::Normal;
     state.ui.shortcut_help_open = false;
     state.ui.text_input = Some(TextInputState { target, buffer });
     state.ui.status = match target {
@@ -864,6 +929,7 @@ fn open_source_picker(state: &mut AppState, control: ControlId) {
         .and_then(|source| options.iter().position(|option| option.source == *source))
         .unwrap_or_default();
 
+    state.ui.interaction.mode = InteractionMode::Normal;
     state.ui.shortcut_help_open = false;
     state.ui.source_picker = Some(SourcePickerState {
         control,
@@ -1305,6 +1371,9 @@ fn set_editor_auto_save_on_export(state: &mut AppState, enabled: bool) -> Vec<Ef
 fn set_editor_startup_focus(state: &mut AppState, focus: FocusPane) -> Vec<Effect> {
     state.editor.startup_focus = focus;
     state.ui.theme_panel = focus.into();
+    if state.ui.active_tab == crate::app::workspace::WorkspaceTab::Theme {
+        state.ui.interaction.focus_panel(state.ui.theme_panel);
+    }
     state.ui.status = tr1(
         state,
         UiText::StatusStartupFocusUpdated,
@@ -1381,6 +1450,8 @@ fn open_config_modal(state: &mut AppState) {
     state.ui.source_picker = None;
     state.ui.text_input = None;
     state.ui.shortcut_help_open = false;
+    state.ui.interaction.mode = InteractionMode::Normal;
+    state.ui.interaction.focus_root();
     state.ui.config_modal = Some(ConfigModalState { selected_field: 0 });
     state.ui.status = tr(state, UiText::StatusConfigOpened);
 }
@@ -1388,6 +1459,8 @@ fn open_config_modal(state: &mut AppState) {
 fn close_config_modal(state: &mut AppState) {
     let was_open = state.ui.config_modal.take().is_some();
     state.ui.text_input = None;
+    state.ui.interaction.mode = InteractionMode::Normal;
+    state.ui.interaction.focus_root();
     if was_open {
         state.ui.status = tr(state, UiText::StatusConfigClosed);
     }
@@ -1399,12 +1472,16 @@ fn toggle_shortcut_help(state: &mut AppState) {
         state.ui.source_picker = None;
         state.ui.text_input = None;
         state.ui.config_modal = None;
+        state.ui.interaction.mode = InteractionMode::Normal;
+        state.ui.interaction.focus_root();
         state.ui.shortcut_help_open = true;
         state.ui.shortcut_help_scroll = 0;
         state.ui.status = tr(state, UiText::StatusHelpOpened);
     } else {
         state.ui.shortcut_help_open = false;
         state.ui.shortcut_help_scroll = 0;
+        state.ui.interaction.mode = InteractionMode::Normal;
+        state.ui.interaction.focus_root();
         state.ui.status = tr(state, UiText::StatusHelpClosed);
     }
 }
@@ -1867,7 +1944,8 @@ mod tests {
     #[test]
     fn workspace_tabs_restore_panel_focus() {
         let mut state = AppState::new().expect("state should build");
-        state.ui.theme_panel = PanelId::Inspector;
+        state.set_active_panel(PanelId::Inspector);
+        state.ui.interaction.focus_panel(PanelId::Inspector);
 
         update(&mut state, Intent::CycleWorkspaceTab(1));
         assert_eq!(state.ui.active_tab, WorkspaceTab::Project);
@@ -1893,7 +1971,8 @@ mod tests {
     #[test]
     fn cycling_preview_mode_prepares_runtime_placeholder() {
         let mut state = AppState::new().expect("state should build");
-        state.ui.theme_panel = PanelId::Preview;
+        state.set_active_panel(PanelId::Preview);
+        state.ui.interaction.focus_panel(PanelId::Preview);
 
         update(&mut state, Intent::CyclePreviewMode(1));
 
@@ -1911,7 +1990,8 @@ mod tests {
     #[test]
     fn preview_capture_requires_interactive_mode() {
         let mut state = AppState::new().expect("state should build");
-        state.ui.theme_panel = PanelId::Preview;
+        state.set_active_panel(PanelId::Preview);
+        state.ui.interaction.focus_panel(PanelId::Preview);
 
         update(&mut state, Intent::SetPreviewCapture(true));
         assert!(!state.preview.capture_active);

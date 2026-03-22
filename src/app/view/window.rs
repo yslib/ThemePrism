@@ -1,4 +1,5 @@
 use crate::app::actions::menu_bar_actions;
+use crate::app::interaction::focus_breadcrumb;
 use crate::app::state::AppState;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::tokens::TokenRole;
@@ -119,11 +120,7 @@ fn build_tab_bar_view(state: &AppState) -> TabBarView {
 
 fn build_status_bar_view(state: &AppState) -> StatusBarView {
     StatusBarView {
-        focus_label: format!(
-            "{} / {}",
-            i18n::workspace_tab_label(state.locale(), state.ui.active_tab),
-            i18n::panel_label(state.locale(), state.active_panel())
-        ),
+        focus_label: focus_breadcrumb(state),
         status_text: i18n::format2(
             state.locale(),
             UiText::StatusBarExports,

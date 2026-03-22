@@ -277,7 +277,7 @@ pub fn shortcut_help_sections(
             title: i18n::text(locale, UiText::HelpSectionPreview),
             entries: vec![
                 entry(
-                    adjust_value_shortcut_label(preset),
+                    switch_tabs_shortcut_label(preset),
                     i18n::text(locale, UiText::HelpPreviewModeLabel),
                     i18n::text(locale, UiText::HelpPreviewModeDesc),
                 ),

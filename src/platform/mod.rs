@@ -145,6 +145,7 @@ fn run_entrypoint_with_writer(
                     state.editor.locale = config.locale;
                     state.ui.theme_panel = state.editor.startup_focus.into();
                     state.ui.active_tab = crate::app::workspace::WorkspaceTab::Theme;
+                    state.ui.interaction.focus_panel(state.ui.theme_panel);
 
                     if state.editor.auto_load_project_on_startup {
                         match load_project(&state.editor.project_path) {

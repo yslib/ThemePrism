@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use crate::app::controls::ControlId;
 use crate::app::effect::ProjectData;
+use crate::app::interaction::{InteractionMode, SurfaceId};
 use crate::domain::color::Color;
 use crate::domain::params::ParamKey;
 use crate::domain::preview::PreviewRuntimeEvent;
@@ -16,6 +17,8 @@ pub enum Intent {
     CycleWorkspaceTab(i32),
     FocusPanelByNumber(u8),
     MoveFocus(i32),
+    FocusSurface(SurfaceId),
+    SetInteractionMode(InteractionMode),
     MoveSelection(i32),
     SelectToken(usize),
     AdjustControlByStep(ControlId, i32),

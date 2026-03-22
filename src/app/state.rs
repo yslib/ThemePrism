@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::app::controls::{ControlId, ReferenceField};
+use crate::app::interaction::InteractionState;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::color::Color;
 use crate::domain::evaluator::{EvalError, ResolvedTheme, resolve_theme};
@@ -122,6 +123,7 @@ pub struct UiState {
     pub config_modal: Option<ConfigModalState>,
     pub shortcut_help_open: bool,
     pub shortcut_help_scroll: u16,
+    pub interaction: InteractionState,
 }
 
 #[derive(Debug, Clone)]
@@ -184,6 +186,7 @@ impl AppState {
                 config_modal: None,
                 shortcut_help_open: false,
                 shortcut_help_scroll: 0,
+                interaction: InteractionState::new(PanelId::Tokens),
             },
             project: ProjectState {
                 name: "Untitled Theme".to_string(),
@@ -235,6 +238,7 @@ impl AppState {
         self.ui.config_modal = None;
         self.ui.shortcut_help_open = false;
         self.preview.capture_active = false;
+        self.ui.interaction.mode = crate::app::interaction::InteractionMode::Normal;
         self.recompute().map_err(|err| err.to_string())?;
         self.ui.inspector_field = self
             .ui

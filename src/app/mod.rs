@@ -2,6 +2,7 @@ pub mod actions;
 pub mod controls;
 pub mod effect;
 pub mod intent;
+pub mod interaction;
 pub mod snapshot;
 pub mod state;
 pub mod update;
