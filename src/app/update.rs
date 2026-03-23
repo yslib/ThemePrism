@@ -2258,6 +2258,37 @@ mod tests {
     }
 
     #[test]
+    fn preview_runtime_exit_releases_capture_under_shortcut_help_modal() {
+        let mut state = AppState::new().expect("state should build");
+        state.set_active_panel(PanelId::Preview);
+        state.ui.interaction.focus_panel(PanelId::Preview);
+        state.preview.active_mode = crate::preview::PreviewMode::Shell;
+
+        update(&mut state, Intent::SetPreviewCapture(true));
+        update(&mut state, Intent::ToggleShortcutHelpRequested);
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            InteractionMode::Modal {
+                owner: SurfaceId::ShortcutHelp,
+            }
+        );
+
+        update(
+            &mut state,
+            Intent::PreviewRuntimeEvent(PreviewRuntimeEvent::Exited {
+                message: "preview exited".to_string(),
+            }),
+        );
+
+        update(&mut state, Intent::ToggleShortcutHelpRequested);
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
+        assert_eq!(
+            effective_focus_path(&state),
+            vec![SurfaceId::AppRoot, SurfaceId::MainWindow]
+        );
+    }
+
+    #[test]
     fn select_token_closes_transient_surfaces_without_leaving_stale_modes() {
         let mut text_input_state = AppState::new().expect("state should build");
         text_input_state.set_active_panel(PanelId::Params);
@@ -2291,6 +2322,29 @@ mod tests {
         assert_eq!(
             effective_focus_path(&help_state),
             vec![SurfaceId::AppRoot, SurfaceId::MainWindow]
+        );
+
+        let mut picker_state = AppState::new().expect("state should build");
+        picker_state.set_active_panel(PanelId::Tokens);
+        picker_state.ui.interaction.focus_panel(PanelId::Tokens);
+        open_source_picker(
+            &mut picker_state,
+            ControlId::Reference(
+                TokenRole::Text,
+                crate::app::controls::ReferenceField::AliasSource,
+            ),
+        );
+
+        update(&mut picker_state, Intent::SelectToken(1));
+        assert!(picker_state.ui.source_picker.is_none());
+        assert_eq!(picker_state.ui.interaction.current_mode(), InteractionMode::Normal);
+        assert_eq!(
+            effective_focus_path(&picker_state),
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::TokensPanel,
+            ]
         );
     }
 
