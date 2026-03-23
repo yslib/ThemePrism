@@ -1,7 +1,7 @@
 use crate::app::state::AppState;
+use crate::app::view::{panel_order, workspace_layout_for_tab};
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::app::workspace::{PanelId::*, WorkspaceTab::*};
-use crate::app::view::{panel_order, workspace_layout_for_tab};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SurfaceId {
@@ -116,6 +116,7 @@ pub struct SurfaceNode {
     pub children: Vec<SurfaceId>,
     pub focusable: bool,
     pub visible: bool,
+    pub tab_scope_owner: Option<SurfaceId>,
     pub tab_scope: TabScope,
     pub default_action: DefaultAction,
     pub child_navigation: ChildNavigation,
@@ -130,6 +131,7 @@ impl SurfaceNode {
         children: Vec<SurfaceId>,
         focusable: bool,
         visible: bool,
+        tab_scope_owner: Option<SurfaceId>,
         tab_scope: TabScope,
         default_action: DefaultAction,
         child_navigation: ChildNavigation,
@@ -142,6 +144,7 @@ impl SurfaceNode {
             children,
             focusable,
             visible,
+            tab_scope_owner,
             tab_scope,
             default_action,
             child_navigation,
@@ -223,6 +226,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             app_root_children,
             false,
             true,
+            None,
             TabScope::Global,
             DefaultAction::None,
             ChildNavigation::None,
@@ -235,6 +239,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             main_window_children,
             true,
             true,
+            None,
             TabScope::Global,
             DefaultAction::Activate,
             ChildNavigation::Numbered,
@@ -247,6 +252,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::TokensPanel),
             true,
             is_visible(Tokens),
+            None,
             TabScope::Workspace(Theme),
             DefaultAction::Activate,
             ChildNavigation::None,
@@ -259,6 +265,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::ParamsPanel),
             true,
             is_visible(Params),
+            None,
             TabScope::Workspace(Theme),
             DefaultAction::Edit,
             ChildNavigation::None,
@@ -275,6 +282,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             },
             true,
             is_visible(Preview),
+            None,
             TabScope::Workspace(Theme),
             DefaultAction::Activate,
             ChildNavigation::Sequential,
@@ -287,6 +295,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::PreviewTabs),
             true,
             is_visible(Preview),
+            None,
             TabScope::PreviewLocal,
             DefaultAction::Activate,
             ChildNavigation::None,
@@ -299,6 +308,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::PreviewBody),
             true,
             is_visible(Preview),
+            Some(SurfaceId::PreviewTabs),
             TabScope::Workspace(Theme),
             DefaultAction::Open,
             ChildNavigation::None,
@@ -311,6 +321,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::ResolvedPrimaryPanel),
             true,
             is_visible(ResolvedPrimary),
+            None,
             TabScope::Workspace(Theme),
             DefaultAction::Activate,
             ChildNavigation::None,
@@ -323,6 +334,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::ResolvedSecondaryPanel),
             true,
             is_visible(ResolvedSecondary),
+            None,
             TabScope::Workspace(Theme),
             DefaultAction::Activate,
             ChildNavigation::None,
@@ -335,6 +347,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::PalettePanel),
             true,
             is_visible(Palette),
+            None,
             TabScope::Workspace(Theme),
             DefaultAction::Activate,
             ChildNavigation::None,
@@ -347,6 +360,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::InspectorPanel),
             true,
             is_visible(Inspector),
+            None,
             TabScope::Workspace(Theme),
             DefaultAction::Activate,
             ChildNavigation::None,
@@ -359,6 +373,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::ProjectConfigPanel),
             true,
             is_visible(ProjectConfig),
+            None,
             TabScope::Workspace(Project),
             DefaultAction::Activate,
             ChildNavigation::None,
@@ -371,6 +386,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::ExportTargetsPanel),
             true,
             is_visible(ExportTargets),
+            None,
             TabScope::Workspace(Project),
             DefaultAction::Activate,
             ChildNavigation::None,
@@ -383,6 +399,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::EditorPreferencesPanel),
             true,
             is_visible(EditorPreferences),
+            None,
             TabScope::Workspace(Project),
             DefaultAction::Activate,
             ChildNavigation::None,
@@ -395,6 +412,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::NumericEditorSurface),
             true,
             state.ui.text_input.is_some(),
+            None,
             TabScope::Modal,
             DefaultAction::Edit,
             ChildNavigation::None,
@@ -407,6 +425,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::SourcePicker),
             true,
             state.ui.source_picker.is_some(),
+            None,
             TabScope::Modal,
             DefaultAction::Open,
             ChildNavigation::None,
@@ -419,6 +438,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::ConfigDialog),
             true,
             state.ui.config_modal.is_some(),
+            None,
             TabScope::Modal,
             DefaultAction::Open,
             ChildNavigation::None,
@@ -431,6 +451,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::ShortcutHelp),
             true,
             state.ui.shortcut_help_open,
+            None,
             TabScope::Modal,
             DefaultAction::Open,
             ChildNavigation::None,
@@ -449,17 +470,16 @@ fn modal_parent(state: &AppState, modal: SurfaceId) -> Option<SurfaceId> {
 
     let focus_path = &state.ui.interaction.focus_path;
     if let Some(index) = focus_path.iter().position(|surface| *surface == modal) {
-        return index.checked_sub(1).and_then(|parent| focus_path.get(parent).copied());
+        return index
+            .checked_sub(1)
+            .and_then(|parent| focus_path.get(parent).copied());
     }
 
     if matches!(
         state.ui.interaction.current_mode(),
         crate::app::interaction::InteractionMode::Modal { owner } if owner == modal
     ) {
-        return focus_path
-            .last()
-            .copied()
-            .or(Some(SurfaceId::MainWindow));
+        return focus_path.last().copied().or(Some(SurfaceId::MainWindow));
     }
 
     focus_path.last().copied().or(Some(SurfaceId::MainWindow))

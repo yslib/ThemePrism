@@ -1,12 +1,12 @@
+use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::interaction::{
     InteractionMode, InteractionState, SurfaceId, UiAction, build_interaction_tree,
     effective_focus_path, route_ui_action,
 };
-use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::state::AppState;
+use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::params::ParamKey;
 use crate::domain::tokens::TokenRole;
-use crate::app::workspace::{PanelId, WorkspaceTab};
 
 #[test]
 fn modal_mode_pushes_and_pops_without_losing_owner_focus() {
@@ -109,7 +109,8 @@ fn select_child_routing_requires_navigate_children_mode() {
 
     assert!(route_ui_action(&state, UiAction::SelectChild(2)).is_empty());
 
-    state.ui
+    state
+        .ui
         .interaction
         .set_mode(InteractionMode::NavigateChildren(SurfaceId::MainWindow));
 
@@ -117,7 +118,10 @@ fn select_child_routing_requires_navigate_children_mode() {
 
     assert!(matches!(
         intents.as_slice(),
-        [crate::app::Intent::FocusPanelByNumber(2), crate::app::Intent::SetInteractionMode(InteractionMode::Normal)]
+        [
+            crate::app::Intent::FocusPanelByNumber(2),
+            crate::app::Intent::SetInteractionMode(InteractionMode::Normal)
+        ]
     ));
 }
 
@@ -196,6 +200,43 @@ fn activate_on_preview_panel_enters_child_navigation_at_preview_tabs() {
 }
 
 #[test]
+fn activate_on_preview_body_enters_capture_mode() {
+    let mut state = AppState::new().expect("state");
+    state.preview.active_mode = crate::preview::PreviewMode::Shell;
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::PreviewPanel,
+        SurfaceId::PreviewBody,
+    ];
+
+    let intents = route_ui_action(&state, UiAction::Activate);
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::SetPreviewCapture(true)]
+    ));
+}
+
+#[test]
+fn switch_tab_on_preview_body_bubbles_to_preview_tabs_owner() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::PreviewPanel,
+        SurfaceId::PreviewBody,
+    ];
+
+    let intents = route_ui_action(&state, UiAction::NextTab);
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::CyclePreviewMode(1)]
+    ));
+}
+
+#[test]
 fn move_right_advances_between_preview_children_while_navigation_is_active() {
     let mut state = AppState::new().expect("state");
     state.ui.interaction.focus_path = vec![
@@ -204,7 +245,8 @@ fn move_right_advances_between_preview_children_while_navigation_is_active() {
         SurfaceId::PreviewPanel,
         SurfaceId::PreviewTabs,
     ];
-    state.ui
+    state
+        .ui
         .interaction
         .set_mode(InteractionMode::NavigateChildren(SurfaceId::PreviewPanel));
 
@@ -225,7 +267,8 @@ fn move_down_advances_between_preview_children_while_navigation_is_active() {
         SurfaceId::PreviewPanel,
         SurfaceId::PreviewTabs,
     ];
-    state.ui
+    state
+        .ui
         .interaction
         .set_mode(InteractionMode::NavigateChildren(SurfaceId::PreviewPanel));
 
@@ -246,7 +289,8 @@ fn move_up_rewinds_between_preview_children_while_navigation_is_active() {
         SurfaceId::PreviewPanel,
         SurfaceId::PreviewBody,
     ];
-    state.ui
+    state
+        .ui
         .interaction
         .set_mode(InteractionMode::NavigateChildren(SurfaceId::PreviewPanel));
 
@@ -267,7 +311,8 @@ fn move_up_on_first_preview_child_is_a_noop_during_navigation() {
         SurfaceId::PreviewPanel,
         SurfaceId::PreviewTabs,
     ];
-    state.ui
+    state
+        .ui
         .interaction
         .set_mode(InteractionMode::NavigateChildren(SurfaceId::PreviewPanel));
 
@@ -308,7 +353,9 @@ fn interaction_tree_uses_visible_theme_tab_children() {
     let tree = build_interaction_tree(&state);
 
     assert_eq!(
-        tree.node(SurfaceId::MainWindow).expect("main window").children,
+        tree.node(SurfaceId::MainWindow)
+            .expect("main window")
+            .children,
         vec![
             SurfaceId::TokensPanel,
             SurfaceId::ParamsPanel,
@@ -329,7 +376,9 @@ fn interaction_tree_uses_visible_project_tab_children() {
     let tree = build_interaction_tree(&state);
 
     assert_eq!(
-        tree.node(SurfaceId::MainWindow).expect("main window").children,
+        tree.node(SurfaceId::MainWindow)
+            .expect("main window")
+            .children,
         vec![
             SurfaceId::ProjectConfigPanel,
             SurfaceId::ExportTargetsPanel,
@@ -423,7 +472,9 @@ fn interaction_tree_keeps_resolved_theme_panels_distinct() {
 fn interaction_tree_tracks_modal_visibility() {
     let mut state = AppState::new().expect("state");
     state.ui.text_input = Some(crate::app::state::TextInputState {
-        target: crate::app::state::TextInputTarget::Control(ControlId::Param(ParamKey::BackgroundHue)),
+        target: crate::app::state::TextInputTarget::Control(ControlId::Param(
+            ParamKey::BackgroundHue,
+        )),
         buffer: String::new(),
     });
 
@@ -457,17 +508,17 @@ fn source_picker_routes_within_its_modal_subtree() {
         SurfaceId::InspectorPanel,
         SurfaceId::SourcePicker,
     ];
-    state
-        .ui
-        .interaction
-        .push_mode(InteractionMode::Modal {
-            owner: SurfaceId::SourcePicker,
-        });
+    state.ui.interaction.push_mode(InteractionMode::Modal {
+        owner: SurfaceId::SourcePicker,
+    });
 
     let tree = build_interaction_tree(&state);
     let intents = route_ui_action(&state, UiAction::NextTab);
 
-    assert_eq!(tree.parent_of(SurfaceId::SourcePicker), Some(SurfaceId::InspectorPanel));
+    assert_eq!(
+        tree.parent_of(SurfaceId::SourcePicker),
+        Some(SurfaceId::InspectorPanel)
+    );
     assert!(intents.is_empty());
 }
 
@@ -485,12 +536,9 @@ fn source_picker_blocks_main_window_shortcuts_while_modal_is_open() {
         SurfaceId::InspectorPanel,
         SurfaceId::SourcePicker,
     ];
-    state
-        .ui
-        .interaction
-        .push_mode(InteractionMode::Modal {
-            owner: SurfaceId::SourcePicker,
-        });
+    state.ui.interaction.push_mode(InteractionMode::Modal {
+        owner: SurfaceId::SourcePicker,
+    });
 
     let intents = route_ui_action(&state, UiAction::OpenConfig);
 
@@ -501,12 +549,9 @@ fn source_picker_blocks_main_window_shortcuts_while_modal_is_open() {
 fn effective_focus_path_does_not_append_modal_owner() {
     let mut state = AppState::new().expect("state");
     state.ui.interaction.focus_panel(PanelId::Params);
-    state
-        .ui
-        .interaction
-        .push_mode(InteractionMode::Modal {
-            owner: SurfaceId::NumericEditorSurface,
-        });
+    state.ui.interaction.push_mode(InteractionMode::Modal {
+        owner: SurfaceId::NumericEditorSurface,
+    });
 
     assert_eq!(
         effective_focus_path(&state),

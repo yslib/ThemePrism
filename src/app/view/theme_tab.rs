@@ -2,6 +2,7 @@ use crate::app::controls::{
     ChoiceControlSpec, ColorControlSpec, ControlId, ControlSpec, DisplayFieldSpec, ReferenceField,
     ReferencePickerControlSpec, ScalarControlSpec,
 };
+use crate::app::interaction::{SurfaceId, has_active_capture};
 use crate::app::state::AppState;
 use crate::app::workspace::PanelId;
 use crate::domain::preview::{PreviewFrame, PreviewMode, PreviewSpanStyle, sample_document};
@@ -251,7 +252,7 @@ fn preview_mode_label(state: &AppState, mode: PreviewMode) -> String {
 }
 
 fn preview_header_lines(state: &AppState) -> Vec<StyledLine> {
-    let detail = if state.preview.capture_active {
+    let detail = if has_active_capture(state, SurfaceId::PreviewBody) {
         i18n::text(state.locale(), UiText::PreviewHeaderCaptureActive)
     } else if state.preview.active_mode == PreviewMode::Code {
         i18n::text(state.locale(), UiText::PreviewHeaderSemanticSample)

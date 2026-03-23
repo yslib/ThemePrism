@@ -248,9 +248,11 @@ mod tests {
             intents.as_slice(),
             [
                 Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewTabs),
-                Intent::SetInteractionMode(crate::app::interaction::InteractionMode::NavigateChildren(
-                    crate::app::interaction::SurfaceId::PreviewPanel
-                ))
+                Intent::SetInteractionMode(
+                    crate::app::interaction::InteractionMode::NavigateChildren(
+                        crate::app::interaction::SurfaceId::PreviewPanel
+                    )
+                )
             ]
         ));
     }
@@ -300,6 +302,23 @@ mod tests {
     }
 
     #[test]
+    fn preview_body_bracket_shortcut_cycles_preview_mode() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Preview);
+        state.preview.active_mode = crate::preview::PreviewMode::Shell;
+        state.ui.interaction.focus_path = vec![
+            crate::app::interaction::SurfaceId::AppRoot,
+            crate::app::interaction::SurfaceId::MainWindow,
+            crate::app::interaction::SurfaceId::PreviewPanel,
+            crate::app::interaction::SurfaceId::PreviewBody,
+        ];
+
+        let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Char(']')));
+
+        assert!(matches!(intents.as_slice(), [Intent::CyclePreviewMode(1)]));
+    }
+
+    #[test]
     fn preview_child_navigation_uses_down_to_reach_body() {
         let mut state = AppState::new().unwrap();
         state.set_active_panel(PanelId::Preview);
@@ -311,7 +330,9 @@ mod tests {
         let move_to_body = TuiEventAdapter.map_event(&state, key(KeyCode::Down));
         assert!(matches!(
             move_to_body.as_slice(),
-            [Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewBody)]
+            [Intent::FocusSurface(
+                crate::app::interaction::SurfaceId::PreviewBody
+            )]
         ));
     }
 
@@ -340,14 +361,18 @@ mod tests {
         let down = TuiEventAdapter.map_event(&state, key(KeyCode::Down));
         assert!(matches!(
             down.as_slice(),
-            [Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewBody)]
+            [Intent::FocusSurface(
+                crate::app::interaction::SurfaceId::PreviewBody
+            )]
         ));
         apply_intents(&mut state, down);
 
         let up = TuiEventAdapter.map_event(&state, key(KeyCode::Up));
         assert!(matches!(
             up.as_slice(),
-            [Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewTabs)]
+            [Intent::FocusSurface(
+                crate::app::interaction::SurfaceId::PreviewTabs
+            )]
         ));
     }
 
@@ -364,14 +389,18 @@ mod tests {
         let down = TuiEventAdapter.map_event(&state, key(KeyCode::Char('j')));
         assert!(matches!(
             down.as_slice(),
-            [Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewBody)]
+            [Intent::FocusSurface(
+                crate::app::interaction::SurfaceId::PreviewBody
+            )]
         ));
         apply_intents(&mut state, down);
 
         let up = TuiEventAdapter.map_event(&state, key(KeyCode::Char('k')));
         assert!(matches!(
             up.as_slice(),
-            [Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewTabs)]
+            [Intent::FocusSurface(
+                crate::app::interaction::SurfaceId::PreviewTabs
+            )]
         ));
     }
 
@@ -383,10 +412,7 @@ mod tests {
 
         let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Char(']')));
 
-        assert!(matches!(
-            intents.as_slice(),
-            [Intent::CycleWorkspaceTab(1)]
-        ));
+        assert!(matches!(intents.as_slice(), [Intent::CycleWorkspaceTab(1)]));
     }
 
     #[test]
@@ -411,11 +437,12 @@ mod tests {
             [Intent::FocusSurface(_), Intent::SetInteractionMode(_)]
         ));
 
-        state.ui.interaction.set_mode(
-            crate::app::interaction::InteractionMode::NavigateChildren(
+        state
+            .ui
+            .interaction
+            .set_mode(crate::app::interaction::InteractionMode::NavigateChildren(
                 crate::app::interaction::SurfaceId::MainWindow,
-            ),
-        );
+            ));
         let select = TuiEventAdapter.map_event(&state, key(KeyCode::Char('2')));
         assert!(matches!(
             select.as_slice(),

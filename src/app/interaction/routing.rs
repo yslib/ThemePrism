@@ -56,24 +56,30 @@ fn route_on_node(
     action: UiAction,
 ) -> Option<Vec<Intent>> {
     match action {
-        UiAction::PreviousTab => route_tab_action(node, -1),
-        UiAction::NextTab => route_tab_action(node, 1),
+        UiAction::PreviousTab => route_tab_action(tree, node, -1),
+        UiAction::NextTab => route_tab_action(tree, node, 1),
         UiAction::Activate => route_default_action(state, node)
             .or_else(|| route_surface_action(state, node.id, action)),
-        UiAction::Cancel => {
-            route_child_navigation_cancel(tree, state, node)
-                .or_else(|| route_surface_action(state, node.id, action))
-        }
+        UiAction::Cancel => route_child_navigation_cancel(tree, state, node)
+            .or_else(|| route_surface_action(state, node.id, action)),
         UiAction::MoveUp | UiAction::MoveLeft => route_child_navigation_move(tree, state, node, -1)
             .or_else(|| route_surface_action(state, node.id, action)),
-        UiAction::MoveDown | UiAction::MoveRight => route_child_navigation_move(tree, state, node, 1)
-            .or_else(|| route_surface_action(state, node.id, action)),
+        UiAction::MoveDown | UiAction::MoveRight => {
+            route_child_navigation_move(tree, state, node, 1)
+                .or_else(|| route_surface_action(state, node.id, action))
+        }
         UiAction::SelectChild(number) => route_select_child(state, node, number),
         _ => route_surface_action(state, node.id, action),
     }
 }
 
-fn route_tab_action(node: &SurfaceNode, delta: i32) -> Option<Vec<Intent>> {
+fn route_tab_action(tree: &InteractionTree, node: &SurfaceNode, delta: i32) -> Option<Vec<Intent>> {
+    if let Some(owner) = node.tab_scope_owner {
+        return tree
+            .node(owner)
+            .and_then(|owner_node| route_tab_action(tree, owner_node, delta));
+    }
+
     match node.tab_scope {
         TabScope::Global if node.id == SurfaceId::MainWindow => {
             Some(vec![Intent::CycleWorkspaceTab(delta)])
@@ -215,7 +221,11 @@ fn route_select_child(state: &AppState, node: &SurfaceNode, number: u8) -> Optio
     }
 }
 
-fn route_surface_action(state: &AppState, surface: SurfaceId, action: UiAction) -> Option<Vec<Intent>> {
+fn route_surface_action(
+    state: &AppState,
+    surface: SurfaceId,
+    action: UiAction,
+) -> Option<Vec<Intent>> {
     if surface.panel_id().is_some() {
         return route_panel_action(state, surface, action);
     }

@@ -5,13 +5,13 @@ mod tree;
 #[cfg(test)]
 mod tests;
 
+pub use routing::route_ui_action;
 pub use state::{InteractionMode, InteractionState};
 #[allow(unused_imports)]
 pub use tree::{
     BubblePolicy, ChildNavigation, DefaultAction, InteractionTree, SurfaceId, SurfaceNode,
     TabScope, build_interaction_tree,
 };
-pub use routing::route_ui_action;
 
 use crate::app::state::AppState;
 use crate::app::workspace::PanelId;
@@ -63,6 +63,13 @@ pub fn effective_focus_surface(state: &AppState) -> SurfaceId {
         .last()
         .copied()
         .unwrap_or(SurfaceId::MainWindow)
+}
+
+pub fn has_active_capture(state: &AppState, owner: SurfaceId) -> bool {
+    matches!(
+        state.ui.interaction.current_mode(),
+        InteractionMode::Capture { owner: active_owner } if active_owner == owner
+    ) && effective_focus_surface(state) == owner
 }
 
 pub fn focus_breadcrumb(state: &AppState) -> String {

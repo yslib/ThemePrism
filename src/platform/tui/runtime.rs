@@ -11,6 +11,7 @@ use ratatui::backend::Backend;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
 
+use crate::app::interaction::{SurfaceId, has_active_capture};
 use crate::core::CoreSession;
 use crate::platform::tui::event_adapter::TuiEventAdapter;
 use crate::platform::tui::preview::PreviewRuntimeController;
@@ -75,6 +76,7 @@ fn run_terminal<B: Backend>(
             let event = event::read()?;
             if let event::Event::Key(key) = event {
                 if key.kind == event::KeyEventKind::Press
+                    && has_active_capture(session.state(), SurfaceId::PreviewBody)
                     && preview
                         .handle_capture_key(&mut session, key)
                         .map_err(io::Error::other)?
