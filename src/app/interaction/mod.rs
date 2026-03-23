@@ -150,7 +150,7 @@ fn route_main_window_action(state: &AppState, action: UiAction) -> Option<Vec<In
             Intent::SetInteractionMode(InteractionMode::NavigateChildren(SurfaceId::MainWindow)),
         ]),
         UiAction::SelectChild(number)
-            if state.ui.interaction.mode
+            if state.ui.interaction.current_mode()
                 == InteractionMode::NavigateChildren(SurfaceId::MainWindow) =>
         {
             Some(vec![

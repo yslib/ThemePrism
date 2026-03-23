@@ -238,7 +238,9 @@ impl AppState {
         self.ui.config_modal = None;
         self.ui.shortcut_help_open = false;
         self.preview.capture_active = false;
-        self.ui.interaction.mode = crate::app::interaction::InteractionMode::Normal;
+        self.ui
+            .interaction
+            .set_mode(crate::app::interaction::InteractionMode::Normal);
         self.recompute().map_err(|err| err.to_string())?;
         self.ui.inspector_field = self
             .ui

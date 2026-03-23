@@ -1,9 +1,39 @@
-use crate::app::interaction::{build_interaction_tree, SurfaceId};
+use crate::app::interaction::{
+    build_interaction_tree, InteractionMode, InteractionState, SurfaceId,
+};
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::state::AppState;
 use crate::domain::params::ParamKey;
 use crate::domain::tokens::TokenRole;
 use crate::app::workspace::{PanelId, WorkspaceTab};
+
+#[test]
+fn modal_mode_pushes_and_pops_without_losing_owner_focus() {
+    let mut interaction = InteractionState::new(SurfaceId::TokensPanel);
+
+    interaction.push_mode(InteractionMode::Modal {
+        owner: SurfaceId::NumericEditorSurface,
+    });
+    interaction.focus_path = vec![
+        SurfaceId::MainWindow,
+        SurfaceId::ParamsPanel,
+        SurfaceId::NumericEditorSurface,
+    ];
+
+    interaction.pop_mode();
+
+    assert_eq!(interaction.focused_surface(), SurfaceId::ParamsPanel);
+}
+
+#[test]
+fn capture_mode_can_stack_on_top_of_normal_mode() {
+    let mut interaction = InteractionState::new(SurfaceId::PreviewBody);
+    interaction.push_mode(InteractionMode::Capture {
+        owner: SurfaceId::PreviewBody,
+    });
+
+    assert!(interaction.has_mode_for(SurfaceId::PreviewBody));
+}
 
 #[test]
 fn interaction_tree_contains_preview_tabs_under_preview_panel() {

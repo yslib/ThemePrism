@@ -575,7 +575,7 @@ fn focus_surface(state: &mut AppState, surface: SurfaceId) {
 }
 
 fn set_interaction_mode(state: &mut AppState, mode: InteractionMode) {
-    state.ui.interaction.mode = mode;
+    state.ui.interaction.set_mode(mode);
     if let InteractionMode::NavigateChildren(surface) = mode {
         state.ui.status = tr1(
             state,
@@ -900,7 +900,7 @@ fn cycle_fixed_color_for_role(state: &mut AppState, role: TokenRole, delta: i32)
 
 fn open_text_input(state: &mut AppState, target: TextInputTarget) {
     let buffer = default_input_buffer(state, target);
-    state.ui.interaction.mode = InteractionMode::Normal;
+    state.ui.interaction.set_mode(InteractionMode::Normal);
     state.ui.shortcut_help_open = false;
     state.ui.text_input = Some(TextInputState { target, buffer });
     state.ui.status = match target {
@@ -932,7 +932,7 @@ fn open_source_picker(state: &mut AppState, control: ControlId) {
         .and_then(|source| options.iter().position(|option| option.source == *source))
         .unwrap_or_default();
 
-    state.ui.interaction.mode = InteractionMode::Normal;
+    state.ui.interaction.set_mode(InteractionMode::Normal);
     state.ui.shortcut_help_open = false;
     state.ui.source_picker = Some(SourcePickerState {
         control,
@@ -1453,7 +1453,7 @@ fn open_config_modal(state: &mut AppState) {
     state.ui.source_picker = None;
     state.ui.text_input = None;
     state.ui.shortcut_help_open = false;
-    state.ui.interaction.mode = InteractionMode::Normal;
+    state.ui.interaction.set_mode(InteractionMode::Normal);
     state.ui.interaction.focus_root();
     state.ui.config_modal = Some(ConfigModalState { selected_field: 0 });
     state.ui.status = tr(state, UiText::StatusConfigOpened);
@@ -1462,7 +1462,7 @@ fn open_config_modal(state: &mut AppState) {
 fn close_config_modal(state: &mut AppState) {
     let was_open = state.ui.config_modal.take().is_some();
     state.ui.text_input = None;
-    state.ui.interaction.mode = InteractionMode::Normal;
+    state.ui.interaction.set_mode(InteractionMode::Normal);
     state.ui.interaction.focus_root();
     if was_open {
         state.ui.status = tr(state, UiText::StatusConfigClosed);
@@ -1475,7 +1475,7 @@ fn toggle_shortcut_help(state: &mut AppState) {
         state.ui.source_picker = None;
         state.ui.text_input = None;
         state.ui.config_modal = None;
-        state.ui.interaction.mode = InteractionMode::Normal;
+        state.ui.interaction.set_mode(InteractionMode::Normal);
         state.ui.interaction.focus_root();
         state.ui.shortcut_help_open = true;
         state.ui.shortcut_help_scroll = 0;
@@ -1483,7 +1483,7 @@ fn toggle_shortcut_help(state: &mut AppState) {
     } else {
         state.ui.shortcut_help_open = false;
         state.ui.shortcut_help_scroll = 0;
-        state.ui.interaction.mode = InteractionMode::Normal;
+        state.ui.interaction.set_mode(InteractionMode::Normal);
         state.ui.interaction.focus_root();
         state.ui.status = tr(state, UiText::StatusHelpClosed);
     }
