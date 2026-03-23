@@ -85,7 +85,8 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
         )
         .map(bound_action_to_ui_action),
         surface if surface.is_workspace_surface() => {
-            if state.ui.interaction.mode == InteractionMode::NavigateChildren(SurfaceId::MainWindow)
+            if state.ui.interaction.current_mode()
+                == InteractionMode::NavigateChildren(SurfaceId::MainWindow)
             {
                 if let KeyCode::Char(ch) = key.code {
                     if ('1'..='9').contains(&ch) {
@@ -256,8 +257,10 @@ mod tests {
             [Intent::FocusSurface(_), Intent::SetInteractionMode(_)]
         ));
 
-        state.ui.interaction.mode = crate::app::interaction::InteractionMode::NavigateChildren(
-            crate::app::interaction::SurfaceId::MainWindow,
+        state.ui.interaction.set_mode(
+            crate::app::interaction::InteractionMode::NavigateChildren(
+                crate::app::interaction::SurfaceId::MainWindow,
+            ),
         );
         let select = TuiEventAdapter.map_event(&state, key(KeyCode::Char('2')));
         assert!(matches!(

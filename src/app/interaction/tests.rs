@@ -1,5 +1,6 @@
 use crate::app::interaction::{
-    build_interaction_tree, InteractionMode, InteractionState, SurfaceId,
+    InteractionMode, InteractionState, SurfaceId, UiAction, build_interaction_tree,
+    route_ui_action,
 };
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::state::AppState;
@@ -11,9 +12,25 @@ use crate::app::workspace::{PanelId, WorkspaceTab};
 fn modal_mode_pushes_and_pops_without_losing_owner_focus() {
     let mut interaction = InteractionState::new(SurfaceId::TokensPanel);
 
+    assert_eq!(interaction.current_mode(), InteractionMode::Normal);
+    interaction.push_mode(InteractionMode::Capture {
+        owner: SurfaceId::PreviewBody,
+    });
+    assert_eq!(
+        interaction.current_mode(),
+        InteractionMode::Capture {
+            owner: SurfaceId::PreviewBody,
+        }
+    );
     interaction.push_mode(InteractionMode::Modal {
         owner: SurfaceId::NumericEditorSurface,
     });
+    assert_eq!(
+        interaction.current_mode(),
+        InteractionMode::Modal {
+            owner: SurfaceId::NumericEditorSurface,
+        }
+    );
     interaction.focus_path = vec![
         SurfaceId::MainWindow,
         SurfaceId::ParamsPanel,
@@ -22,17 +39,57 @@ fn modal_mode_pushes_and_pops_without_losing_owner_focus() {
 
     interaction.pop_mode();
 
+    assert_eq!(
+        interaction.current_mode(),
+        InteractionMode::Capture {
+            owner: SurfaceId::PreviewBody,
+        }
+    );
     assert_eq!(interaction.focused_surface(), SurfaceId::ParamsPanel);
+
+    interaction.pop_mode();
+
+    assert_eq!(interaction.current_mode(), InteractionMode::Normal);
 }
 
 #[test]
 fn capture_mode_can_stack_on_top_of_normal_mode() {
     let mut interaction = InteractionState::new(SurfaceId::PreviewBody);
+    assert_eq!(interaction.current_mode(), InteractionMode::Normal);
     interaction.push_mode(InteractionMode::Capture {
         owner: SurfaceId::PreviewBody,
     });
 
+    assert_eq!(
+        interaction.current_mode(),
+        InteractionMode::Capture {
+            owner: SurfaceId::PreviewBody,
+        }
+    );
     assert!(interaction.has_mode_for(SurfaceId::PreviewBody));
+
+    interaction.pop_mode();
+
+    assert_eq!(interaction.current_mode(), InteractionMode::Normal);
+}
+
+#[test]
+fn select_child_routing_requires_navigate_children_mode() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_root();
+
+    assert!(route_ui_action(&state, UiAction::SelectChild(2)).is_empty());
+
+    state.ui
+        .interaction
+        .set_mode(InteractionMode::NavigateChildren(SurfaceId::MainWindow));
+
+    let intents = route_ui_action(&state, UiAction::SelectChild(2));
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::FocusPanelByNumber(2), crate::app::Intent::SetInteractionMode(InteractionMode::Normal)]
+    ));
 }
 
 #[test]

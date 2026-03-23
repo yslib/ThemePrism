@@ -19,7 +19,6 @@ impl Default for InteractionMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InteractionState {
     pub focus_path: Vec<SurfaceId>,
-    pub mode: InteractionMode,
     mode_stack: Vec<InteractionMode>,
 }
 
@@ -33,7 +32,6 @@ impl InteractionState {
                 SurfaceId::MainWindow,
                 SurfaceId::workspace_surface(initial_panel),
             ],
-            mode: InteractionMode::Normal,
             mode_stack: vec![InteractionMode::Normal],
         }
     }
@@ -50,12 +48,14 @@ impl InteractionState {
     }
 
     pub fn current_mode(&self) -> InteractionMode {
-        self.mode
+        self.mode_stack
+            .last()
+            .copied()
+            .unwrap_or(InteractionMode::Normal)
     }
 
     pub fn push_mode(&mut self, mode: InteractionMode) {
         self.mode_stack.push(mode);
-        self.mode = mode;
     }
 
     pub fn pop_mode(&mut self) -> Option<InteractionMode> {
@@ -71,7 +71,6 @@ impl InteractionState {
         {
             self.focus_path.pop();
         }
-        self.mode = self.current_mode();
 
         popped
     }
@@ -82,7 +81,6 @@ impl InteractionState {
         if mode != InteractionMode::Normal {
             self.mode_stack.push(mode);
         }
-        self.mode = mode;
     }
 
     pub fn has_mode_for(&self, surface: SurfaceId) -> bool {
@@ -112,5 +110,20 @@ impl InteractionState {
 impl From<PanelId> for SurfaceId {
     fn from(panel: PanelId) -> Self {
         SurfaceId::workspace_surface(panel)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InteractionMode, InteractionState, SurfaceId};
+
+    #[test]
+    fn interaction_state_shape_stores_modes_only_in_the_stack() {
+        let state = InteractionState {
+            focus_path: vec![SurfaceId::AppRoot, SurfaceId::MainWindow],
+            mode_stack: vec![InteractionMode::Normal],
+        };
+
+        assert_eq!(state.current_mode(), InteractionMode::Normal);
     }
 }
