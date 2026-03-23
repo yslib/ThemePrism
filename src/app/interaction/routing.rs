@@ -40,13 +40,16 @@ fn route_on_node(state: &AppState, node: &SurfaceNode, action: UiAction) -> Opti
     match action {
         UiAction::PreviousTab => route_tab_action(node, -1),
         UiAction::NextTab => route_tab_action(node, 1),
-        UiAction::Activate => {
-            route_default_action(state, node).or_else(|| route_surface_action(state, node.id, action))
-        }
+        UiAction::Activate => route_default_action(state, node)
+            .or_else(|| route_surface_action(state, node.id, action)),
         UiAction::Cancel => {
             route_child_navigation_cancel(state, node)
                 .or_else(|| route_surface_action(state, node.id, action))
         }
+        UiAction::MoveUp | UiAction::MoveLeft => route_child_navigation_move(state, node, -1)
+            .or_else(|| route_surface_action(state, node.id, action)),
+        UiAction::MoveDown | UiAction::MoveRight => route_child_navigation_move(state, node, 1)
+            .or_else(|| route_surface_action(state, node.id, action)),
         UiAction::SelectChild(number) => route_select_child(state, node, number),
         _ => route_surface_action(state, node.id, action),
     }
@@ -71,11 +74,8 @@ fn route_default_action(state: &AppState, node: &SurfaceNode) -> Option<Vec<Inte
 }
 
 fn route_activate_like_action(state: &AppState, node: &SurfaceNode) -> Option<Vec<Intent>> {
-    if node.child_navigation == ChildNavigation::Numbered {
-        return Some(vec![
-            Intent::FocusSurface(node.id),
-            Intent::SetInteractionMode(InteractionMode::NavigateChildren(node.id)),
-        ]);
+    if let Some(intents) = enter_child_navigation(node) {
+        return Some(intents);
     }
 
     if let Some(control) = state.active_control() {
@@ -86,16 +86,29 @@ fn route_activate_like_action(state: &AppState, node: &SurfaceNode) -> Option<Ve
         return Some(vec![Intent::ActivateConfigField]);
     }
 
-    match node.id {
-        SurfaceId::PreviewPanel => Some(vec![Intent::SetPreviewCapture(true)]),
-        _ => None,
-    }
+    None
 }
 
 fn route_open_action(surface: SurfaceId) -> Option<Vec<Intent>> {
     match surface {
         SurfaceId::PreviewBody => Some(vec![Intent::SetPreviewCapture(true)]),
         _ => None,
+    }
+}
+
+fn enter_child_navigation(node: &SurfaceNode) -> Option<Vec<Intent>> {
+    match node.child_navigation {
+        ChildNavigation::None => None,
+        ChildNavigation::Numbered => Some(vec![
+            Intent::FocusSurface(node.id),
+            Intent::SetInteractionMode(InteractionMode::NavigateChildren(node.id)),
+        ]),
+        ChildNavigation::Sequential => node.children.first().copied().map(|child| {
+            vec![
+                Intent::FocusSurface(child),
+                Intent::SetInteractionMode(InteractionMode::NavigateChildren(node.id)),
+            ]
+        }),
     }
 }
 
@@ -110,6 +123,34 @@ fn route_child_navigation_cancel(state: &AppState, node: &SurfaceNode) -> Option
     }
 
     None
+}
+
+fn route_child_navigation_move(
+    state: &AppState,
+    node: &SurfaceNode,
+    delta: i32,
+) -> Option<Vec<Intent>> {
+    if state.ui.interaction.current_mode() != InteractionMode::NavigateChildren(node.id) {
+        return None;
+    }
+
+    if node.child_navigation != ChildNavigation::Sequential {
+        return None;
+    }
+
+    let focused = state.ui.interaction.focused_surface();
+    let index = node.children.iter().position(|child| *child == focused)?;
+    let next = if delta < 0 {
+        index.saturating_sub(1)
+    } else {
+        (index + 1).min(node.children.len().saturating_sub(1))
+    };
+
+    if next == index {
+        None
+    } else {
+        Some(vec![Intent::FocusSurface(node.children[next])])
+    }
 }
 
 fn route_select_child(state: &AppState, node: &SurfaceNode, number: u8) -> Option<Vec<Intent>> {
@@ -170,7 +211,11 @@ fn route_main_window_action(action: UiAction) -> Option<Vec<Intent>> {
     }
 }
 
-fn route_panel_action(state: &AppState, surface: SurfaceId, action: UiAction) -> Option<Vec<Intent>> {
+fn route_panel_action(
+    state: &AppState,
+    _surface: SurfaceId,
+    action: UiAction,
+) -> Option<Vec<Intent>> {
     match action {
         UiAction::Cancel => Some(vec![
             Intent::FocusSurface(SurfaceId::MainWindow),
@@ -189,9 +234,6 @@ fn route_panel_action(state: &AppState, surface: SurfaceId, action: UiAction) ->
                 state.active_control().expect("checked above"),
                 1,
             )])
-        }
-        UiAction::Activate if matches!(surface, SurfaceId::PreviewBody) => {
-            Some(vec![Intent::SetPreviewCapture(true)])
         }
         UiAction::Activate | UiAction::Toggle if state.active_config_field().is_some() => {
             Some(vec![Intent::ActivateConfigField])

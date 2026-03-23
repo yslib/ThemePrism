@@ -174,6 +174,49 @@ fn switch_tab_is_handled_locally_by_preview_tabs() {
 }
 
 #[test]
+fn activate_on_preview_panel_enters_child_navigation_at_preview_tabs() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::PreviewPanel,
+    ];
+
+    let intents = route_ui_action(&state, UiAction::Activate);
+
+    assert!(matches!(
+        intents.as_slice(),
+        [
+            crate::app::Intent::FocusSurface(SurfaceId::PreviewTabs),
+            crate::app::Intent::SetInteractionMode(InteractionMode::NavigateChildren(
+                SurfaceId::PreviewPanel
+            ))
+        ]
+    ));
+}
+
+#[test]
+fn move_right_advances_between_preview_children_while_navigation_is_active() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::PreviewPanel,
+        SurfaceId::PreviewTabs,
+    ];
+    state.ui
+        .interaction
+        .set_mode(InteractionMode::NavigateChildren(SurfaceId::PreviewPanel));
+
+    let intents = route_ui_action(&state, UiAction::MoveRight);
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::FocusSurface(SurfaceId::PreviewBody)]
+    ));
+}
+
+#[test]
 fn interaction_tree_contains_preview_tabs_under_preview_panel() {
     let state = AppState::new().expect("state");
     let tree = build_interaction_tree(&state);

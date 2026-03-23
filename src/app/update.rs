@@ -1,7 +1,7 @@
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::effect::{EditorConfigData, Effect, ProjectData};
 use crate::app::intent::Intent;
-use crate::app::interaction::{InteractionMode, SurfaceId, surface_label};
+use crate::app::interaction::{InteractionMode, SurfaceId, build_interaction_tree, surface_label};
 use crate::app::state::{
     AppState, ConfigFieldId, ConfigModalState, FocusPane, SourcePickerState, TextInputState,
     TextInputTarget,
@@ -532,7 +532,14 @@ fn focus_surface(state: &mut AppState, surface: SurfaceId) {
         | SurfaceId::EditorPreferencesPanel => {
             let panel = surface.panel_id().expect("workspace surface");
             state.set_active_panel(panel);
-            state.ui.interaction.focus_panel(panel);
+            state.ui.interaction.focus_path = focus_path_for_surface(state, surface)
+                .unwrap_or_else(|| {
+                    vec![
+                        SurfaceId::AppRoot,
+                        SurfaceId::MainWindow,
+                        SurfaceId::workspace_surface(panel),
+                    ]
+                });
             state.ui.status = tr1(
                 state,
                 UiText::StatusFocusedSurface,
@@ -545,6 +552,22 @@ fn focus_surface(state: &mut AppState, surface: SurfaceId) {
         | SurfaceId::ConfigDialog
         | SurfaceId::ShortcutHelp => {}
     }
+}
+
+fn focus_path_for_surface(state: &AppState, surface: SurfaceId) -> Option<Vec<SurfaceId>> {
+    let tree = build_interaction_tree(state);
+    if tree.node(surface).is_none() {
+        return None;
+    }
+
+    let mut path = vec![surface];
+    let mut current = surface;
+    while let Some(parent) = tree.parent_of(current) {
+        path.push(parent);
+        current = parent;
+    }
+    path.reverse();
+    Some(path)
 }
 
 fn set_interaction_mode(state: &mut AppState, mode: InteractionMode) {

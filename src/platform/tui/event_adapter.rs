@@ -174,7 +174,7 @@ mod tests {
 
     use super::TuiEventAdapter;
     use crate::app::workspace::PanelId;
-    use crate::app::{AppState, Intent};
+    use crate::app::{AppState, Intent, update};
     use crate::persistence::editor_config::EditorKeymapPreset;
 
     fn key(code: KeyCode) -> Event {
@@ -184,6 +184,12 @@ mod tests {
             kind: KeyEventKind::Press,
             state: crossterm::event::KeyEventState::NONE,
         })
+    }
+
+    fn apply_intents(state: &mut AppState, intents: Vec<Intent>) {
+        for intent in intents {
+            update(state, intent);
+        }
     }
 
     #[test]
@@ -215,12 +221,10 @@ mod tests {
     fn preview_panel_bracket_shortcuts_cycle_modes() {
         let mut state = AppState::new().unwrap();
         state.set_active_panel(PanelId::Preview);
-        state.ui.interaction.focus_path = vec![
-            crate::app::interaction::SurfaceId::AppRoot,
-            crate::app::interaction::SurfaceId::MainWindow,
-            crate::app::interaction::SurfaceId::PreviewPanel,
-            crate::app::interaction::SurfaceId::PreviewTabs,
-        ];
+        state.ui.interaction.focus_panel(PanelId::Preview);
+
+        let activate = TuiEventAdapter.map_event(&state, key(KeyCode::Enter));
+        apply_intents(&mut state, activate);
 
         let previous = TuiEventAdapter.map_event(&state, key(KeyCode::Char('[')));
         let next = TuiEventAdapter.map_event(&state, key(KeyCode::Char(']')));
@@ -233,16 +237,64 @@ mod tests {
     }
 
     #[test]
-    fn preview_panel_enter_captures_preview() {
+    fn preview_panel_enter_focuses_preview_tabs() {
         let mut state = AppState::new().unwrap();
         state.set_active_panel(PanelId::Preview);
         state.ui.interaction.focus_panel(PanelId::Preview);
-        state.preview.active_mode = crate::preview::PreviewMode::Shell;
 
         let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Enter));
 
         assert!(matches!(
             intents.as_slice(),
+            [
+                Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewTabs),
+                Intent::SetInteractionMode(crate::app::interaction::InteractionMode::NavigateChildren(
+                    crate::app::interaction::SurfaceId::PreviewPanel
+                ))
+            ]
+        ));
+    }
+
+    #[test]
+    fn preview_child_navigation_can_reach_body_and_capture_preview() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Preview);
+        state.ui.interaction.focus_panel(PanelId::Preview);
+        state.preview.active_mode = crate::preview::PreviewMode::Shell;
+
+        let activate = TuiEventAdapter.map_event(&state, key(KeyCode::Enter));
+        apply_intents(&mut state, activate);
+        assert_eq!(
+            state.ui.interaction.focus_path,
+            vec![
+                crate::app::interaction::SurfaceId::AppRoot,
+                crate::app::interaction::SurfaceId::MainWindow,
+                crate::app::interaction::SurfaceId::PreviewPanel,
+                crate::app::interaction::SurfaceId::PreviewTabs,
+            ]
+        );
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            crate::app::interaction::InteractionMode::NavigateChildren(
+                crate::app::interaction::SurfaceId::PreviewPanel,
+            )
+        );
+        let move_to_body = TuiEventAdapter.map_event(&state, key(KeyCode::Right));
+        apply_intents(&mut state, move_to_body);
+        assert_eq!(
+            state.ui.interaction.focus_path,
+            vec![
+                crate::app::interaction::SurfaceId::AppRoot,
+                crate::app::interaction::SurfaceId::MainWindow,
+                crate::app::interaction::SurfaceId::PreviewPanel,
+                crate::app::interaction::SurfaceId::PreviewBody,
+            ]
+        );
+
+        let capture = TuiEventAdapter.map_event(&state, key(KeyCode::Enter));
+
+        assert!(matches!(
+            capture.as_slice(),
             [Intent::SetPreviewCapture(true)]
         ));
     }
