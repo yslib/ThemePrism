@@ -24,7 +24,7 @@ fn route_from_focus(
             continue;
         };
 
-        if let Some(intents) = route_on_node(state, node, action) {
+        if let Some(intents) = route_on_node(tree, state, node, action) {
             return intents;
         }
 
@@ -36,19 +36,24 @@ fn route_from_focus(
     Vec::new()
 }
 
-fn route_on_node(state: &AppState, node: &SurfaceNode, action: UiAction) -> Option<Vec<Intent>> {
+fn route_on_node(
+    tree: &InteractionTree,
+    state: &AppState,
+    node: &SurfaceNode,
+    action: UiAction,
+) -> Option<Vec<Intent>> {
     match action {
         UiAction::PreviousTab => route_tab_action(node, -1),
         UiAction::NextTab => route_tab_action(node, 1),
         UiAction::Activate => route_default_action(state, node)
             .or_else(|| route_surface_action(state, node.id, action)),
         UiAction::Cancel => {
-            route_child_navigation_cancel(state, node)
+            route_child_navigation_cancel(tree, state, node)
                 .or_else(|| route_surface_action(state, node.id, action))
         }
-        UiAction::MoveUp | UiAction::MoveLeft => route_child_navigation_move(state, node, -1)
+        UiAction::MoveUp | UiAction::MoveLeft => route_child_navigation_move(tree, state, node, -1)
             .or_else(|| route_surface_action(state, node.id, action)),
-        UiAction::MoveDown | UiAction::MoveRight => route_child_navigation_move(state, node, 1)
+        UiAction::MoveDown | UiAction::MoveRight => route_child_navigation_move(tree, state, node, 1)
             .or_else(|| route_surface_action(state, node.id, action)),
         UiAction::SelectChild(number) => route_select_child(state, node, number),
         _ => route_surface_action(state, node.id, action),
@@ -112,12 +117,20 @@ fn enter_child_navigation(node: &SurfaceNode) -> Option<Vec<Intent>> {
     }
 }
 
-fn route_child_navigation_cancel(state: &AppState, node: &SurfaceNode) -> Option<Vec<Intent>> {
-    if state.ui.interaction.current_mode() == InteractionMode::NavigateChildren(node.id)
-        && node.child_navigation != ChildNavigation::None
-    {
+fn route_child_navigation_cancel(
+    tree: &InteractionTree,
+    state: &AppState,
+    node: &SurfaceNode,
+) -> Option<Vec<Intent>> {
+    let owner = match state.ui.interaction.current_mode() {
+        InteractionMode::NavigateChildren(owner) => owner,
+        _ => return None,
+    };
+
+    let owner_node = resolve_child_navigation_owner(tree, node, owner)?;
+    if owner_node.child_navigation != ChildNavigation::None {
         return Some(vec![
-            Intent::FocusSurface(node.id),
+            Intent::FocusSurface(owner_node.id),
             Intent::SetInteractionMode(InteractionMode::Normal),
         ]);
     }
@@ -126,31 +139,53 @@ fn route_child_navigation_cancel(state: &AppState, node: &SurfaceNode) -> Option
 }
 
 fn route_child_navigation_move(
+    tree: &InteractionTree,
     state: &AppState,
     node: &SurfaceNode,
     delta: i32,
 ) -> Option<Vec<Intent>> {
-    if state.ui.interaction.current_mode() != InteractionMode::NavigateChildren(node.id) {
-        return None;
-    }
+    let owner = match state.ui.interaction.current_mode() {
+        InteractionMode::NavigateChildren(owner) => owner,
+        _ => return None,
+    };
 
-    if node.child_navigation != ChildNavigation::Sequential {
+    let owner_node = resolve_child_navigation_owner(tree, node, owner)?;
+    if owner_node.child_navigation != ChildNavigation::Sequential {
         return None;
     }
 
     let focused = state.ui.interaction.focused_surface();
-    let index = node.children.iter().position(|child| *child == focused)?;
+    let index = owner_node
+        .children
+        .iter()
+        .position(|child| *child == focused)?;
     let next = if delta < 0 {
         index.saturating_sub(1)
     } else {
-        (index + 1).min(node.children.len().saturating_sub(1))
+        (index + 1).min(owner_node.children.len().saturating_sub(1))
     };
 
     if next == index {
-        None
+        Some(Vec::new())
     } else {
-        Some(vec![Intent::FocusSurface(node.children[next])])
+        Some(vec![Intent::FocusSurface(owner_node.children[next])])
     }
+}
+
+fn resolve_child_navigation_owner<'a>(
+    tree: &'a InteractionTree,
+    node: &SurfaceNode,
+    owner: SurfaceId,
+) -> Option<&'a SurfaceNode> {
+    if node.id == owner {
+        return tree.node(owner);
+    }
+
+    if tree.parent_of(node.id) == Some(owner) {
+        return tree.node(owner);
+    }
+
+    None
 }
 
 fn route_select_child(state: &AppState, node: &SurfaceNode, number: u8) -> Option<Vec<Intent>> {
