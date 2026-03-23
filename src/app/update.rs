@@ -551,6 +551,8 @@ fn focus_surface(state: &mut AppState, surface: SurfaceId) {
         | SurfaceId::PreviewTabs
         | SurfaceId::PreviewBody
         | SurfaceId::PalettePanel
+        | SurfaceId::ResolvedPrimaryPanel
+        | SurfaceId::ResolvedSecondaryPanel
         | SurfaceId::InspectorPanel
         | SurfaceId::ProjectConfigPanel
         | SurfaceId::ExportTargetsPanel

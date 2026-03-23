@@ -13,6 +13,8 @@ pub enum SurfaceId {
     PreviewTabs,
     PreviewBody,
     PalettePanel,
+    ResolvedPrimaryPanel,
+    ResolvedSecondaryPanel,
     InspectorPanel,
     ProjectConfigPanel,
     ExportTargetsPanel,
@@ -30,6 +32,8 @@ impl SurfaceId {
             Self::ParamsPanel => Some(Params),
             Self::PreviewPanel | Self::PreviewTabs | Self::PreviewBody => Some(Preview),
             Self::PalettePanel => Some(Palette),
+            Self::ResolvedPrimaryPanel => Some(ResolvedPrimary),
+            Self::ResolvedSecondaryPanel => Some(ResolvedSecondary),
             Self::InspectorPanel => Some(Inspector),
             Self::ProjectConfigPanel => Some(ProjectConfig),
             Self::ExportTargetsPanel => Some(ExportTargets),
@@ -44,7 +48,8 @@ impl SurfaceId {
             Params => Self::ParamsPanel,
             Preview => Self::PreviewPanel,
             Palette => Self::PalettePanel,
-            ResolvedPrimary | ResolvedSecondary => Self::PreviewPanel,
+            ResolvedPrimary => Self::ResolvedPrimaryPanel,
+            ResolvedSecondary => Self::ResolvedSecondaryPanel,
             Inspector => Self::InspectorPanel,
             ProjectConfig => Self::ProjectConfigPanel,
             ExportTargets => Self::ExportTargetsPanel,
@@ -61,6 +66,8 @@ impl SurfaceId {
                 | Self::PreviewTabs
                 | Self::PreviewBody
                 | Self::PalettePanel
+                | Self::ResolvedPrimaryPanel
+                | Self::ResolvedSecondaryPanel
                 | Self::InspectorPanel
                 | Self::ProjectConfigPanel
                 | Self::ExportTargetsPanel
@@ -186,6 +193,11 @@ impl InteractionTree {
 pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
     let visible_panels = panel_order(&workspace_layout_for_tab(state.ui.active_tab));
     let is_visible = |panel: PanelId| visible_panels.contains(&panel);
+    let workspace_children = visible_panels
+        .iter()
+        .copied()
+        .map(SurfaceId::workspace_surface)
+        .collect::<Vec<_>>();
 
     let nodes = vec![
         SurfaceNode::new(
@@ -209,16 +221,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::MainWindow,
             Some(SurfaceId::AppRoot),
-            vec![
-                SurfaceId::TokensPanel,
-                SurfaceId::ParamsPanel,
-                SurfaceId::PreviewPanel,
-                SurfaceId::PalettePanel,
-                SurfaceId::InspectorPanel,
-                SurfaceId::ProjectConfigPanel,
-                SurfaceId::ExportTargetsPanel,
-                SurfaceId::EditorPreferencesPanel,
-            ],
+            workspace_children,
             true,
             true,
             TabScope::Global,
@@ -286,6 +289,30 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             ChildNavigation::None,
             BubblePolicy::Bubble,
             Some(SurfaceId::PreviewPanel),
+        ),
+        SurfaceNode::new(
+            SurfaceId::ResolvedPrimaryPanel,
+            Some(SurfaceId::MainWindow),
+            vec![],
+            true,
+            is_visible(ResolvedPrimary),
+            TabScope::Workspace(Theme),
+            DefaultAction::Activate,
+            ChildNavigation::None,
+            BubblePolicy::Bubble,
+            Some(SurfaceId::MainWindow),
+        ),
+        SurfaceNode::new(
+            SurfaceId::ResolvedSecondaryPanel,
+            Some(SurfaceId::MainWindow),
+            vec![],
+            true,
+            is_visible(ResolvedSecondary),
+            TabScope::Workspace(Theme),
+            DefaultAction::Activate,
+            ChildNavigation::None,
+            BubblePolicy::Bubble,
+            Some(SurfaceId::MainWindow),
         ),
         SurfaceNode::new(
             SurfaceId::PalettePanel,

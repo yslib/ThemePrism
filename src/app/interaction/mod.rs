@@ -129,6 +129,8 @@ fn route_on_surface(state: &AppState, surface: SurfaceId, action: UiAction) -> O
         | SurfaceId::TokensPanel
         | SurfaceId::ParamsPanel
         | SurfaceId::PreviewPanel
+        | SurfaceId::ResolvedPrimaryPanel
+        | SurfaceId::ResolvedSecondaryPanel
         | SurfaceId::PalettePanel
         | SurfaceId::InspectorPanel
         | SurfaceId::ProjectConfigPanel
@@ -278,6 +280,12 @@ pub fn surface_label(state: &AppState, surface: SurfaceId) -> String {
             i18n::panel_label(state.locale(), PanelId::Preview)
         }
         SurfaceId::PalettePanel => i18n::panel_label(state.locale(), PanelId::Palette),
+        SurfaceId::ResolvedPrimaryPanel => {
+            i18n::panel_label(state.locale(), PanelId::ResolvedPrimary)
+        }
+        SurfaceId::ResolvedSecondaryPanel => {
+            i18n::panel_label(state.locale(), PanelId::ResolvedSecondary)
+        }
         SurfaceId::InspectorPanel => i18n::panel_label(state.locale(), PanelId::Inspector),
         SurfaceId::ProjectConfigPanel => i18n::panel_label(state.locale(), PanelId::ProjectConfig),
         SurfaceId::ExportTargetsPanel => i18n::panel_label(state.locale(), PanelId::ExportTargets),
