@@ -453,3 +453,26 @@ fn bindings_for(preset: EditorKeymapPreset, action: BoundAction) -> &'static [Ke
         (_, Action::Quit) => &[Key::Char('q')],
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::shortcut_help_sections;
+    use crate::persistence::editor_config::{EditorKeymapPreset, EditorLocale};
+
+    #[test]
+    fn preview_help_mentions_tabs_and_body_scopes() {
+        let sections = shortcut_help_sections(EditorLocale::EnUs, EditorKeymapPreset::Standard);
+        let preview = &sections[2];
+
+        assert_eq!(preview.entries[0].label, "Switch Preview Tabs");
+        assert_eq!(
+            preview.entries[0].description,
+            "While Preview Tabs are focused, cycle between built-in and runtime-backed preview modes."
+        );
+        assert_eq!(preview.entries[1].label, "Capture Preview Body");
+        assert_eq!(
+            preview.entries[1].description,
+            "While Preview Body is focused, enter the interactive preview session and send keys directly to the child process."
+        );
+    }
+}

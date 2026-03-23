@@ -300,6 +300,82 @@ mod tests {
     }
 
     #[test]
+    fn preview_child_navigation_uses_down_to_reach_body() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Preview);
+        state.ui.interaction.focus_panel(PanelId::Preview);
+
+        let activate = TuiEventAdapter.map_event(&state, key(KeyCode::Enter));
+        apply_intents(&mut state, activate);
+
+        let move_to_body = TuiEventAdapter.map_event(&state, key(KeyCode::Down));
+        assert!(matches!(
+            move_to_body.as_slice(),
+            [Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewBody)]
+        ));
+    }
+
+    #[test]
+    fn preview_child_navigation_edges_do_not_fall_back_to_panel_selection() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Preview);
+        state.ui.interaction.focus_panel(PanelId::Preview);
+
+        let activate = TuiEventAdapter.map_event(&state, key(KeyCode::Enter));
+        apply_intents(&mut state, activate);
+
+        let up = TuiEventAdapter.map_event(&state, key(KeyCode::Up));
+        assert!(up.is_empty());
+    }
+
+    #[test]
+    fn preview_child_navigation_uses_vertical_keys_without_falling_back_to_move_selection() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Preview);
+        state.ui.interaction.focus_panel(PanelId::Preview);
+
+        let activate = TuiEventAdapter.map_event(&state, key(KeyCode::Enter));
+        apply_intents(&mut state, activate);
+
+        let down = TuiEventAdapter.map_event(&state, key(KeyCode::Down));
+        assert!(matches!(
+            down.as_slice(),
+            [Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewBody)]
+        ));
+        apply_intents(&mut state, down);
+
+        let up = TuiEventAdapter.map_event(&state, key(KeyCode::Up));
+        assert!(matches!(
+            up.as_slice(),
+            [Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewTabs)]
+        ));
+    }
+
+    #[test]
+    fn vim_keys_move_between_preview_children_during_navigation() {
+        let mut state = AppState::new().unwrap();
+        state.editor.keymap_preset = EditorKeymapPreset::Vim;
+        state.set_active_panel(PanelId::Preview);
+        state.ui.interaction.focus_panel(PanelId::Preview);
+
+        let activate = TuiEventAdapter.map_event(&state, key(KeyCode::Enter));
+        apply_intents(&mut state, activate);
+
+        let down = TuiEventAdapter.map_event(&state, key(KeyCode::Char('j')));
+        assert!(matches!(
+            down.as_slice(),
+            [Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewBody)]
+        ));
+        apply_intents(&mut state, down);
+
+        let up = TuiEventAdapter.map_event(&state, key(KeyCode::Char('k')));
+        assert!(matches!(
+            up.as_slice(),
+            [Intent::FocusSurface(crate::app::interaction::SurfaceId::PreviewTabs)]
+        ));
+    }
+
+    #[test]
     fn tab_on_regular_panel_bubbles_to_workspace_tab_switch() {
         let mut state = AppState::new().unwrap();
         state.set_active_panel(PanelId::Tokens);

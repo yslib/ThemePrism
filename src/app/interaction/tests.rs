@@ -217,6 +217,66 @@ fn move_right_advances_between_preview_children_while_navigation_is_active() {
 }
 
 #[test]
+fn move_down_advances_between_preview_children_while_navigation_is_active() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::PreviewPanel,
+        SurfaceId::PreviewTabs,
+    ];
+    state.ui
+        .interaction
+        .set_mode(InteractionMode::NavigateChildren(SurfaceId::PreviewPanel));
+
+    let intents = route_ui_action(&state, UiAction::MoveDown);
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::FocusSurface(SurfaceId::PreviewBody)]
+    ));
+}
+
+#[test]
+fn move_up_rewinds_between_preview_children_while_navigation_is_active() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::PreviewPanel,
+        SurfaceId::PreviewBody,
+    ];
+    state.ui
+        .interaction
+        .set_mode(InteractionMode::NavigateChildren(SurfaceId::PreviewPanel));
+
+    let intents = route_ui_action(&state, UiAction::MoveUp);
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::FocusSurface(SurfaceId::PreviewTabs)]
+    ));
+}
+
+#[test]
+fn move_up_on_first_preview_child_is_a_noop_during_navigation() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::PreviewPanel,
+        SurfaceId::PreviewTabs,
+    ];
+    state.ui
+        .interaction
+        .set_mode(InteractionMode::NavigateChildren(SurfaceId::PreviewPanel));
+
+    let intents = route_ui_action(&state, UiAction::MoveUp);
+
+    assert!(intents.is_empty());
+}
+
+#[test]
 fn interaction_tree_contains_preview_tabs_under_preview_panel() {
     let state = AppState::new().expect("state");
     let tree = build_interaction_tree(&state);
