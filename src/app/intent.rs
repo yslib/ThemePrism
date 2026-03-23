@@ -16,7 +16,6 @@ pub enum Intent {
     QuitRequested,
     CycleWorkspaceTab(i32),
     FocusPanelByNumber(u8),
-    MoveFocus(i32),
     FocusSurface(SurfaceId),
     SetInteractionMode(InteractionMode),
     MoveSelection(i32),

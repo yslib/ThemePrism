@@ -78,22 +78,13 @@ impl SurfaceId {
     pub const fn is_workspace_surface(self) -> bool {
         matches!(self, Self::MainWindow) || self.is_workspace_panel()
     }
-
-    pub const fn is_modal_surface(self) -> bool {
-        matches!(
-            self,
-            Self::NumericEditorSurface
-                | Self::SourcePicker
-                | Self::ConfigDialog
-                | Self::ShortcutHelp
-        )
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TabScope {
     Global,
     Workspace(WorkspaceTab),
+    PreviewLocal,
     Modal,
 }
 
@@ -279,7 +270,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             vec![],
             true,
             is_visible(Preview),
-            TabScope::Workspace(Theme),
+            TabScope::PreviewLocal,
             DefaultAction::Activate,
             ChildNavigation::None,
             BubblePolicy::Bubble,

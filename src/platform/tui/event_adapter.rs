@@ -102,8 +102,6 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
                     BoundAction::Quit,
                     BoundAction::PreviousTab,
                     BoundAction::NextTab,
-                    BoundAction::PreviousPanel,
-                    BoundAction::NextPanel,
                     BoundAction::OpenConfig,
                     BoundAction::OpenHelp,
                     BoundAction::SaveProject,
@@ -138,8 +136,6 @@ fn bound_action_to_ui_action(action: BoundAction) -> UiAction {
     match action {
         BoundAction::PreviousTab => UiAction::PreviousTab,
         BoundAction::NextTab => UiAction::NextTab,
-        BoundAction::PreviousPanel => UiAction::PreviousPanel,
-        BoundAction::NextPanel => UiAction::NextPanel,
         BoundAction::MoveUp => UiAction::MoveUp,
         BoundAction::MoveDown => UiAction::MoveDown,
         BoundAction::MoveLeft => UiAction::MoveLeft,
@@ -219,7 +215,12 @@ mod tests {
     fn preview_panel_bracket_shortcuts_cycle_modes() {
         let mut state = AppState::new().unwrap();
         state.set_active_panel(PanelId::Preview);
-        state.ui.interaction.focus_panel(PanelId::Preview);
+        state.ui.interaction.focus_path = vec![
+            crate::app::interaction::SurfaceId::AppRoot,
+            crate::app::interaction::SurfaceId::MainWindow,
+            crate::app::interaction::SurfaceId::PreviewPanel,
+            crate::app::interaction::SurfaceId::PreviewTabs,
+        ];
 
         let previous = TuiEventAdapter.map_event(&state, key(KeyCode::Char('[')));
         let next = TuiEventAdapter.map_event(&state, key(KeyCode::Char(']')));
@@ -244,6 +245,31 @@ mod tests {
             intents.as_slice(),
             [Intent::SetPreviewCapture(true)]
         ));
+    }
+
+    #[test]
+    fn tab_on_regular_panel_bubbles_to_workspace_tab_switch() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Tokens);
+        state.ui.interaction.focus_panel(PanelId::Tokens);
+
+        let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Char(']')));
+
+        assert!(matches!(
+            intents.as_slice(),
+            [Intent::CycleWorkspaceTab(1)]
+        ));
+    }
+
+    #[test]
+    fn tab_key_no_longer_cycles_panels() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Tokens);
+        state.ui.interaction.focus_panel(PanelId::Tokens);
+
+        let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Tab));
+
+        assert!(intents.is_empty());
     }
 
     #[test]

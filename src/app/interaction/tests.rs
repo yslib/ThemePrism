@@ -122,6 +122,58 @@ fn select_child_routing_requires_navigate_children_mode() {
 }
 
 #[test]
+fn switch_tab_bubbles_from_tokens_panel_to_main_window() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::TokensPanel,
+    ];
+
+    let intents = route_ui_action(&state, UiAction::NextTab);
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::CycleWorkspaceTab(1)]
+    ));
+}
+
+#[test]
+fn switch_tab_bubbles_from_preview_panel_to_main_window_when_preview_tabs_are_not_focused() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::PreviewPanel,
+    ];
+
+    let intents = route_ui_action(&state, UiAction::NextTab);
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::CycleWorkspaceTab(1)]
+    ));
+}
+
+#[test]
+fn switch_tab_is_handled_locally_by_preview_tabs() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::PreviewPanel,
+        SurfaceId::PreviewTabs,
+    ];
+
+    let intents = route_ui_action(&state, UiAction::NextTab);
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::CyclePreviewMode(1)]
+    ));
+}
+
+#[test]
 fn interaction_tree_contains_preview_tabs_under_preview_panel() {
     let state = AppState::new().expect("state");
     let tree = build_interaction_tree(&state);

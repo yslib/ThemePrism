@@ -9,7 +9,6 @@ use crate::persistence::editor_config::EditorLocale;
 pub enum ActionId {
     SwitchTabs,
     FocusPanels,
-    CyclePanel,
     MoveSelection,
     AdjustValue,
     Activate,
@@ -36,8 +35,6 @@ pub enum ActionId {
 pub enum BoundAction {
     PreviousTab,
     NextTab,
-    PreviousPanel,
-    NextPanel,
     MoveUp,
     MoveDown,
     MoveLeft,
@@ -85,8 +82,6 @@ enum KeyBinding {
     Space,
     Enter,
     Esc,
-    Tab,
-    BackTab,
     Left,
     Right,
     Up,
@@ -119,8 +114,6 @@ impl KeyBinding {
             }
             Self::Enter => matches!(key.code, KeyCode::Enter),
             Self::Esc => matches!(key.code, KeyCode::Esc),
-            Self::Tab => matches!(key.code, KeyCode::Tab),
-            Self::BackTab => matches!(key.code, KeyCode::BackTab),
             Self::Left => matches!(key.code, KeyCode::Left),
             Self::Right => matches!(key.code, KeyCode::Right),
             Self::Up => matches!(key.code, KeyCode::Up),
@@ -151,8 +144,6 @@ impl KeyBinding {
             Self::Space => "Space",
             Self::Enter => "Enter",
             Self::Esc => "Esc",
-            Self::Tab => "Tab",
-            Self::BackTab => "Shift+Tab",
             Self::Left => "←",
             Self::Right => "→",
             Self::Up => "↑",
@@ -250,11 +241,6 @@ pub fn shortcut_help_sections(
                     "1-9".to_string(),
                     i18n::text(locale, UiText::HelpFocusPanelLabel),
                     i18n::text(locale, UiText::HelpFocusPanelDesc),
-                ),
-                entry(
-                    cycle_panel_shortcut_label(),
-                    i18n::text(locale, UiText::HelpCyclePanelsLabel),
-                    i18n::text(locale, UiText::HelpCyclePanelsDesc),
                 ),
                 entry(
                     move_selection_shortcut_label(preset),
@@ -413,10 +399,6 @@ fn switch_tabs_shortcut_label(preset: EditorKeymapPreset) -> String {
     }
 }
 
-fn cycle_panel_shortcut_label() -> String {
-    "Tab/Shift+Tab".to_string()
-}
-
 fn move_selection_shortcut_label(preset: EditorKeymapPreset) -> String {
     match preset {
         EditorKeymapPreset::Standard => "↑↓".to_string(),
@@ -446,8 +428,6 @@ fn bindings_for(preset: EditorKeymapPreset, action: BoundAction) -> &'static [Ke
     match (preset, action) {
         (_, Action::PreviousTab) => &[Key::Char('[')],
         (_, Action::NextTab) => &[Key::Char(']')],
-        (_, Action::PreviousPanel) => &[Key::BackTab],
-        (_, Action::NextPanel) => &[Key::Tab],
         (Preset::Standard, Action::MoveUp) => &[Key::Up],
         (Preset::Vim, Action::MoveUp) => &[Key::Up, Key::Char('k')],
         (Preset::Standard, Action::MoveDown) => &[Key::Down],

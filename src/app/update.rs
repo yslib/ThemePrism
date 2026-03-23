@@ -48,17 +48,6 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             focus_panel_by_number(state, number);
             Vec::new()
         }
-        Intent::MoveFocus(delta) => {
-            if state.ui.source_picker.is_some()
-                || state.ui.text_input.is_some()
-                || state.ui.config_modal.is_some()
-                || state.ui.shortcut_help_open
-            {
-                return Vec::new();
-            }
-            move_panel_focus(state, delta);
-            Vec::new()
-        }
         Intent::FocusSurface(surface) => {
             focus_surface(state, surface);
             Vec::new()
@@ -429,29 +418,6 @@ fn cycle_workspace_tab(state: &mut AppState, delta: i32) {
         i18n::workspace_tab_label(state.locale(), state.ui.active_tab),
         "panel",
         i18n::panel_label(state.locale(), panel),
-    );
-}
-
-fn move_panel_focus(state: &mut AppState, delta: i32) {
-    let layout = workspace_layout_for_tab(state.ui.active_tab);
-    let panels = panel_order(&layout);
-    if panels.is_empty() {
-        return;
-    }
-
-    let current = state.active_panel();
-    let index = panels
-        .iter()
-        .position(|panel| *panel == current)
-        .unwrap_or(0);
-    let next = panels[cycle_index(index, panels.len(), delta)];
-    state.set_active_panel(next);
-    state.ui.interaction.focus_panel(next);
-    state.ui.status = tr1(
-        state,
-        UiText::StatusFocusedPanel,
-        "panel",
-        i18n::panel_label(state.locale(), next),
     );
 }
 
