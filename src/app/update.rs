@@ -181,8 +181,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         }
         Intent::CommitTextInput => commit_text_input(state),
         Intent::CancelTextInput => {
-            state.ui.text_input = None;
-            pop_modal_owner(state, SurfaceId::NumericEditorSurface);
+            close_text_input_surface(state);
             state.ui.status = tr(state, UiText::StatusInputCancelled);
             Vec::new()
         }
@@ -216,8 +215,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             Vec::new()
         }
         Intent::CloseSourcePicker => {
-            state.ui.source_picker = None;
-            pop_modal_owner(state, SurfaceId::SourcePicker);
+            close_source_picker_surface(state);
             state.ui.status = tr(state, UiText::StatusSourcePickerClosed);
             Vec::new()
         }
@@ -492,7 +490,7 @@ fn move_selection(state: &mut AppState, delta: i32) {
                 .ui
                 .inspector_field
                 .min(state.inspector_field_count().saturating_sub(1));
-            state.ui.source_picker = None;
+            close_source_picker_surface(state);
             state.ui.status = tr1(
                 state,
                 UiText::StatusSelectedToken,
@@ -503,7 +501,7 @@ fn move_selection(state: &mut AppState, delta: i32) {
         PanelId::Params => {
             state.ui.selected_param =
                 cycle_index(state.ui.selected_param, ParamKey::ALL.len(), delta);
-            state.ui.source_picker = None;
+            close_source_picker_surface(state);
             state.ui.status = tr1(
                 state,
                 UiText::StatusSelectedParam,
@@ -517,7 +515,7 @@ fn move_selection(state: &mut AppState, delta: i32) {
                 state.inspector_field_count(),
                 delta,
             );
-            state.ui.source_picker = None;
+            close_source_picker_surface(state);
         }
         PanelId::ProjectConfig => {
             move_project_field_selection(state, PanelId::ProjectConfig, delta)
@@ -603,9 +601,7 @@ fn push_modal_owner(state: &mut AppState, owner: SurfaceId) {
 }
 
 fn pop_modal_owner(state: &mut AppState, owner: SurfaceId) {
-    if state.ui.interaction.current_mode() == (InteractionMode::Modal { owner }) {
-        state.ui.interaction.pop_mode();
-    }
+    state.ui.interaction.remove_mode(InteractionMode::Modal { owner });
 }
 
 fn push_capture_owner(state: &mut AppState, owner: SurfaceId) {
@@ -616,9 +612,10 @@ fn push_capture_owner(state: &mut AppState, owner: SurfaceId) {
 }
 
 fn pop_capture_owner(state: &mut AppState, owner: SurfaceId) {
-    if state.ui.interaction.current_mode() == (InteractionMode::Capture { owner }) {
-        state.ui.interaction.pop_mode();
-    }
+    state
+        .ui
+        .interaction
+        .remove_mode(InteractionMode::Capture { owner });
 }
 
 fn close_text_input_surface(state: &mut AppState) {
@@ -692,9 +689,9 @@ fn select_token(state: &mut AppState, index: usize) {
         .ui
         .inspector_field
         .min(state.inspector_field_count().saturating_sub(1));
-    state.ui.source_picker = None;
-    state.ui.text_input = None;
-    state.ui.shortcut_help_open = false;
+    close_source_picker_surface(state);
+    close_text_input_surface(state);
+    close_shortcut_help_surface(state);
     state.ui.status = tr1(
         state,
         UiText::StatusSelectedToken,
@@ -1251,10 +1248,12 @@ fn reset_state(state: &mut AppState) {
     state.ui.selected_token = 0;
     state.ui.selected_param = 0;
     state.ui.inspector_field = 0;
-    state.ui.text_input = None;
-    state.ui.source_picker = None;
-    state.ui.config_modal = None;
-    state.ui.shortcut_help_open = false;
+    close_text_input_surface(state);
+    close_source_picker_surface(state);
+    close_config_surface(state);
+    close_shortcut_help_surface(state);
+    state.preview.capture_active = false;
+    pop_capture_owner(state, SurfaceId::PreviewBody);
     match state.recompute() {
         Ok(()) => state.ui.status = tr(state, UiText::StatusResetDefaults),
         Err(err) => state.ui.status = tr1(state, UiText::StatusResetFailed, "error", err),
@@ -1521,9 +1520,9 @@ fn open_config_modal(state: &mut AppState) {
 }
 
 fn close_config_modal(state: &mut AppState) {
-    let was_open = state.ui.config_modal.take().is_some();
+    let was_open = state.ui.config_modal.is_some();
     close_text_input_surface(state);
-    pop_modal_owner(state, SurfaceId::ConfigDialog);
+    close_config_surface(state);
     state.ui.interaction.set_focus_root_path();
     if was_open {
         state.ui.status = tr(state, UiText::StatusConfigClosed);
@@ -2219,5 +2218,129 @@ mod tests {
         );
         assert!(!state.preview.capture_active);
         assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
+    }
+
+    #[test]
+    fn preview_runtime_exit_removes_capture_even_when_modal_is_on_top() {
+        let mut state = AppState::new().expect("state should build");
+        state.set_active_panel(PanelId::Preview);
+        state.ui.interaction.focus_panel(PanelId::Preview);
+        state.preview.active_mode = crate::preview::PreviewMode::Shell;
+
+        update(&mut state, Intent::SetPreviewCapture(true));
+        update(&mut state, Intent::OpenConfigRequested);
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            InteractionMode::Modal {
+                owner: SurfaceId::ConfigDialog,
+            }
+        );
+
+        update(
+            &mut state,
+            Intent::PreviewRuntimeEvent(PreviewRuntimeEvent::Exited {
+                message: "preview exited".to_string(),
+            }),
+        );
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            InteractionMode::Modal {
+                owner: SurfaceId::ConfigDialog,
+            }
+        );
+
+        update(&mut state, Intent::CloseConfigRequested);
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
+        assert_eq!(
+            effective_focus_path(&state),
+            vec![SurfaceId::AppRoot, SurfaceId::MainWindow]
+        );
+    }
+
+    #[test]
+    fn select_token_closes_transient_surfaces_without_leaving_stale_modes() {
+        let mut text_input_state = AppState::new().expect("state should build");
+        text_input_state.set_active_panel(PanelId::Params);
+        text_input_state.ui.interaction.focus_panel(PanelId::Params);
+        open_text_input(
+            &mut text_input_state,
+            TextInputTarget::Control(ControlId::Param(ParamKey::BackgroundHue)),
+        );
+
+        update(&mut text_input_state, Intent::SelectToken(1));
+        assert!(text_input_state.ui.text_input.is_none());
+        assert_eq!(
+            text_input_state.ui.interaction.current_mode(),
+            InteractionMode::Normal
+        );
+        assert_eq!(
+            effective_focus_path(&text_input_state),
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::ParamsPanel,
+            ]
+        );
+
+        let mut help_state = AppState::new().expect("state should build");
+        update(&mut help_state, Intent::ToggleShortcutHelpRequested);
+
+        update(&mut help_state, Intent::SelectToken(1));
+        assert!(!help_state.ui.shortcut_help_open);
+        assert_eq!(help_state.ui.interaction.current_mode(), InteractionMode::Normal);
+        assert_eq!(
+            effective_focus_path(&help_state),
+            vec![SurfaceId::AppRoot, SurfaceId::MainWindow]
+        );
+    }
+
+    #[test]
+    fn move_selection_closes_source_picker_without_leaving_stale_mode() {
+        let mut state = AppState::new().expect("state should build");
+        state.set_active_panel(PanelId::Tokens);
+        state.ui.interaction.focus_panel(PanelId::Tokens);
+        open_source_picker(
+            &mut state,
+            ControlId::Reference(
+                TokenRole::Text,
+                crate::app::controls::ReferenceField::AliasSource,
+            ),
+        );
+
+        move_selection(&mut state, 1);
+        assert!(state.ui.source_picker.is_none());
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
+        assert_eq!(
+            effective_focus_path(&state),
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::TokensPanel,
+            ]
+        );
+    }
+
+    #[test]
+    fn reset_requested_clears_transient_owners_and_capture() {
+        let mut state = AppState::new().expect("state should build");
+        state.set_active_panel(PanelId::Preview);
+        state.ui.interaction.focus_panel(PanelId::Preview);
+        state.preview.active_mode = crate::preview::PreviewMode::Shell;
+
+        update(&mut state, Intent::SetPreviewCapture(true));
+        update(&mut state, Intent::OpenConfigRequested);
+        assert!(state.preview.capture_active);
+
+        update(&mut state, Intent::ResetRequested);
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
+        assert!(!state.preview.capture_active);
+        assert!(state.ui.text_input.is_none());
+        assert!(state.ui.source_picker.is_none());
+        assert!(state.ui.config_modal.is_none());
+        assert!(!state.ui.shortcut_help_open);
+        assert_eq!(
+            effective_focus_path(&state),
+            vec![SurfaceId::AppRoot, SurfaceId::MainWindow]
+        );
     }
 }

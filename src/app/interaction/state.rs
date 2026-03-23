@@ -78,6 +78,27 @@ impl InteractionState {
         popped
     }
 
+    pub fn remove_mode(&mut self, mode: InteractionMode) -> bool {
+        if mode == InteractionMode::Normal {
+            return false;
+        }
+
+        let Some(index) = self.mode_stack.iter().rposition(|entry| *entry == mode) else {
+            return false;
+        };
+
+        let removed = self.mode_stack.remove(index);
+        if index == self.mode_stack.len()
+            && owner_for_mode(removed)
+                .is_some_and(|owner| self.focus_path.last().copied() == Some(owner))
+            && self.focus_path.len() > 2
+        {
+            self.focus_path.pop();
+        }
+
+        true
+    }
+
     pub fn set_mode(&mut self, mode: InteractionMode) {
         self.mode_stack.clear();
         self.mode_stack.push(InteractionMode::Normal);
@@ -143,5 +164,32 @@ mod tests {
         };
 
         assert_eq!(state.current_mode(), InteractionMode::Normal);
+    }
+
+    #[test]
+    fn remove_mode_can_remove_non_top_owner_without_changing_focus() {
+        let mut state = InteractionState {
+            focus_path: vec![SurfaceId::AppRoot, SurfaceId::MainWindow],
+            mode_stack: vec![
+                InteractionMode::Normal,
+                InteractionMode::Capture {
+                    owner: SurfaceId::PreviewBody,
+                },
+                InteractionMode::Modal {
+                    owner: SurfaceId::ConfigDialog,
+                },
+            ],
+        };
+
+        assert!(state.remove_mode(InteractionMode::Capture {
+            owner: SurfaceId::PreviewBody,
+        }));
+        assert_eq!(
+            state.current_mode(),
+            InteractionMode::Modal {
+                owner: SurfaceId::ConfigDialog,
+            }
+        );
+        assert_eq!(state.focus_path, vec![SurfaceId::AppRoot, SurfaceId::MainWindow]);
     }
 }
