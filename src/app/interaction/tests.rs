@@ -68,6 +68,57 @@ fn interaction_tree_uses_visible_project_tab_children() {
 }
 
 #[test]
+fn interaction_tree_child_links_are_reciprocal() {
+    let state = AppState::new().expect("state");
+    let tree = build_interaction_tree(&state);
+
+    for node_id in [
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::TokensPanel,
+        SurfaceId::ParamsPanel,
+        SurfaceId::PreviewPanel,
+        SurfaceId::PreviewTabs,
+        SurfaceId::PreviewBody,
+        SurfaceId::PalettePanel,
+        SurfaceId::ResolvedPrimaryPanel,
+        SurfaceId::ResolvedSecondaryPanel,
+        SurfaceId::InspectorPanel,
+        SurfaceId::ProjectConfigPanel,
+        SurfaceId::ExportTargetsPanel,
+        SurfaceId::EditorPreferencesPanel,
+        SurfaceId::NumericEditorSurface,
+        SurfaceId::SourcePicker,
+        SurfaceId::ConfigDialog,
+        SurfaceId::ShortcutHelp,
+    ] {
+        let node = tree.node(node_id).expect("node exists");
+        for &child in &node.children {
+            assert_eq!(
+                tree.parent_of(child),
+                Some(node_id),
+                "child {child:?} should point back to {node_id:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn hidden_workspace_panels_do_not_report_an_active_parent() {
+    let mut state = AppState::new().expect("state");
+    state.ui.active_tab = WorkspaceTab::Project;
+
+    let tree = build_interaction_tree(&state);
+
+    assert_eq!(tree.parent_of(SurfaceId::TokensPanel), None);
+    assert_eq!(tree.parent_of(SurfaceId::ParamsPanel), None);
+    assert_eq!(tree.parent_of(SurfaceId::PalettePanel), None);
+    assert_eq!(tree.parent_of(SurfaceId::ResolvedPrimaryPanel), None);
+    assert_eq!(tree.parent_of(SurfaceId::ResolvedSecondaryPanel), None);
+    assert_eq!(tree.parent_of(SurfaceId::InspectorPanel), None);
+}
+
+#[test]
 fn interaction_tree_keeps_resolved_theme_panels_distinct() {
     assert_eq!(
         SurfaceId::workspace_surface(PanelId::ResolvedPrimary),

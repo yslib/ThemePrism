@@ -193,6 +193,13 @@ impl InteractionTree {
 pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
     let visible_panels = panel_order(&workspace_layout_for_tab(state.ui.active_tab));
     let is_visible = |panel: PanelId| visible_panels.contains(&panel);
+    let workspace_parent = |panel: PanelId| {
+        if is_visible(panel) {
+            Some(SurfaceId::MainWindow)
+        } else {
+            None
+        }
+    };
     let workspace_children = visible_panels
         .iter()
         .copied()
@@ -232,7 +239,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         ),
         SurfaceNode::new(
             SurfaceId::TokensPanel,
-            Some(SurfaceId::MainWindow),
+            workspace_parent(Tokens),
             vec![],
             true,
             is_visible(Tokens),
@@ -244,7 +251,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         ),
         SurfaceNode::new(
             SurfaceId::ParamsPanel,
-            Some(SurfaceId::MainWindow),
+            workspace_parent(Params),
             vec![],
             true,
             is_visible(Params),
@@ -256,7 +263,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         ),
         SurfaceNode::new(
             SurfaceId::PreviewPanel,
-            Some(SurfaceId::MainWindow),
+            workspace_parent(Preview),
             vec![SurfaceId::PreviewTabs, SurfaceId::PreviewBody],
             true,
             is_visible(Preview),
@@ -292,7 +299,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         ),
         SurfaceNode::new(
             SurfaceId::ResolvedPrimaryPanel,
-            Some(SurfaceId::MainWindow),
+            workspace_parent(ResolvedPrimary),
             vec![],
             true,
             is_visible(ResolvedPrimary),
@@ -304,7 +311,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         ),
         SurfaceNode::new(
             SurfaceId::ResolvedSecondaryPanel,
-            Some(SurfaceId::MainWindow),
+            workspace_parent(ResolvedSecondary),
             vec![],
             true,
             is_visible(ResolvedSecondary),
@@ -316,7 +323,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         ),
         SurfaceNode::new(
             SurfaceId::PalettePanel,
-            Some(SurfaceId::MainWindow),
+            workspace_parent(Palette),
             vec![],
             true,
             is_visible(Palette),
@@ -328,7 +335,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         ),
         SurfaceNode::new(
             SurfaceId::InspectorPanel,
-            Some(SurfaceId::MainWindow),
+            workspace_parent(Inspector),
             vec![],
             true,
             is_visible(Inspector),
@@ -340,7 +347,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         ),
         SurfaceNode::new(
             SurfaceId::ProjectConfigPanel,
-            Some(SurfaceId::MainWindow),
+            workspace_parent(ProjectConfig),
             vec![],
             true,
             is_visible(ProjectConfig),
@@ -352,7 +359,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         ),
         SurfaceNode::new(
             SurfaceId::ExportTargetsPanel,
-            Some(SurfaceId::MainWindow),
+            workspace_parent(ExportTargets),
             vec![],
             true,
             is_visible(ExportTargets),
@@ -364,7 +371,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         ),
         SurfaceNode::new(
             SurfaceId::EditorPreferencesPanel,
-            Some(SurfaceId::MainWindow),
+            workspace_parent(EditorPreferences),
             vec![],
             true,
             is_visible(EditorPreferences),
