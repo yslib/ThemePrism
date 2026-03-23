@@ -31,6 +31,7 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
     let preset = state.editor.keymap_preset;
 
     match effective_focus_surface(state) {
+        SurfaceId::AppRoot => None,
         SurfaceId::ShortcutHelp => match_action(
             preset,
             key,
@@ -56,7 +57,7 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
         )
         .map(bound_action_to_ui_action)
         .or_else(|| free_text_action(key)),
-        SurfaceId::TextInput => match_action(
+        SurfaceId::NumericEditorSurface => match_action(
             preset,
             key,
             &[
@@ -83,7 +84,7 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
             ],
         )
         .map(bound_action_to_ui_action),
-        SurfaceId::MainWindow | SurfaceId::Panel(_) => {
+        surface if surface.is_workspace_surface() => {
             if state.ui.interaction.mode == InteractionMode::NavigateChildren(SurfaceId::MainWindow)
             {
                 if let KeyCode::Char(ch) = key.code {
@@ -119,6 +120,7 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
             )
             .map(bound_action_to_ui_action)
         }
+        _ => None,
     }
 }
 

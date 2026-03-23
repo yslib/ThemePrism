@@ -1,64 +1,20 @@
+mod state;
+mod tree;
+
+#[cfg(test)]
+mod tests;
+
+pub use state::{InteractionMode, InteractionState};
+#[allow(unused_imports)]
+pub use tree::{
+    BubblePolicy, ChildNavigation, DefaultAction, InteractionTree, SurfaceId, SurfaceNode,
+    TabScope, build_interaction_tree,
+};
+
 use crate::app::Intent;
 use crate::app::state::AppState;
 use crate::app::workspace::PanelId;
 use crate::i18n::{self, UiText};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SurfaceId {
-    MainWindow,
-    Panel(PanelId),
-    TextInput,
-    SourcePicker,
-    ConfigDialog,
-    ShortcutHelp,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InteractionMode {
-    Normal,
-    NavigateChildren(SurfaceId),
-}
-
-impl Default for InteractionMode {
-    fn default() -> Self {
-        Self::Normal
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InteractionState {
-    pub focus_path: Vec<SurfaceId>,
-    pub mode: InteractionMode,
-}
-
-impl InteractionState {
-    pub fn new(initial_panel: PanelId) -> Self {
-        Self {
-            focus_path: vec![SurfaceId::MainWindow, SurfaceId::Panel(initial_panel)],
-            mode: InteractionMode::Normal,
-        }
-    }
-
-    pub fn focused_workspace_surface(&self) -> SurfaceId {
-        self.focus_path
-            .last()
-            .copied()
-            .unwrap_or(SurfaceId::MainWindow)
-    }
-
-    pub fn focus_root(&mut self) {
-        self.focus_path.clear();
-        self.focus_path.push(SurfaceId::MainWindow);
-        self.mode = InteractionMode::Normal;
-    }
-
-    pub fn focus_panel(&mut self, panel: PanelId) {
-        self.focus_path.clear();
-        self.focus_path.push(SurfaceId::MainWindow);
-        self.focus_path.push(SurfaceId::Panel(panel));
-        self.mode = InteractionMode::Normal;
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UiAction {
@@ -89,13 +45,13 @@ pub enum UiAction {
 
 pub fn effective_focus_path(state: &AppState) -> Vec<SurfaceId> {
     let mut path = if state.ui.interaction.focus_path.is_empty() {
-        vec![SurfaceId::MainWindow]
+        vec![SurfaceId::AppRoot, SurfaceId::MainWindow]
     } else {
         state.ui.interaction.focus_path.clone()
     };
 
     if state.ui.text_input.is_some() {
-        path.push(SurfaceId::TextInput);
+        path.push(SurfaceId::NumericEditorSurface);
     } else if state.ui.source_picker.is_some() {
         path.push(SurfaceId::SourcePicker);
     } else if state.ui.config_modal.is_some() {
@@ -122,7 +78,10 @@ pub fn focus_breadcrumb(state: &AppState) -> String {
     let focus_path = effective_focus_path(state);
 
     for (index, surface) in focus_path.iter().enumerate() {
-        if index == 0 && matches!(surface, SurfaceId::MainWindow) && focus_path.len() > 1 {
+        if index == 0 && matches!(surface, SurfaceId::AppRoot) {
+            continue;
+        }
+        if index == 1 && matches!(surface, SurfaceId::MainWindow) && focus_path.len() > 2 {
             continue;
         }
         parts.push(surface_label(state, *surface));
@@ -140,13 +99,7 @@ pub fn route_ui_action(state: &AppState, action: UiAction) -> Vec<Intent> {
             return intents;
         }
 
-        if matches!(
-            surface,
-            SurfaceId::TextInput
-                | SurfaceId::SourcePicker
-                | SurfaceId::ConfigDialog
-                | SurfaceId::ShortcutHelp
-        ) {
+        if surface.is_modal_surface() {
             modal_boundary = true;
             break;
         }
@@ -160,13 +113,27 @@ pub fn route_ui_action(state: &AppState, action: UiAction) -> Vec<Intent> {
 }
 
 fn route_on_surface(state: &AppState, surface: SurfaceId, action: UiAction) -> Option<Vec<Intent>> {
+    if let Some(panel) = surface.panel_id() {
+        return route_panel_action(state, panel, action);
+    }
+
     match surface {
+        SurfaceId::AppRoot => None,
         SurfaceId::MainWindow => route_main_window_action(state, action),
-        SurfaceId::Panel(panel) => route_panel_action(state, panel, action),
-        SurfaceId::TextInput => route_text_input_action(state, action),
+        SurfaceId::NumericEditorSurface => route_text_input_action(state, action),
         SurfaceId::SourcePicker => route_source_picker_action(action),
         SurfaceId::ConfigDialog => route_config_dialog_action(action),
         SurfaceId::ShortcutHelp => route_shortcut_help_action(action),
+        SurfaceId::PreviewTabs
+        | SurfaceId::PreviewBody
+        | SurfaceId::TokensPanel
+        | SurfaceId::ParamsPanel
+        | SurfaceId::PreviewPanel
+        | SurfaceId::PalettePanel
+        | SurfaceId::InspectorPanel
+        | SurfaceId::ProjectConfigPanel
+        | SurfaceId::ExportTargetsPanel
+        | SurfaceId::EditorPreferencesPanel => None,
     }
 }
 
@@ -301,11 +268,23 @@ fn route_shortcut_help_action(action: UiAction) -> Option<Vec<Intent>> {
     }
 }
 
-fn surface_label(state: &AppState, surface: SurfaceId) -> String {
+pub fn surface_label(state: &AppState, surface: SurfaceId) -> String {
     match surface {
+        SurfaceId::AppRoot => i18n::text(state.locale(), UiText::SurfaceMainWindow),
         SurfaceId::MainWindow => i18n::text(state.locale(), UiText::SurfaceMainWindow),
-        SurfaceId::Panel(panel) => i18n::panel_label(state.locale(), panel),
-        SurfaceId::TextInput => i18n::text(state.locale(), UiText::SurfaceInputEditor),
+        SurfaceId::TokensPanel => i18n::panel_label(state.locale(), PanelId::Tokens),
+        SurfaceId::ParamsPanel => i18n::panel_label(state.locale(), PanelId::Params),
+        SurfaceId::PreviewPanel | SurfaceId::PreviewTabs | SurfaceId::PreviewBody => {
+            i18n::panel_label(state.locale(), PanelId::Preview)
+        }
+        SurfaceId::PalettePanel => i18n::panel_label(state.locale(), PanelId::Palette),
+        SurfaceId::InspectorPanel => i18n::panel_label(state.locale(), PanelId::Inspector),
+        SurfaceId::ProjectConfigPanel => i18n::panel_label(state.locale(), PanelId::ProjectConfig),
+        SurfaceId::ExportTargetsPanel => i18n::panel_label(state.locale(), PanelId::ExportTargets),
+        SurfaceId::EditorPreferencesPanel => {
+            i18n::panel_label(state.locale(), PanelId::EditorPreferences)
+        }
+        SurfaceId::NumericEditorSurface => i18n::text(state.locale(), UiText::SurfaceInputEditor),
         SurfaceId::SourcePicker => i18n::text(state.locale(), UiText::SurfaceSourcePicker),
         SurfaceId::ConfigDialog => i18n::text(state.locale(), UiText::SurfaceConfigDialog),
         SurfaceId::ShortcutHelp => i18n::text(state.locale(), UiText::SurfaceShortcutHelp),

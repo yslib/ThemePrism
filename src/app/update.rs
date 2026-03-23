@@ -1,7 +1,7 @@
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::effect::{EditorConfigData, Effect, ProjectData};
 use crate::app::intent::Intent;
-use crate::app::interaction::{InteractionMode, SurfaceId};
+use crate::app::interaction::{InteractionMode, SurfaceId, surface_label};
 use crate::app::state::{
     AppState, ConfigFieldId, ConfigModalState, FocusPane, SourcePickerState, TextInputState,
     TextInputTarget,
@@ -411,10 +411,7 @@ fn cycle_workspace_tab(state: &mut AppState, delta: i32) {
     } else {
         state.ui.active_tab.previous()
     };
-    if matches!(
-        state.ui.interaction.focused_workspace_surface(),
-        SurfaceId::Panel(_)
-    ) {
+    if state.ui.interaction.focused_workspace_surface().is_workspace_panel() {
         state.ui.interaction.focus_panel(state.active_panel());
     }
     let panel = state.active_panel();
@@ -538,6 +535,7 @@ fn move_selection(state: &mut AppState, delta: i32) {
 
 fn focus_surface(state: &mut AppState, surface: SurfaceId) {
     match surface {
+        SurfaceId::AppRoot => {}
         SurfaceId::MainWindow => {
             state.ui.interaction.focus_root();
             state.ui.status = tr1(
@@ -547,7 +545,17 @@ fn focus_surface(state: &mut AppState, surface: SurfaceId) {
                 tr(state, UiText::SurfaceMainWindow),
             );
         }
-        SurfaceId::Panel(panel) => {
+        SurfaceId::TokensPanel
+        | SurfaceId::ParamsPanel
+        | SurfaceId::PreviewPanel
+        | SurfaceId::PreviewTabs
+        | SurfaceId::PreviewBody
+        | SurfaceId::PalettePanel
+        | SurfaceId::InspectorPanel
+        | SurfaceId::ProjectConfigPanel
+        | SurfaceId::ExportTargetsPanel
+        | SurfaceId::EditorPreferencesPanel => {
+            let panel = surface.panel_id().expect("workspace surface");
             state.set_active_panel(panel);
             state.ui.interaction.focus_panel(panel);
             state.ui.status = tr1(
@@ -557,7 +565,7 @@ fn focus_surface(state: &mut AppState, surface: SurfaceId) {
                 i18n::panel_label(state.locale(), panel),
             );
         }
-        SurfaceId::TextInput
+        SurfaceId::NumericEditorSurface
         | SurfaceId::SourcePicker
         | SurfaceId::ConfigDialog
         | SurfaceId::ShortcutHelp => {}
@@ -571,14 +579,7 @@ fn set_interaction_mode(state: &mut AppState, mode: InteractionMode) {
             state,
             UiText::StatusSurfaceNavigationActive,
             "surface",
-            match surface {
-                SurfaceId::MainWindow => tr(state, UiText::SurfaceMainWindow),
-                SurfaceId::Panel(panel) => i18n::panel_label(state.locale(), panel),
-                SurfaceId::TextInput => tr(state, UiText::SurfaceInputEditor),
-                SurfaceId::SourcePicker => tr(state, UiText::SurfaceSourcePicker),
-                SurfaceId::ConfigDialog => tr(state, UiText::SurfaceConfigDialog),
-                SurfaceId::ShortcutHelp => tr(state, UiText::SurfaceShortcutHelp),
-            },
+            surface_label(state, surface),
         );
     }
 }
