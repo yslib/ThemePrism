@@ -49,7 +49,7 @@ pub fn effective_focus_path(state: &AppState) -> Vec<SurfaceId> {
         state.ui.interaction.focus_path.clone()
     };
 
-    if let Some(owner) = state.ui.interaction.current_owner() {
+    if let InteractionMode::Capture { owner } = state.ui.interaction.current_mode() {
         if path.last().copied() != Some(owner) {
             path.push(owner);
         }

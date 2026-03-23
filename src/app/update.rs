@@ -550,7 +550,11 @@ fn focus_surface(state: &mut AppState, surface: SurfaceId) {
         SurfaceId::NumericEditorSurface
         | SurfaceId::SourcePicker
         | SurfaceId::ConfigDialog
-        | SurfaceId::ShortcutHelp => {}
+        | SurfaceId::ShortcutHelp => {
+            if let Some(path) = focus_path_for_surface(state, surface) {
+                state.ui.interaction.focus_path = path;
+            }
+        }
     }
 }
 
@@ -950,6 +954,7 @@ fn open_text_input(state: &mut AppState, target: TextInputTarget) {
     close_shortcut_help_surface(state);
     state.ui.text_input = Some(TextInputState { target, buffer });
     push_modal_owner(state, SurfaceId::NumericEditorSurface);
+    focus_surface(state, SurfaceId::NumericEditorSurface);
     state.ui.status = match target {
         TextInputTarget::Control(control) if control.supports_numeric_editor() => tr1(
             state,
@@ -986,6 +991,7 @@ fn open_source_picker(state: &mut AppState, control: ControlId) {
         selected,
     });
     push_modal_owner(state, SurfaceId::SourcePicker);
+    focus_surface(state, SurfaceId::SourcePicker);
     state.ui.status = tr1(
         state,
         UiText::StatusSelectingSource,
@@ -1502,9 +1508,9 @@ fn open_config_modal(state: &mut AppState) {
     close_source_picker_surface(state);
     close_text_input_surface(state);
     close_shortcut_help_surface(state);
-    state.ui.interaction.set_focus_root_path();
     state.ui.config_modal = Some(ConfigModalState { selected_field: 0 });
     push_modal_owner(state, SurfaceId::ConfigDialog);
+    focus_surface(state, SurfaceId::ConfigDialog);
     state.ui.status = tr(state, UiText::StatusConfigOpened);
 }
 
@@ -1512,7 +1518,6 @@ fn close_config_modal(state: &mut AppState) {
     let was_open = state.ui.config_modal.is_some();
     close_text_input_surface(state);
     close_config_surface(state);
-    state.ui.interaction.set_focus_root_path();
     if was_open {
         state.ui.status = tr(state, UiText::StatusConfigClosed);
     }
@@ -1524,14 +1529,13 @@ fn toggle_shortcut_help(state: &mut AppState) {
         close_source_picker_surface(state);
         close_text_input_surface(state);
         close_config_surface(state);
-        state.ui.interaction.set_focus_root_path();
         state.ui.shortcut_help_open = true;
         state.ui.shortcut_help_scroll = 0;
         push_modal_owner(state, SurfaceId::ShortcutHelp);
+        focus_surface(state, SurfaceId::ShortcutHelp);
         state.ui.status = tr(state, UiText::StatusHelpOpened);
     } else {
         close_shortcut_help_surface(state);
-        state.ui.interaction.set_focus_root_path();
         state.ui.status = tr(state, UiText::StatusHelpClosed);
     }
 }
@@ -2139,6 +2143,43 @@ mod tests {
     }
 
     #[test]
+    fn closing_numeric_editor_restores_focus_to_owner_surface() {
+        let mut state = AppState::new().expect("state should build");
+        state.set_active_panel(PanelId::Params);
+        state.ui.interaction.focus_panel(PanelId::Params);
+
+        open_text_input(
+            &mut state,
+            TextInputTarget::Control(ControlId::Param(ParamKey::AccentHue)),
+        );
+        assert_eq!(
+            state.ui.interaction.focus_path,
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::ParamsPanel,
+                SurfaceId::NumericEditorSurface,
+            ]
+        );
+        assert_eq!(
+            state.ui.interaction.focused_surface(),
+            SurfaceId::NumericEditorSurface
+        );
+
+        update(&mut state, Intent::CancelTextInput);
+
+        assert_eq!(state.ui.interaction.focused_surface(), SurfaceId::ParamsPanel);
+        assert_eq!(
+            state.ui.interaction.focus_path,
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::ParamsPanel,
+            ]
+        );
+    }
+
+    #[test]
     fn config_and_help_flows_use_stack_owners() {
         let mut state = AppState::new().expect("state should build");
         state.set_active_panel(PanelId::Inspector);
@@ -2156,6 +2197,7 @@ mod tests {
             vec![
                 SurfaceId::AppRoot,
                 SurfaceId::MainWindow,
+                SurfaceId::InspectorPanel,
                 SurfaceId::ConfigDialog,
             ]
         );
@@ -2172,6 +2214,7 @@ mod tests {
             vec![
                 SurfaceId::AppRoot,
                 SurfaceId::MainWindow,
+                SurfaceId::InspectorPanel,
                 SurfaceId::ShortcutHelp,
             ]
         );
@@ -2242,7 +2285,11 @@ mod tests {
         assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
         assert_eq!(
             effective_focus_path(&state),
-            vec![SurfaceId::AppRoot, SurfaceId::MainWindow]
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::PreviewPanel,
+            ]
         );
     }
 
@@ -2273,7 +2320,11 @@ mod tests {
         assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
         assert_eq!(
             effective_focus_path(&state),
-            vec![SurfaceId::AppRoot, SurfaceId::MainWindow]
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::PreviewPanel,
+            ]
         );
     }
 
@@ -2310,7 +2361,11 @@ mod tests {
         assert_eq!(help_state.ui.interaction.current_mode(), InteractionMode::Normal);
         assert_eq!(
             effective_focus_path(&help_state),
-            vec![SurfaceId::AppRoot, SurfaceId::MainWindow]
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::TokensPanel,
+            ]
         );
 
         let mut picker_state = AppState::new().expect("state should build");
@@ -2383,7 +2438,11 @@ mod tests {
         assert!(!state.ui.shortcut_help_open);
         assert_eq!(
             effective_focus_path(&state),
-            vec![SurfaceId::AppRoot, SurfaceId::MainWindow]
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::PreviewPanel,
+            ]
         );
     }
 }

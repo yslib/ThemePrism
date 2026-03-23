@@ -8,9 +8,22 @@ use super::{
 
 pub fn route_ui_action(state: &AppState, action: UiAction) -> Vec<Intent> {
     let tree = build_interaction_tree(state);
-    let focus_path = effective_focus_path(state);
+    let focus_path = active_routing_path(state);
 
     route_from_focus(&tree, state, &focus_path, action)
+}
+
+fn active_routing_path(state: &AppState) -> Vec<SurfaceId> {
+    let focus_path = effective_focus_path(state);
+
+    match state.ui.interaction.current_mode() {
+        InteractionMode::Modal { owner } => focus_path
+            .iter()
+            .position(|surface| *surface == owner)
+            .map(|index| focus_path[index..].to_vec())
+            .unwrap_or_else(|| vec![owner]),
+        _ => focus_path,
+    }
 }
 
 fn route_from_focus(

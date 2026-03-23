@@ -196,18 +196,31 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         .copied()
         .map(SurfaceId::workspace_surface)
         .collect::<Vec<_>>();
+    let numeric_parent = modal_parent(state, SurfaceId::NumericEditorSurface);
+    let source_picker_parent = modal_parent(state, SurfaceId::SourcePicker);
+    let config_parent = modal_parent(state, SurfaceId::ConfigDialog);
+    let shortcut_help_parent = modal_parent(state, SurfaceId::ShortcutHelp);
+    let modal_children = |surface: SurfaceId| {
+        [
+            (SurfaceId::NumericEditorSurface, numeric_parent),
+            (SurfaceId::SourcePicker, source_picker_parent),
+            (SurfaceId::ConfigDialog, config_parent),
+            (SurfaceId::ShortcutHelp, shortcut_help_parent),
+        ]
+        .into_iter()
+        .filter_map(|(modal, parent)| (parent == Some(surface)).then_some(modal))
+        .collect::<Vec<_>>()
+    };
+    let mut app_root_children = vec![SurfaceId::MainWindow];
+    app_root_children.extend(modal_children(SurfaceId::AppRoot));
+    let mut main_window_children = workspace_children.clone();
+    main_window_children.extend(modal_children(SurfaceId::MainWindow));
 
     let nodes = vec![
         SurfaceNode::new(
             SurfaceId::AppRoot,
             None,
-            vec![
-                SurfaceId::MainWindow,
-                SurfaceId::NumericEditorSurface,
-                SurfaceId::SourcePicker,
-                SurfaceId::ConfigDialog,
-                SurfaceId::ShortcutHelp,
-            ],
+            app_root_children,
             false,
             true,
             TabScope::Global,
@@ -219,7 +232,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::MainWindow,
             Some(SurfaceId::AppRoot),
-            workspace_children,
+            main_window_children,
             true,
             true,
             TabScope::Global,
@@ -231,7 +244,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::TokensPanel,
             workspace_parent(Tokens),
-            vec![],
+            modal_children(SurfaceId::TokensPanel),
             true,
             is_visible(Tokens),
             TabScope::Workspace(Theme),
@@ -243,7 +256,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::ParamsPanel,
             workspace_parent(Params),
-            vec![],
+            modal_children(SurfaceId::ParamsPanel),
             true,
             is_visible(Params),
             TabScope::Workspace(Theme),
@@ -255,7 +268,11 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::PreviewPanel,
             workspace_parent(Preview),
-            vec![SurfaceId::PreviewTabs, SurfaceId::PreviewBody],
+            {
+                let mut children = vec![SurfaceId::PreviewTabs, SurfaceId::PreviewBody];
+                children.extend(modal_children(SurfaceId::PreviewPanel));
+                children
+            },
             true,
             is_visible(Preview),
             TabScope::Workspace(Theme),
@@ -267,7 +284,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::PreviewTabs,
             Some(SurfaceId::PreviewPanel),
-            vec![],
+            modal_children(SurfaceId::PreviewTabs),
             true,
             is_visible(Preview),
             TabScope::PreviewLocal,
@@ -279,7 +296,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::PreviewBody,
             Some(SurfaceId::PreviewPanel),
-            vec![],
+            modal_children(SurfaceId::PreviewBody),
             true,
             is_visible(Preview),
             TabScope::Workspace(Theme),
@@ -291,7 +308,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::ResolvedPrimaryPanel,
             workspace_parent(ResolvedPrimary),
-            vec![],
+            modal_children(SurfaceId::ResolvedPrimaryPanel),
             true,
             is_visible(ResolvedPrimary),
             TabScope::Workspace(Theme),
@@ -303,7 +320,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::ResolvedSecondaryPanel,
             workspace_parent(ResolvedSecondary),
-            vec![],
+            modal_children(SurfaceId::ResolvedSecondaryPanel),
             true,
             is_visible(ResolvedSecondary),
             TabScope::Workspace(Theme),
@@ -315,7 +332,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::PalettePanel,
             workspace_parent(Palette),
-            vec![],
+            modal_children(SurfaceId::PalettePanel),
             true,
             is_visible(Palette),
             TabScope::Workspace(Theme),
@@ -327,7 +344,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::InspectorPanel,
             workspace_parent(Inspector),
-            vec![],
+            modal_children(SurfaceId::InspectorPanel),
             true,
             is_visible(Inspector),
             TabScope::Workspace(Theme),
@@ -339,7 +356,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::ProjectConfigPanel,
             workspace_parent(ProjectConfig),
-            vec![],
+            modal_children(SurfaceId::ProjectConfigPanel),
             true,
             is_visible(ProjectConfig),
             TabScope::Workspace(Project),
@@ -351,7 +368,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::ExportTargetsPanel,
             workspace_parent(ExportTargets),
-            vec![],
+            modal_children(SurfaceId::ExportTargetsPanel),
             true,
             is_visible(ExportTargets),
             TabScope::Workspace(Project),
@@ -363,7 +380,7 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         SurfaceNode::new(
             SurfaceId::EditorPreferencesPanel,
             workspace_parent(EditorPreferences),
-            vec![],
+            modal_children(SurfaceId::EditorPreferencesPanel),
             true,
             is_visible(EditorPreferences),
             TabScope::Workspace(Project),
@@ -374,53 +391,86 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
         ),
         SurfaceNode::new(
             SurfaceId::NumericEditorSurface,
-            Some(SurfaceId::AppRoot),
-            vec![],
+            numeric_parent,
+            modal_children(SurfaceId::NumericEditorSurface),
             true,
             state.ui.text_input.is_some(),
             TabScope::Modal,
             DefaultAction::Edit,
             ChildNavigation::None,
             BubblePolicy::Stop,
-            Some(SurfaceId::AppRoot),
+            numeric_parent,
         ),
         SurfaceNode::new(
             SurfaceId::SourcePicker,
-            Some(SurfaceId::AppRoot),
-            vec![],
+            source_picker_parent,
+            modal_children(SurfaceId::SourcePicker),
             true,
             state.ui.source_picker.is_some(),
             TabScope::Modal,
             DefaultAction::Open,
             ChildNavigation::None,
             BubblePolicy::Stop,
-            Some(SurfaceId::AppRoot),
+            source_picker_parent,
         ),
         SurfaceNode::new(
             SurfaceId::ConfigDialog,
-            Some(SurfaceId::AppRoot),
-            vec![],
+            config_parent,
+            modal_children(SurfaceId::ConfigDialog),
             true,
             state.ui.config_modal.is_some(),
             TabScope::Modal,
             DefaultAction::Open,
             ChildNavigation::None,
             BubblePolicy::Stop,
-            Some(SurfaceId::AppRoot),
+            config_parent,
         ),
         SurfaceNode::new(
             SurfaceId::ShortcutHelp,
-            Some(SurfaceId::AppRoot),
-            vec![],
+            shortcut_help_parent,
+            modal_children(SurfaceId::ShortcutHelp),
             true,
             state.ui.shortcut_help_open,
             TabScope::Modal,
             DefaultAction::Open,
             ChildNavigation::None,
             BubblePolicy::Stop,
-            Some(SurfaceId::AppRoot),
+            shortcut_help_parent,
         ),
     ];
 
     InteractionTree::new(nodes)
+}
+
+fn modal_parent(state: &AppState, modal: SurfaceId) -> Option<SurfaceId> {
+    if !modal_is_visible(state, modal) {
+        return None;
+    }
+
+    let focus_path = &state.ui.interaction.focus_path;
+    if let Some(index) = focus_path.iter().position(|surface| *surface == modal) {
+        return index.checked_sub(1).and_then(|parent| focus_path.get(parent).copied());
+    }
+
+    if matches!(
+        state.ui.interaction.current_mode(),
+        crate::app::interaction::InteractionMode::Modal { owner } if owner == modal
+    ) {
+        return focus_path
+            .last()
+            .copied()
+            .or(Some(SurfaceId::MainWindow));
+    }
+
+    focus_path.last().copied().or(Some(SurfaceId::MainWindow))
+}
+
+fn modal_is_visible(state: &AppState, modal: SurfaceId) -> bool {
+    match modal {
+        SurfaceId::NumericEditorSurface => state.ui.text_input.is_some(),
+        SurfaceId::SourcePicker => state.ui.source_picker.is_some(),
+        SurfaceId::ConfigDialog => state.ui.config_modal.is_some(),
+        SurfaceId::ShortcutHelp => state.ui.shortcut_help_open,
+        _ => false,
+    }
 }

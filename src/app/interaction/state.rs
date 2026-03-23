@@ -54,10 +54,6 @@ impl InteractionState {
             .unwrap_or(InteractionMode::Normal)
     }
 
-    pub fn current_owner(&self) -> Option<SurfaceId> {
-        owner_for_mode(self.current_mode())
-    }
-
     pub fn push_mode(&mut self, mode: InteractionMode) {
         self.mode_stack.push(mode);
     }

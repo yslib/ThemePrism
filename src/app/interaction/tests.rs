@@ -444,6 +444,81 @@ fn interaction_tree_tracks_modal_visibility() {
 }
 
 #[test]
+fn source_picker_routes_within_its_modal_subtree() {
+    let mut state = AppState::new().expect("state");
+    state.ui.source_picker = Some(crate::app::state::SourcePickerState {
+        control: ControlId::Reference(TokenRole::Background, ReferenceField::AliasSource),
+        filter: String::new(),
+        selected: 0,
+    });
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::InspectorPanel,
+        SurfaceId::SourcePicker,
+    ];
+    state
+        .ui
+        .interaction
+        .push_mode(InteractionMode::Modal {
+            owner: SurfaceId::SourcePicker,
+        });
+
+    let tree = build_interaction_tree(&state);
+    let intents = route_ui_action(&state, UiAction::NextTab);
+
+    assert_eq!(tree.parent_of(SurfaceId::SourcePicker), Some(SurfaceId::InspectorPanel));
+    assert!(intents.is_empty());
+}
+
+#[test]
+fn source_picker_blocks_main_window_shortcuts_while_modal_is_open() {
+    let mut state = AppState::new().expect("state");
+    state.ui.source_picker = Some(crate::app::state::SourcePickerState {
+        control: ControlId::Reference(TokenRole::Background, ReferenceField::AliasSource),
+        filter: String::new(),
+        selected: 0,
+    });
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::InspectorPanel,
+        SurfaceId::SourcePicker,
+    ];
+    state
+        .ui
+        .interaction
+        .push_mode(InteractionMode::Modal {
+            owner: SurfaceId::SourcePicker,
+        });
+
+    let intents = route_ui_action(&state, UiAction::OpenConfig);
+
+    assert!(intents.is_empty());
+}
+
+#[test]
+fn effective_focus_path_does_not_append_modal_owner() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_panel(PanelId::Params);
+    state
+        .ui
+        .interaction
+        .push_mode(InteractionMode::Modal {
+            owner: SurfaceId::NumericEditorSurface,
+        });
+
+    assert_eq!(
+        effective_focus_path(&state),
+        vec![
+            SurfaceId::AppRoot,
+            SurfaceId::MainWindow,
+            SurfaceId::ParamsPanel,
+        ]
+    );
+}
+
+#[test]
 fn effective_focus_path_uses_stack_owner_instead_of_ui_flags() {
     let mut state = AppState::new().expect("state");
     state.ui.interaction.focus_panel(PanelId::Preview);
