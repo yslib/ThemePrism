@@ -1,6 +1,6 @@
 use crate::app::interaction::{
     InteractionMode, InteractionState, SurfaceId, UiAction, build_interaction_tree,
-    route_ui_action,
+    effective_focus_path, route_ui_action,
 };
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::state::AppState;
@@ -71,6 +71,35 @@ fn capture_mode_can_stack_on_top_of_normal_mode() {
     interaction.pop_mode();
 
     assert_eq!(interaction.current_mode(), InteractionMode::Normal);
+}
+
+#[test]
+fn pop_mode_only_pops_focus_when_owner_matches_trailing_surface() {
+    let mut interaction = InteractionState::new(SurfaceId::PreviewBody);
+    interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::PreviewPanel,
+        SurfaceId::PreviewBody,
+    ];
+    interaction.push_mode(InteractionMode::Capture {
+        owner: SurfaceId::PreviewBody,
+    });
+    interaction.focus_path.push(SurfaceId::NumericEditorSurface);
+
+    interaction.pop_mode();
+
+    assert_eq!(interaction.current_mode(), InteractionMode::Normal);
+    assert_eq!(
+        interaction.focus_path,
+        vec![
+            SurfaceId::AppRoot,
+            SurfaceId::MainWindow,
+            SurfaceId::PreviewPanel,
+            SurfaceId::PreviewBody,
+            SurfaceId::NumericEditorSurface,
+        ]
+    );
 }
 
 #[test]
@@ -257,4 +286,34 @@ fn interaction_tree_tracks_modal_visibility() {
     let tree = build_interaction_tree(&state);
     assert!(tree.is_visible(SurfaceId::SourcePicker));
     assert!(!tree.is_visible(SurfaceId::ConfigDialog));
+}
+
+#[test]
+fn effective_focus_path_uses_stack_owner_instead_of_ui_flags() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_panel(PanelId::Preview);
+    state.preview.capture_active = true;
+
+    assert_eq!(
+        effective_focus_path(&state),
+        vec![
+            SurfaceId::AppRoot,
+            SurfaceId::MainWindow,
+            SurfaceId::PreviewPanel,
+        ]
+    );
+
+    state.ui.interaction.push_mode(InteractionMode::Capture {
+        owner: SurfaceId::PreviewBody,
+    });
+
+    assert_eq!(
+        effective_focus_path(&state),
+        vec![
+            SurfaceId::AppRoot,
+            SurfaceId::MainWindow,
+            SurfaceId::PreviewPanel,
+            SurfaceId::PreviewBody,
+        ]
+    );
 }

@@ -54,6 +54,10 @@ impl InteractionState {
             .unwrap_or(InteractionMode::Normal)
     }
 
+    pub fn current_owner(&self) -> Option<SurfaceId> {
+        owner_for_mode(self.current_mode())
+    }
+
     pub fn push_mode(&mut self, mode: InteractionMode) {
         self.mode_stack.push(mode);
     }
@@ -64,10 +68,9 @@ impl InteractionState {
         }
 
         let popped = self.mode_stack.pop();
-        if matches!(
-            popped,
-            Some(InteractionMode::Capture { .. } | InteractionMode::Modal { .. })
-        ) && self.focus_path.len() > 2
+        if owner_for_mode(popped.unwrap_or(InteractionMode::Normal))
+            .is_some_and(|owner| self.focus_path.last().copied() == Some(owner))
+            && self.focus_path.len() > 2
         {
             self.focus_path.pop();
         }
@@ -92,18 +95,33 @@ impl InteractionState {
     }
 
     pub fn focus_root(&mut self) {
-        self.focus_path.clear();
-        self.focus_path.push(SurfaceId::AppRoot);
-        self.focus_path.push(SurfaceId::MainWindow);
+        self.set_focus_root_path();
         self.set_mode(InteractionMode::Normal);
     }
 
+    pub fn set_focus_root_path(&mut self) {
+        self.focus_path.clear();
+        self.focus_path.push(SurfaceId::AppRoot);
+        self.focus_path.push(SurfaceId::MainWindow);
+    }
+
     pub fn focus_panel(&mut self, panel: PanelId) {
+        self.set_focus_panel_path(panel);
+        self.set_mode(InteractionMode::Normal);
+    }
+
+    pub fn set_focus_panel_path(&mut self, panel: PanelId) {
         self.focus_path.clear();
         self.focus_path.push(SurfaceId::AppRoot);
         self.focus_path.push(SurfaceId::MainWindow);
         self.focus_path.push(SurfaceId::workspace_surface(panel));
-        self.set_mode(InteractionMode::Normal);
+    }
+}
+
+fn owner_for_mode(mode: InteractionMode) -> Option<SurfaceId> {
+    match mode {
+        InteractionMode::Capture { owner } | InteractionMode::Modal { owner } => Some(owner),
+        InteractionMode::Normal | InteractionMode::NavigateChildren(_) => None,
     }
 }
 

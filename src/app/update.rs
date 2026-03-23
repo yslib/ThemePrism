@@ -182,6 +182,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         Intent::CommitTextInput => commit_text_input(state),
         Intent::CancelTextInput => {
             state.ui.text_input = None;
+            pop_modal_owner(state, SurfaceId::NumericEditorSurface);
             state.ui.status = tr(state, UiText::StatusInputCancelled);
             Vec::new()
         }
@@ -216,6 +217,7 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         }
         Intent::CloseSourcePicker => {
             state.ui.source_picker = None;
+            pop_modal_owner(state, SurfaceId::SourcePicker);
             state.ui.status = tr(state, UiText::StatusSourcePickerClosed);
             Vec::new()
         }
@@ -328,6 +330,7 @@ fn cycle_preview_mode(state: &mut AppState, delta: i32) {
         state.preview.active_mode.previous()
     };
     state.preview.capture_active = false;
+    pop_capture_owner(state, SurfaceId::PreviewBody);
     state.preview.runtime_status.clear();
     if state.preview.active_mode.is_runtime_backed() {
         state.preview.runtime_frame = PreviewFrame::placeholder(
@@ -350,6 +353,11 @@ fn set_preview_capture(state: &mut AppState, active: bool) {
     }
 
     state.preview.capture_active = active;
+    if active {
+        push_capture_owner(state, SurfaceId::PreviewBody);
+    } else {
+        pop_capture_owner(state, SurfaceId::PreviewBody);
+    }
     state.ui.status = if active {
         tr1(
             state,
@@ -373,6 +381,7 @@ fn apply_preview_runtime_event(state: &mut AppState, event: PreviewRuntimeEvent)
         }
         PreviewRuntimeEvent::Exited { message } => {
             state.preview.capture_active = false;
+            pop_capture_owner(state, SurfaceId::PreviewBody);
             state.preview.runtime_status = tr1(
                 state,
                 UiText::StatusPreviewProcessExited,
@@ -583,6 +592,58 @@ fn set_interaction_mode(state: &mut AppState, mode: InteractionMode) {
             "surface",
             surface_label(state, surface),
         );
+    }
+}
+
+fn push_modal_owner(state: &mut AppState, owner: SurfaceId) {
+    let mode = InteractionMode::Modal { owner };
+    if state.ui.interaction.current_mode() != mode {
+        state.ui.interaction.push_mode(mode);
+    }
+}
+
+fn pop_modal_owner(state: &mut AppState, owner: SurfaceId) {
+    if state.ui.interaction.current_mode() == (InteractionMode::Modal { owner }) {
+        state.ui.interaction.pop_mode();
+    }
+}
+
+fn push_capture_owner(state: &mut AppState, owner: SurfaceId) {
+    let mode = InteractionMode::Capture { owner };
+    if state.ui.interaction.current_mode() != mode {
+        state.ui.interaction.push_mode(mode);
+    }
+}
+
+fn pop_capture_owner(state: &mut AppState, owner: SurfaceId) {
+    if state.ui.interaction.current_mode() == (InteractionMode::Capture { owner }) {
+        state.ui.interaction.pop_mode();
+    }
+}
+
+fn close_text_input_surface(state: &mut AppState) {
+    if state.ui.text_input.take().is_some() {
+        pop_modal_owner(state, SurfaceId::NumericEditorSurface);
+    }
+}
+
+fn close_source_picker_surface(state: &mut AppState) {
+    if state.ui.source_picker.take().is_some() {
+        pop_modal_owner(state, SurfaceId::SourcePicker);
+    }
+}
+
+fn close_config_surface(state: &mut AppState) {
+    if state.ui.config_modal.take().is_some() {
+        pop_modal_owner(state, SurfaceId::ConfigDialog);
+    }
+}
+
+fn close_shortcut_help_surface(state: &mut AppState) {
+    if state.ui.shortcut_help_open {
+        state.ui.shortcut_help_open = false;
+        state.ui.shortcut_help_scroll = 0;
+        pop_modal_owner(state, SurfaceId::ShortcutHelp);
     }
 }
 
@@ -900,9 +961,9 @@ fn cycle_fixed_color_for_role(state: &mut AppState, role: TokenRole, delta: i32)
 
 fn open_text_input(state: &mut AppState, target: TextInputTarget) {
     let buffer = default_input_buffer(state, target);
-    state.ui.interaction.set_mode(InteractionMode::Normal);
-    state.ui.shortcut_help_open = false;
+    close_shortcut_help_surface(state);
     state.ui.text_input = Some(TextInputState { target, buffer });
+    push_modal_owner(state, SurfaceId::NumericEditorSurface);
     state.ui.status = match target {
         TextInputTarget::Control(control) if control.supports_numeric_editor() => tr1(
             state,
@@ -932,13 +993,13 @@ fn open_source_picker(state: &mut AppState, control: ControlId) {
         .and_then(|source| options.iter().position(|option| option.source == *source))
         .unwrap_or_default();
 
-    state.ui.interaction.set_mode(InteractionMode::Normal);
-    state.ui.shortcut_help_open = false;
+    close_shortcut_help_surface(state);
     state.ui.source_picker = Some(SourcePickerState {
         control,
         filter: String::new(),
         selected,
     });
+    push_modal_owner(state, SurfaceId::SourcePicker);
     state.ui.status = tr1(
         state,
         UiText::StatusSelectingSource,
@@ -1016,7 +1077,7 @@ fn commit_text_input(state: &mut AppState) -> Vec<Effect> {
 
     match result {
         Ok(status) => {
-            state.ui.text_input = None;
+            close_text_input_surface(state);
             state.ui.status = status;
             effects_for_text_target(state, input.target)
         }
@@ -1067,7 +1128,7 @@ fn apply_source_picker_selection(state: &mut AppState) {
 
     match result {
         Ok(()) => {
-            state.ui.source_picker = None;
+            close_source_picker_surface(state);
             state.ui.status = tr2(
                 state,
                 UiText::StatusSourceApplied,
@@ -1450,20 +1511,20 @@ fn input_target_label(state: &AppState, target: TextInputTarget) -> String {
 }
 
 fn open_config_modal(state: &mut AppState) {
-    state.ui.source_picker = None;
-    state.ui.text_input = None;
-    state.ui.shortcut_help_open = false;
-    state.ui.interaction.set_mode(InteractionMode::Normal);
-    state.ui.interaction.focus_root();
+    close_source_picker_surface(state);
+    close_text_input_surface(state);
+    close_shortcut_help_surface(state);
+    state.ui.interaction.set_focus_root_path();
     state.ui.config_modal = Some(ConfigModalState { selected_field: 0 });
+    push_modal_owner(state, SurfaceId::ConfigDialog);
     state.ui.status = tr(state, UiText::StatusConfigOpened);
 }
 
 fn close_config_modal(state: &mut AppState) {
     let was_open = state.ui.config_modal.take().is_some();
-    state.ui.text_input = None;
-    state.ui.interaction.set_mode(InteractionMode::Normal);
-    state.ui.interaction.focus_root();
+    close_text_input_surface(state);
+    pop_modal_owner(state, SurfaceId::ConfigDialog);
+    state.ui.interaction.set_focus_root_path();
     if was_open {
         state.ui.status = tr(state, UiText::StatusConfigClosed);
     }
@@ -1472,19 +1533,17 @@ fn close_config_modal(state: &mut AppState) {
 fn toggle_shortcut_help(state: &mut AppState) {
     let next = !state.ui.shortcut_help_open;
     if next {
-        state.ui.source_picker = None;
-        state.ui.text_input = None;
-        state.ui.config_modal = None;
-        state.ui.interaction.set_mode(InteractionMode::Normal);
-        state.ui.interaction.focus_root();
+        close_source_picker_surface(state);
+        close_text_input_surface(state);
+        close_config_surface(state);
+        state.ui.interaction.set_focus_root_path();
         state.ui.shortcut_help_open = true;
         state.ui.shortcut_help_scroll = 0;
+        push_modal_owner(state, SurfaceId::ShortcutHelp);
         state.ui.status = tr(state, UiText::StatusHelpOpened);
     } else {
-        state.ui.shortcut_help_open = false;
-        state.ui.shortcut_help_scroll = 0;
-        state.ui.interaction.set_mode(InteractionMode::Normal);
-        state.ui.interaction.focus_root();
+        close_shortcut_help_surface(state);
+        state.ui.interaction.set_focus_root_path();
         state.ui.status = tr(state, UiText::StatusHelpClosed);
     }
 }
@@ -1919,8 +1978,11 @@ pub fn apply_source_to_control(control: ControlId, rule: &mut Rule, source: Sour
 mod tests {
     use super::*;
     use crate::app::controls::ControlId;
+    use crate::app::interaction::{InteractionMode, SurfaceId, effective_focus_path};
     use crate::app::workspace::{PanelId, WorkspaceTab};
+    use crate::domain::preview::PreviewRuntimeEvent;
     use crate::domain::params::ParamKey;
+    use crate::domain::tokens::TokenRole;
 
     #[test]
     fn active_numeric_input_steps_and_syncs_buffer() {
@@ -1988,6 +2050,7 @@ mod tests {
             PreviewFrame::Placeholder(_)
         ));
         assert!(!state.preview.runtime_status.is_empty());
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
     }
 
     #[test]
@@ -1998,9 +2061,163 @@ mod tests {
 
         update(&mut state, Intent::SetPreviewCapture(true));
         assert!(!state.preview.capture_active);
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
 
         state.preview.active_mode = crate::preview::PreviewMode::Shell;
         update(&mut state, Intent::SetPreviewCapture(true));
         assert!(state.preview.capture_active);
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            InteractionMode::Capture {
+                owner: SurfaceId::PreviewBody,
+            }
+        );
+        assert_eq!(
+            effective_focus_path(&state),
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::PreviewPanel,
+                SurfaceId::PreviewBody,
+            ]
+        );
+
+        update(&mut state, Intent::SetPreviewCapture(false));
+        assert!(!state.preview.capture_active);
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
+    }
+
+    #[test]
+    fn modal_flows_push_and_pop_owned_stack_entries() {
+        let mut state = AppState::new().expect("state should build");
+        state.set_active_panel(PanelId::Params);
+        state.ui.interaction.focus_panel(PanelId::Params);
+
+        update(
+            &mut state,
+            Intent::ActivateControl(ControlId::Param(ParamKey::BackgroundHue)),
+        );
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            InteractionMode::Modal {
+                owner: SurfaceId::NumericEditorSurface,
+            }
+        );
+        assert_eq!(
+            effective_focus_path(&state),
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::ParamsPanel,
+                SurfaceId::NumericEditorSurface,
+            ]
+        );
+
+        update(&mut state, Intent::CancelTextInput);
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
+        assert_eq!(
+            effective_focus_path(&state),
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::ParamsPanel,
+            ]
+        );
+
+        update(
+            &mut state,
+            Intent::ActivateControl(ControlId::Reference(
+                TokenRole::Text,
+                crate::app::controls::ReferenceField::AliasSource,
+            )),
+        );
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            InteractionMode::Modal {
+                owner: SurfaceId::SourcePicker,
+            }
+        );
+
+        update(&mut state, Intent::CloseSourcePicker);
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
+        assert_eq!(
+            effective_focus_path(&state),
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::ParamsPanel,
+            ]
+        );
+    }
+
+    #[test]
+    fn config_and_help_flows_use_stack_owners() {
+        let mut state = AppState::new().expect("state should build");
+        state.set_active_panel(PanelId::Inspector);
+        state.ui.interaction.focus_panel(PanelId::Inspector);
+
+        update(&mut state, Intent::OpenConfigRequested);
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            InteractionMode::Modal {
+                owner: SurfaceId::ConfigDialog,
+            }
+        );
+        assert_eq!(
+            effective_focus_path(&state),
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::ConfigDialog,
+            ]
+        );
+
+        update(&mut state, Intent::ToggleShortcutHelpRequested);
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            InteractionMode::Modal {
+                owner: SurfaceId::ShortcutHelp,
+            }
+        );
+        assert_eq!(
+            effective_focus_path(&state),
+            vec![
+                SurfaceId::AppRoot,
+                SurfaceId::MainWindow,
+                SurfaceId::ShortcutHelp,
+            ]
+        );
+
+        update(&mut state, Intent::ToggleShortcutHelpRequested);
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
+
+        update(&mut state, Intent::OpenConfigRequested);
+        update(&mut state, Intent::CloseConfigRequested);
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
+    }
+
+    #[test]
+    fn preview_runtime_exit_releases_capture_mode() {
+        let mut state = AppState::new().expect("state should build");
+        state.set_active_panel(PanelId::Preview);
+        state.ui.interaction.focus_panel(PanelId::Preview);
+        state.preview.active_mode = crate::preview::PreviewMode::Shell;
+
+        update(&mut state, Intent::SetPreviewCapture(true));
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            InteractionMode::Capture {
+                owner: SurfaceId::PreviewBody,
+            }
+        );
+
+        update(
+            &mut state,
+            Intent::PreviewRuntimeEvent(PreviewRuntimeEvent::Exited {
+                message: "preview exited".to_string(),
+            }),
+        );
+        assert!(!state.preview.capture_active);
+        assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
     }
 }

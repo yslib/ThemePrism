@@ -50,14 +50,10 @@ pub fn effective_focus_path(state: &AppState) -> Vec<SurfaceId> {
         state.ui.interaction.focus_path.clone()
     };
 
-    if state.ui.text_input.is_some() {
-        path.push(SurfaceId::NumericEditorSurface);
-    } else if state.ui.source_picker.is_some() {
-        path.push(SurfaceId::SourcePicker);
-    } else if state.ui.config_modal.is_some() {
-        path.push(SurfaceId::ConfigDialog);
-    } else if state.ui.shortcut_help_open {
-        path.push(SurfaceId::ShortcutHelp);
+    if let Some(owner) = state.ui.interaction.current_owner() {
+        if path.last().copied() != Some(owner) {
+            path.push(owner);
+        }
     }
 
     path
