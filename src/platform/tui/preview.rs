@@ -34,8 +34,14 @@ impl PreviewRuntimeController {
         tree: &ViewTree,
         area: Rect,
     ) -> Result<(), String> {
+        let preview_hidden_by_fullscreen = tree
+            .main_window
+            .fullscreen_panel
+            .is_some_and(|panel| panel != PanelId::Preview);
         let Some(size) = preview_body_size(tree, area) else {
-            self.stop_current();
+            if !preview_hidden_by_fullscreen {
+                self.stop_current();
+            }
             return Ok(());
         };
 
@@ -402,4 +408,36 @@ fn preview_body_size(tree: &ViewTree, area: Rect) -> Option<PreviewSize> {
         cols: body.width.max(1),
         rows: body.height.max(1),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PreviewRuntimeController, PreviewSize};
+    use crate::app::AppState;
+    use crate::app::interaction::SurfaceId;
+    use crate::app::view::build_view;
+    use crate::core::CoreSession;
+    use crate::domain::preview::PreviewMode;
+    use ratatui::layout::Rect;
+
+    #[test]
+    fn fullscreening_a_non_preview_panel_does_not_drop_runtime_preview_state() {
+        let mut state = AppState::new().expect("state");
+        state.preview.active_mode = PreviewMode::Shell;
+        state.ui.fullscreen_surface = Some(SurfaceId::InspectorPanel);
+        let view = build_view(&state);
+        let mut session = CoreSession::new(state);
+        let mut controller = PreviewRuntimeController {
+            active_mode: Some(PreviewMode::Shell),
+            session: None,
+            last_size: Some(PreviewSize { cols: 80, rows: 20 }),
+        };
+
+        controller
+            .sync(&mut session, &view, Rect::new(0, 0, 120, 40))
+            .expect("sync");
+
+        assert_eq!(controller.active_mode, Some(PreviewMode::Shell));
+        assert_eq!(controller.last_size, Some(PreviewSize { cols: 80, rows: 20 }));
+    }
 }
