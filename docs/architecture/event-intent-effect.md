@@ -4,7 +4,7 @@
 
 这份文档专门回答下面这个问题：
 
-> 为什么 UI 架构里经常会出现 `Event -> Intent -> Update -> Effect` 这条链？  
+> 为什么 UI 架构里经常会出现 `Event -> Intent -> Update -> Effect` 这条链？
 > 这些概念分别是什么？边界在哪里？
 
 它是上一份跨平台 UI 架构文档的补充版，但更短，更聚焦。

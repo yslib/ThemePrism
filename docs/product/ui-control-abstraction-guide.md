@@ -352,7 +352,7 @@ VectorControl
 
 ### 结论
 
-如果你要跨 TUI/GUI，**多维值不要把“2D 面板拖动”当核心抽象**。  
+如果你要跨 TUI/GUI，**多维值不要把“2D 面板拖动”当核心抽象**。
 核心抽象应该是“多通道数值 + 可选的 direct manipulation 表现”。
 
 ---
@@ -709,8 +709,8 @@ ThemeParams 基本全是 **标量编辑器**。
 
 ### 重要建议
 
-如果你后面做 GUI，**不要把 GUI 版 Color Picker 的核心抽象定义成“色轮”**。  
-色轮只是 GUI 渲染方式之一。  
+如果你后面做 GUI，**不要把 GUI 版 Color Picker 的核心抽象定义成“色轮”**。
+色轮只是 GUI 渲染方式之一。
 核心抽象应该仍然是：
 
 - 颜色值
@@ -1134,7 +1134,7 @@ Renderer 只消费：
 
 ### 结论 1
 
-**不要把控件理解成 slider、dropdown、switch 这些“长相”。**  
+**不要把控件理解成 slider、dropdown、switch 这些“长相”。**
 正确的抽象是：
 
 - scalar
@@ -1150,7 +1150,7 @@ Renderer 只消费：
 
 ### 结论 2
 
-**TUI 和 GUI 的公共交集，不在 direct manipulation，而在语义化编辑。**  
+**TUI 和 GUI 的公共交集，不在 direct manipulation，而在语义化编辑。**
 也就是说：
 
 - TUI/GUI 可以共享 “我要编辑一个 scalar”

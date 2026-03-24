@@ -10,8 +10,8 @@
 
 这时就会出现一个关键问题：
 
-> 之前我们说共享层输出 `ViewTree`。  
-> 但如果以后 Rust 只当 core，外面是 AppKit/SwiftUI，那么还应该输出 `ViewTree` 吗？  
+> 之前我们说共享层输出 `ViewTree`。
+> 但如果以后 Rust 只当 core，外面是 AppKit/SwiftUI，那么还应该输出 `ViewTree` 吗？
 > `Snapshot`、`ViewModel` 和 `ViewTree` 到底有什么区别？
 
 这份文档就是专门把这个边界讲清楚。
@@ -716,4 +716,3 @@ src/
 再补一句：
 
 4. **`Intent / Update / Effect / State` 才是真正最稳定的 core。**
-

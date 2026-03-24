@@ -158,7 +158,7 @@ fn build_view(state: &UiState, domain: &DomainState) -> ViewNode
 fn render(&self, native_ctx: &mut XxxPlatformContext)
 ```
 
-前者是纯数据构造。  
+前者是纯数据构造。
 后者会把平台依赖渗进来。
 
 ---
@@ -299,7 +299,7 @@ ReferencePickerSpec {
 
 ### 这层是共享层和 renderer 的接口核心
 
-因为平台层不该直接读业务对象然后自己决定怎么渲染。  
+因为平台层不该直接读业务对象然后自己决定怎么渲染。
 它应该消费已经整理好的 ViewModel / ControlSpec。
 
 ---
@@ -596,7 +596,7 @@ Intent::AdjustScalar(control_id, -1)
 - 当前选中项
 - 表单校验错误
 
-这些其实不该是平台层私有状态。  
+这些其实不该是平台层私有状态。
 不然 TUI 和 GUI 会有不同的行为。
 
 ---
