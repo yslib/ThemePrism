@@ -32,6 +32,11 @@ impl CoreSession {
         self.state.ui.status = message.into();
     }
 
+    pub fn clamp_interaction_inspector_scroll(&mut self, max_scroll: u16) {
+        self.state.ui.interaction_inspector_scroll =
+            self.state.ui.interaction_inspector_scroll.min(max_scroll);
+    }
+
     pub fn dispatch(&mut self, intent: Intent) {
         self.dispatch_all([intent]);
     }

@@ -140,17 +140,7 @@ impl TuiRenderer {
             .border_style(Style::default().fg(tui(border)));
         let inner = block.inner(area);
         frame.render_widget(block, area);
-
-        let tab_height = u16::from(!view.tabs.is_empty());
-        let header_height = view.header_lines.len() as u16;
-        let sections = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(tab_height),
-                Constraint::Length(header_height),
-                Constraint::Min(1),
-            ])
-            .split(inner);
+        let sections = panel_body_sections(view, inner);
 
         if !view.tabs.is_empty() {
             self.render_panel_tabs(frame, sections[0], &view.tabs, theme);
@@ -328,7 +318,7 @@ impl TuiRenderer {
             .map(Line::from)
             .collect::<Vec<_>>();
         let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
-        let scroll = clamped_vertical_scroll(&paragraph, document.scroll, area);
+        let scroll = document.scroll.min(max_document_scroll(&paragraph, area));
 
         frame.render_widget(
             paragraph.scroll((scroll, 0)),
@@ -530,7 +520,7 @@ impl TuiRenderer {
                     .map(|line| styled_line_to_tui(line, theme))
                     .collect::<Vec<_>>();
                 let paragraph = Paragraph::new(body).wrap(Wrap { trim: false });
-                let scroll = clamped_vertical_scroll(&paragraph, *scroll, sections[0]);
+                let scroll = (*scroll).min(max_document_scroll(&paragraph, sections[0]));
                 frame.render_widget(
                     paragraph.scroll((scroll, 0)),
                     sections[0],
@@ -552,6 +542,12 @@ impl TuiRenderer {
             sections[1],
         );
     }
+}
+
+pub(crate) fn panel_body_area(panel: &PanelView, area: Rect) -> Rect {
+    let block = Block::default().title(panel.title.as_str()).borders(Borders::ALL);
+    let inner = block.inner(area);
+    panel_body_sections(panel, inner)[2]
 }
 
 fn fitting_action_spans(
@@ -599,14 +595,29 @@ fn action_hint_spans(
     ]
 }
 
-fn clamped_vertical_scroll(paragraph: &Paragraph<'_>, requested: u16, area: Rect) -> u16 {
+fn panel_body_sections(panel: &PanelView, inner: Rect) -> [Rect; 3] {
+    let tab_height = u16::from(!panel.tabs.is_empty());
+    let header_height = panel.header_lines.len() as u16;
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(tab_height),
+            Constraint::Length(header_height),
+            Constraint::Min(1),
+        ])
+        .split(inner);
+
+    [sections[0], sections[1], sections[2]]
+}
+
+pub(crate) fn max_document_scroll(paragraph: &Paragraph<'_>, area: Rect) -> u16 {
     if area.height == 0 || area.width == 0 {
         return 0;
     }
 
     let rendered_line_count = paragraph.line_count(area.width);
     let max_scroll = rendered_line_count.saturating_sub(area.height as usize) as u16;
-    requested.min(max_scroll)
+    max_scroll
 }
 
 fn to_constraint(size: Size) -> Constraint {
@@ -619,35 +630,26 @@ fn to_constraint(size: Size) -> Constraint {
 
 #[cfg(test)]
 mod tests {
-    use super::clamped_vertical_scroll;
+    use super::max_document_scroll;
     use ratatui::layout::Rect;
     use ratatui::widgets::{Paragraph, Wrap};
 
     #[test]
     fn vertical_scroll_is_clamped_to_last_visible_line() {
         let paragraph = Paragraph::new("1234 5678 90").wrap(Wrap { trim: false });
-        assert_eq!(
-            clamped_vertical_scroll(&paragraph, 99, Rect::new(0, 0, 4, 2)),
-            1
-        );
+        assert_eq!(max_document_scroll(&paragraph, Rect::new(0, 0, 4, 2)), 1);
     }
 
     #[test]
     fn vertical_scroll_is_zero_when_viewport_is_taller_than_content() {
         let paragraph = Paragraph::new("short").wrap(Wrap { trim: false });
-        assert_eq!(
-            clamped_vertical_scroll(&paragraph, 4, Rect::new(0, 0, 10, 8)),
-            0
-        );
+        assert_eq!(max_document_scroll(&paragraph, Rect::new(0, 0, 10, 8)), 0);
     }
 
     #[test]
     fn vertical_scroll_is_zero_for_zero_height_viewports() {
         let paragraph = Paragraph::new("wrapped text").wrap(Wrap { trim: false });
-        assert_eq!(
-            clamped_vertical_scroll(&paragraph, 4, Rect::new(0, 0, 10, 0)),
-            0
-        );
+        assert_eq!(max_document_scroll(&paragraph, Rect::new(0, 0, 10, 0)), 0);
     }
 }
 

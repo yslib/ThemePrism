@@ -21,20 +21,13 @@ pub(crate) fn build_interaction_panel(state: &AppState) -> PanelView {
         tabs: Vec::new(),
         header_lines: Vec::new(),
         body: PanelBody::Document(DocumentView {
-            scroll: state
-                .ui
-                .interaction_inspector_scroll
-                .min(interaction_panel_max_scroll_for_lines(&lines)),
+            scroll: state.ui.interaction_inspector_scroll,
             lines,
         }),
     }
 }
 
-pub(crate) fn interaction_panel_max_scroll(state: &AppState) -> u16 {
-    interaction_panel_max_scroll_for_lines(&interaction_panel_lines(state))
-}
-
-pub(crate) fn interaction_panel_lines(state: &AppState) -> Vec<StyledLine> {
+fn interaction_panel_lines(state: &AppState) -> Vec<StyledLine> {
     let tree = build_interaction_tree(state);
     let focus_path = effective_focus_path(state);
     let focused = focus_path.last().copied();
@@ -86,10 +79,6 @@ pub(crate) fn interaction_panel_lines(state: &AppState) -> Vec<StyledLine> {
     );
 
     lines
-}
-
-fn interaction_panel_max_scroll_for_lines(lines: &[StyledLine]) -> u16 {
-    lines.len().saturating_sub(1).min(u16::MAX as usize) as u16
 }
 
 fn append_tree_lines(
