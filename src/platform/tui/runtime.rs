@@ -102,14 +102,12 @@ fn sync_tui_view_state(session: &mut CoreSession, area: Rect) {
     let workspace_layout = workspace_layout_for_tab(session.state().ui.active_tab);
     let Some(panel_area) = panel_area(&workspace_layout, workspace_area, PanelId::InteractionInspector)
     else {
-        session.clamp_interaction_inspector_scroll(0);
         return;
     };
 
     let panel = build_interaction_panel(session.state());
     let body_area = panel_body_area(&panel, panel_area);
     let PanelBody::Document(document) = &panel.body else {
-        session.clamp_interaction_inspector_scroll(0);
         return;
     };
     let paragraph = ratatui::widgets::Paragraph::new(
@@ -163,6 +161,25 @@ mod tests {
         sync_tui_view_state(&mut session, Rect::new(0, 0, 90, 28));
 
         assert!(before > session.state().ui.interaction_inspector_scroll);
+    }
+
+    #[test]
+    fn sync_tui_view_state_preserves_inspector_scroll_when_panel_is_hidden() {
+        let mut session = CoreSession::new(AppState::new().expect("state"));
+        session.dispatch(Intent::FocusPanelByNumber(8));
+        for _ in 0..24 {
+            session.dispatch(Intent::MoveSelection(1));
+        }
+        sync_tui_view_state(&mut session, Rect::new(0, 0, 90, 28));
+        let theme_scroll = session.state().ui.interaction_inspector_scroll;
+
+        session.dispatch(Intent::CycleWorkspaceTab(1));
+        sync_tui_view_state(&mut session, Rect::new(0, 0, 90, 28));
+        assert_eq!(session.state().ui.interaction_inspector_scroll, theme_scroll);
+
+        session.dispatch(Intent::CycleWorkspaceTab(1));
+        sync_tui_view_state(&mut session, Rect::new(0, 0, 90, 28));
+        assert_eq!(session.state().ui.interaction_inspector_scroll, theme_scroll);
     }
 
     #[test]
