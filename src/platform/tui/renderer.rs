@@ -327,12 +327,11 @@ impl TuiRenderer {
             })
             .map(Line::from)
             .collect::<Vec<_>>();
-        let scroll = clamped_vertical_scroll(document.scroll, lines.len(), area.height);
+        let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
+        let scroll = clamped_vertical_scroll(&paragraph, document.scroll, area);
 
         frame.render_widget(
-            Paragraph::new(lines)
-                .wrap(Wrap { trim: false })
-                .scroll((scroll, 0)),
+            paragraph.scroll((scroll, 0)),
             area,
         );
     }
@@ -530,11 +529,10 @@ impl TuiRenderer {
                     .iter()
                     .map(|line| styled_line_to_tui(line, theme))
                     .collect::<Vec<_>>();
-                let scroll = clamped_vertical_scroll(*scroll, body.len(), sections[0].height);
+                let paragraph = Paragraph::new(body).wrap(Wrap { trim: false });
+                let scroll = clamped_vertical_scroll(&paragraph, *scroll, sections[0]);
                 frame.render_widget(
-                    Paragraph::new(body)
-                        .wrap(Wrap { trim: false })
-                        .scroll((scroll, 0)),
+                    paragraph.scroll((scroll, 0)),
                     sections[0],
                 );
             }
@@ -601,12 +599,13 @@ fn action_hint_spans(
     ]
 }
 
-fn clamped_vertical_scroll(requested: u16, line_count: usize, viewport_height: u16) -> u16 {
-    if viewport_height == 0 {
+fn clamped_vertical_scroll(paragraph: &Paragraph<'_>, requested: u16, area: Rect) -> u16 {
+    if area.height == 0 || area.width == 0 {
         return 0;
     }
 
-    let max_scroll = line_count.saturating_sub(viewport_height as usize) as u16;
+    let rendered_line_count = paragraph.line_count(area.width);
+    let max_scroll = rendered_line_count.saturating_sub(area.height as usize) as u16;
     requested.min(max_scroll)
 }
 
@@ -621,20 +620,34 @@ fn to_constraint(size: Size) -> Constraint {
 #[cfg(test)]
 mod tests {
     use super::clamped_vertical_scroll;
+    use ratatui::layout::Rect;
+    use ratatui::widgets::{Paragraph, Wrap};
 
     #[test]
     fn vertical_scroll_is_clamped_to_last_visible_line() {
-        assert_eq!(clamped_vertical_scroll(99, 12, 5), 7);
+        let paragraph = Paragraph::new("1234 5678 90").wrap(Wrap { trim: false });
+        assert_eq!(
+            clamped_vertical_scroll(&paragraph, 99, Rect::new(0, 0, 4, 2)),
+            1
+        );
     }
 
     #[test]
     fn vertical_scroll_is_zero_when_viewport_is_taller_than_content() {
-        assert_eq!(clamped_vertical_scroll(4, 3, 8), 0);
+        let paragraph = Paragraph::new("short").wrap(Wrap { trim: false });
+        assert_eq!(
+            clamped_vertical_scroll(&paragraph, 4, Rect::new(0, 0, 10, 8)),
+            0
+        );
     }
 
     #[test]
     fn vertical_scroll_is_zero_for_zero_height_viewports() {
-        assert_eq!(clamped_vertical_scroll(4, 10, 0), 0);
+        let paragraph = Paragraph::new("wrapped text").wrap(Wrap { trim: false });
+        assert_eq!(
+            clamped_vertical_scroll(&paragraph, 4, Rect::new(0, 0, 10, 0)),
+            0
+        );
     }
 }
 
