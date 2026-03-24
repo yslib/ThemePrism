@@ -9,7 +9,9 @@ mod types;
 mod window;
 
 #[allow(unused_imports)]
-pub(crate) use interaction_panel::build_interaction_panel;
+pub(crate) use interaction_panel::{
+    build_interaction_panel, interaction_panel_lines, interaction_panel_max_scroll,
+};
 #[allow(unused_imports)]
 pub use layout::{
     LayoutChild, WorkspaceLayout, child, column, compose_layout, default_workspace_layout, panel,

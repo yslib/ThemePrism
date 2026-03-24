@@ -6,7 +6,7 @@ use crate::app::state::{
     AppState, ConfigFieldId, ConfigModalState, FocusPane, SourcePickerState, TextInputState,
     TextInputTarget,
 };
-use crate::app::view::{panel_order, workspace_layout_for_tab};
+use crate::app::view::{interaction_panel_max_scroll, panel_order, workspace_layout_for_tab};
 use crate::app::workspace::PanelId;
 use crate::domain::color::Color;
 use crate::domain::params::{ParamKey, ThemeParams};
@@ -498,7 +498,7 @@ fn move_selection(state: &mut AppState, delta: i32) {
             move_project_field_selection(state, PanelId::EditorPreferences, delta)
         }
         PanelId::InteractionInspector => {
-            state.ui.interaction_inspector_scroll = if delta < 0 {
+            let next_scroll = if delta < 0 {
                 state.ui
                     .interaction_inspector_scroll
                     .saturating_sub(delta.unsigned_abs() as u16)
@@ -507,6 +507,8 @@ fn move_selection(state: &mut AppState, delta: i32) {
                     .interaction_inspector_scroll
                     .saturating_add(delta as u16)
             };
+            state.ui.interaction_inspector_scroll =
+                next_scroll.min(interaction_panel_max_scroll(state));
         }
         PanelId::Preview
         | PanelId::Palette
@@ -1991,6 +1993,7 @@ mod tests {
     use super::*;
     use crate::app::controls::ControlId;
     use crate::app::interaction::{InteractionMode, SurfaceId, effective_focus_path};
+    use crate::app::view::interaction_panel_max_scroll;
     use crate::app::workspace::{PanelId, WorkspaceTab};
     use crate::domain::params::ParamKey;
     use crate::domain::preview::PreviewRuntimeEvent;
@@ -2063,6 +2066,22 @@ mod tests {
 
         assert!(state.ui.interaction_inspector_scroll > 0);
         assert_eq!(state.ui.status, previous_status);
+    }
+
+    #[test]
+    fn interaction_inspector_scroll_is_bounded_by_content_length() {
+        let mut state = AppState::new().expect("state should build");
+        state.set_active_panel(PanelId::InteractionInspector);
+        state.ui.interaction.focus_panel(PanelId::InteractionInspector);
+
+        for _ in 0..256 {
+            update(&mut state, Intent::MoveSelection(1));
+        }
+
+        assert_eq!(
+            state.ui.interaction_inspector_scroll,
+            interaction_panel_max_scroll(&state)
+        );
     }
 
     #[test]

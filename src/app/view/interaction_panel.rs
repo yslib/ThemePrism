@@ -11,6 +11,30 @@ use super::styled::{colored_span, plain_span};
 use super::{DocumentView, PanelBody, PanelView, SpanStyle, StyledLine, StyledSpan};
 
 pub(crate) fn build_interaction_panel(state: &AppState) -> PanelView {
+    let lines = interaction_panel_lines(state);
+
+    PanelView {
+        id: PanelId::InteractionInspector,
+        title: i18n::text(state.locale(), UiText::PanelInteractionInspector),
+        active: false,
+        shortcut: None,
+        tabs: Vec::new(),
+        header_lines: Vec::new(),
+        body: PanelBody::Document(DocumentView {
+            scroll: state
+                .ui
+                .interaction_inspector_scroll
+                .min(interaction_panel_max_scroll_for_lines(&lines)),
+            lines,
+        }),
+    }
+}
+
+pub(crate) fn interaction_panel_max_scroll(state: &AppState) -> u16 {
+    interaction_panel_max_scroll_for_lines(&interaction_panel_lines(state))
+}
+
+pub(crate) fn interaction_panel_lines(state: &AppState) -> Vec<StyledLine> {
     let tree = build_interaction_tree(state);
     let focus_path = effective_focus_path(state);
     let focused = focus_path.last().copied();
@@ -61,18 +85,11 @@ pub(crate) fn build_interaction_panel(state: &AppState) -> PanelView {
         &mut lines,
     );
 
-    PanelView {
-        id: PanelId::InteractionInspector,
-        title: i18n::text(locale, UiText::PanelInteractionInspector),
-        active: false,
-        shortcut: None,
-        tabs: Vec::new(),
-        header_lines: Vec::new(),
-        body: PanelBody::Document(DocumentView {
-            lines,
-            scroll: state.ui.interaction_inspector_scroll,
-        }),
-    }
+    lines
+}
+
+fn interaction_panel_max_scroll_for_lines(lines: &[StyledLine]) -> u16 {
+    lines.len().saturating_sub(1).min(u16::MAX as usize) as u16
 }
 
 fn append_tree_lines(
@@ -118,6 +135,11 @@ fn append_tree_lines(
 fn capability_badges(node: &SurfaceNode) -> Vec<String> {
     let mut badges = Vec::new();
 
+    badges.push(if node.visible {
+        "visible".to_string()
+    } else {
+        "hidden".to_string()
+    });
     if node.focusable {
         badges.push("focus".to_string());
     }

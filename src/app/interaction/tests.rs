@@ -245,6 +245,7 @@ fn interaction_inspector_lists_focus_path_and_modes() {
         .join("");
     assert!(body.contains("PreviewBody"));
     assert!(body.contains("Capture"));
+    assert!(body.contains("[visible]"));
 }
 
 #[test]
