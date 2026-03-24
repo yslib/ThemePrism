@@ -109,6 +109,9 @@ pub fn surface_label(state: &AppState, surface: SurfaceId) -> String {
             i18n::panel_label(state.locale(), PanelId::ResolvedSecondary)
         }
         SurfaceId::InspectorPanel => i18n::panel_label(state.locale(), PanelId::Inspector),
+        SurfaceId::InteractionInspectorPanel => {
+            i18n::panel_label(state.locale(), PanelId::InteractionInspector)
+        }
         SurfaceId::ProjectConfigPanel => i18n::panel_label(state.locale(), PanelId::ProjectConfig),
         SurfaceId::ExportTargetsPanel => i18n::panel_label(state.locale(), PanelId::ExportTargets),
         SurfaceId::EditorPreferencesPanel => {

@@ -373,7 +373,8 @@ impl AppState {
             | PanelId::Preview
             | PanelId::Palette
             | PanelId::ResolvedPrimary
-            | PanelId::ResolvedSecondary => None,
+            | PanelId::ResolvedSecondary
+            | PanelId::InteractionInspector => None,
             PanelId::Params => Some(ControlId::Param(self.selected_param_key())),
             PanelId::Inspector => match (self.selected_rule(), self.ui.inspector_field) {
                 (crate::domain::rules::Rule::Alias { .. }, 0) => {

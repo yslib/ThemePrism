@@ -54,6 +54,10 @@ impl InteractionState {
             .unwrap_or(InteractionMode::Normal)
     }
 
+    pub fn mode_stack(&self) -> &[InteractionMode] {
+        &self.mode_stack
+    }
+
     pub fn push_mode(&mut self, mode: InteractionMode) {
         self.mode_stack.push(mode);
     }
@@ -104,11 +108,11 @@ impl InteractionState {
     }
 
     pub fn has_mode_for(&self, surface: SurfaceId) -> bool {
-        self.mode_stack
-            .iter()
-            .any(|mode| matches!(mode, InteractionMode::NavigateChildren(target) if *target == surface)
+        self.mode_stack.iter().any(|mode| {
+            matches!(mode, InteractionMode::NavigateChildren(target) if *target == surface)
                 || matches!(mode, InteractionMode::Capture { owner } if *owner == surface)
-                || matches!(mode, InteractionMode::Modal { owner } if *owner == surface))
+                || matches!(mode, InteractionMode::Modal { owner } if *owner == surface)
+        })
     }
 
     pub fn focus_root(&mut self) {
@@ -186,6 +190,9 @@ mod tests {
                 owner: SurfaceId::ConfigDialog,
             }
         );
-        assert_eq!(state.focus_path, vec![SurfaceId::AppRoot, SurfaceId::MainWindow]);
+        assert_eq!(
+            state.focus_path,
+            vec![SurfaceId::AppRoot, SurfaceId::MainWindow]
+        );
     }
 }

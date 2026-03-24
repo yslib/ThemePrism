@@ -246,6 +246,7 @@ fn route_surface_action(
         | SurfaceId::ResolvedSecondaryPanel
         | SurfaceId::PalettePanel
         | SurfaceId::InspectorPanel
+        | SurfaceId::InteractionInspectorPanel
         | SurfaceId::ProjectConfigPanel
         | SurfaceId::ExportTargetsPanel
         | SurfaceId::EditorPreferencesPanel => None,

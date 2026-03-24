@@ -1,4 +1,5 @@
 mod helpers;
+mod interaction_panel;
 mod layout;
 mod overlays;
 mod project_tab;
@@ -7,6 +8,8 @@ mod theme_tab;
 mod types;
 mod window;
 
+#[allow(unused_imports)]
+pub(crate) use interaction_panel::build_interaction_panel;
 #[allow(unused_imports)]
 pub use layout::{
     LayoutChild, WorkspaceLayout, child, column, compose_layout, default_workspace_layout, panel,

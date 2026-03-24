@@ -78,7 +78,13 @@ pub fn default_workspace_layout() -> WorkspaceLayout {
                 child(Size::Percentage(45), panel(PanelId::Preview)),
             ]),
         ),
-        child(Size::Length(38), panel(PanelId::Inspector)),
+        child(
+            Size::Length(40),
+            column(vec![
+                child(Size::Percentage(50), panel(PanelId::Inspector)),
+                child(Size::Percentage(50), panel(PanelId::InteractionInspector)),
+            ]),
+        ),
     ])
 }
 
@@ -96,10 +102,11 @@ pub fn preview_focus_layout() -> WorkspaceLayout {
         child(
             Size::Length(36),
             column(vec![
-                child(Size::Percentage(38), panel(PanelId::Inspector)),
-                child(Size::Percentage(28), panel(PanelId::Palette)),
-                child(Size::Percentage(17), panel(PanelId::ResolvedPrimary)),
-                child(Size::Percentage(17), panel(PanelId::ResolvedSecondary)),
+                child(Size::Percentage(28), panel(PanelId::Inspector)),
+                child(Size::Percentage(24), panel(PanelId::InteractionInspector)),
+                child(Size::Percentage(24), panel(PanelId::Palette)),
+                child(Size::Percentage(12), panel(PanelId::ResolvedPrimary)),
+                child(Size::Percentage(12), panel(PanelId::ResolvedSecondary)),
             ]),
         ),
     ])

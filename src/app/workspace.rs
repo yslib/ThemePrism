@@ -39,6 +39,7 @@ pub enum PanelId {
     ResolvedPrimary,
     ResolvedSecondary,
     Inspector,
+    InteractionInspector,
     ProjectConfig,
     ExportTargets,
     EditorPreferences,
@@ -53,7 +54,8 @@ impl PanelId {
             | Self::Palette
             | Self::ResolvedPrimary
             | Self::ResolvedSecondary
-            | Self::Inspector => WorkspaceTab::Theme,
+            | Self::Inspector
+            | Self::InteractionInspector => WorkspaceTab::Theme,
             Self::ProjectConfig | Self::ExportTargets | Self::EditorPreferences => {
                 WorkspaceTab::Project
             }

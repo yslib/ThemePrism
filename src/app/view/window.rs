@@ -6,6 +6,7 @@ use crate::domain::tokens::TokenRole;
 use crate::i18n::{self, UiText};
 
 use super::helpers::export_status_summary;
+use super::interaction_panel::build_interaction_panel;
 use super::layout::{WorkspaceLayout, compose_layout, panel_order, workspace_layout_for_tab};
 use super::overlays::{
     build_config_overlay, build_help_overlay, build_numeric_editor_overlay, build_picker_overlay,
@@ -82,6 +83,7 @@ fn build_panel_for_slot(state: &AppState, slot: PanelId, visible_panels: &[Panel
             build_token_swatch_panel(state, "Resolved Tokens II", &TokenRole::ALL[10..])
         }
         PanelId::Inspector => build_inspector_panel(state),
+        PanelId::InteractionInspector => build_interaction_panel(state),
         PanelId::ProjectConfig => build_project_config_panel(state),
         PanelId::ExportTargets => build_export_targets_panel(state),
         PanelId::EditorPreferences => build_editor_preferences_panel(state),

@@ -16,6 +16,7 @@ pub enum SurfaceId {
     ResolvedPrimaryPanel,
     ResolvedSecondaryPanel,
     InspectorPanel,
+    InteractionInspectorPanel,
     ProjectConfigPanel,
     ExportTargetsPanel,
     EditorPreferencesPanel,
@@ -35,6 +36,7 @@ impl SurfaceId {
             Self::ResolvedPrimaryPanel => Some(ResolvedPrimary),
             Self::ResolvedSecondaryPanel => Some(ResolvedSecondary),
             Self::InspectorPanel => Some(Inspector),
+            Self::InteractionInspectorPanel => Some(InteractionInspector),
             Self::ProjectConfigPanel => Some(ProjectConfig),
             Self::ExportTargetsPanel => Some(ExportTargets),
             Self::EditorPreferencesPanel => Some(EditorPreferences),
@@ -51,6 +53,7 @@ impl SurfaceId {
             ResolvedPrimary => Self::ResolvedPrimaryPanel,
             ResolvedSecondary => Self::ResolvedSecondaryPanel,
             Inspector => Self::InspectorPanel,
+            InteractionInspector => Self::InteractionInspectorPanel,
             ProjectConfig => Self::ProjectConfigPanel,
             ExportTargets => Self::ExportTargetsPanel,
             EditorPreferences => Self::EditorPreferencesPanel,
@@ -69,6 +72,7 @@ impl SurfaceId {
                 | Self::ResolvedPrimaryPanel
                 | Self::ResolvedSecondaryPanel
                 | Self::InspectorPanel
+                | Self::InteractionInspectorPanel
                 | Self::ProjectConfigPanel
                 | Self::ExportTargetsPanel
                 | Self::EditorPreferencesPanel
@@ -360,6 +364,19 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             modal_children(SurfaceId::InspectorPanel),
             true,
             is_visible(Inspector),
+            None,
+            TabScope::Workspace(Theme),
+            DefaultAction::Activate,
+            ChildNavigation::None,
+            BubblePolicy::Bubble,
+            Some(SurfaceId::MainWindow),
+        ),
+        SurfaceNode::new(
+            SurfaceId::InteractionInspectorPanel,
+            workspace_parent(InteractionInspector),
+            modal_children(SurfaceId::InteractionInspectorPanel),
+            true,
+            is_visible(InteractionInspector),
             None,
             TabScope::Workspace(Theme),
             DefaultAction::Activate,

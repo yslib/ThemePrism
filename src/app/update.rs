@@ -407,7 +407,12 @@ fn cycle_workspace_tab(state: &mut AppState, delta: i32) {
     } else {
         state.ui.active_tab.previous()
     };
-    if state.ui.interaction.focused_workspace_surface().is_workspace_panel() {
+    if state
+        .ui
+        .interaction
+        .focused_workspace_surface()
+        .is_workspace_panel()
+    {
         state.ui.interaction.focus_panel(state.active_panel());
     }
     let panel = state.active_panel();
@@ -495,7 +500,8 @@ fn move_selection(state: &mut AppState, delta: i32) {
         PanelId::Preview
         | PanelId::Palette
         | PanelId::ResolvedPrimary
-        | PanelId::ResolvedSecondary => {
+        | PanelId::ResolvedSecondary
+        | PanelId::InteractionInspector => {
             state.ui.status = tr1(
                 state,
                 UiText::StatusPanelNoListSelection,
@@ -527,6 +533,7 @@ fn focus_surface(state: &mut AppState, surface: SurfaceId) {
         | SurfaceId::ResolvedPrimaryPanel
         | SurfaceId::ResolvedSecondaryPanel
         | SurfaceId::InspectorPanel
+        | SurfaceId::InteractionInspectorPanel
         | SurfaceId::ProjectConfigPanel
         | SurfaceId::ExportTargetsPanel
         | SurfaceId::EditorPreferencesPanel => {
@@ -594,7 +601,10 @@ fn push_modal_owner(state: &mut AppState, owner: SurfaceId) {
 }
 
 fn pop_modal_owner(state: &mut AppState, owner: SurfaceId) {
-    state.ui.interaction.remove_mode(InteractionMode::Modal { owner });
+    state
+        .ui
+        .interaction
+        .remove_mode(InteractionMode::Modal { owner });
 }
 
 fn push_capture_owner(state: &mut AppState, owner: SurfaceId) {
@@ -1972,8 +1982,8 @@ mod tests {
     use crate::app::controls::ControlId;
     use crate::app::interaction::{InteractionMode, SurfaceId, effective_focus_path};
     use crate::app::workspace::{PanelId, WorkspaceTab};
-    use crate::domain::preview::PreviewRuntimeEvent;
     use crate::domain::params::ParamKey;
+    use crate::domain::preview::PreviewRuntimeEvent;
     use crate::domain::tokens::TokenRole;
 
     #[test]
@@ -2168,7 +2178,10 @@ mod tests {
 
         update(&mut state, Intent::CancelTextInput);
 
-        assert_eq!(state.ui.interaction.focused_surface(), SurfaceId::ParamsPanel);
+        assert_eq!(
+            state.ui.interaction.focused_surface(),
+            SurfaceId::ParamsPanel
+        );
         assert_eq!(
             state.ui.interaction.focus_path,
             vec![
@@ -2358,7 +2371,10 @@ mod tests {
 
         update(&mut help_state, Intent::SelectToken(1));
         assert!(!help_state.ui.shortcut_help_open);
-        assert_eq!(help_state.ui.interaction.current_mode(), InteractionMode::Normal);
+        assert_eq!(
+            help_state.ui.interaction.current_mode(),
+            InteractionMode::Normal
+        );
         assert_eq!(
             effective_focus_path(&help_state),
             vec![
@@ -2381,7 +2397,10 @@ mod tests {
 
         update(&mut picker_state, Intent::SelectToken(1));
         assert!(picker_state.ui.source_picker.is_none());
-        assert_eq!(picker_state.ui.interaction.current_mode(), InteractionMode::Normal);
+        assert_eq!(
+            picker_state.ui.interaction.current_mode(),
+            InteractionMode::Normal
+        );
         assert_eq!(
             effective_focus_path(&picker_state),
             vec![

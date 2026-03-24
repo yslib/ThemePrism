@@ -4,6 +4,7 @@ use crate::app::interaction::{
     effective_focus_path, route_ui_action,
 };
 use crate::app::state::AppState;
+use crate::app::view::{PanelBody, ViewNode, build_interaction_panel, build_view};
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::params::ParamKey;
 use crate::domain::tokens::TokenRole;
@@ -219,6 +220,64 @@ fn activate_on_preview_body_enters_capture_mode() {
 }
 
 #[test]
+fn interaction_inspector_lists_focus_path_and_modes() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_path = vec![
+        SurfaceId::AppRoot,
+        SurfaceId::MainWindow,
+        SurfaceId::PreviewPanel,
+        SurfaceId::PreviewBody,
+    ];
+    state.ui.interaction.push_mode(InteractionMode::Capture {
+        owner: SurfaceId::PreviewBody,
+    });
+
+    let panel = build_interaction_panel(&state);
+
+    let PanelBody::Document(document) = &panel.body else {
+        panic!("expected document body");
+    };
+    let body = document
+        .lines
+        .iter()
+        .flat_map(|line| line.spans.iter().map(|span| span.text.as_str()))
+        .collect::<Vec<_>>()
+        .join("");
+    assert!(body.contains("PreviewBody"));
+    assert!(body.contains("Capture"));
+}
+
+#[test]
+fn theme_workspace_view_includes_interaction_inspector_as_panel_8() {
+    let state = AppState::new().expect("state");
+    let view = build_view(&state);
+    let mut panels = Vec::new();
+
+    collect_panels(&view.main_window.workspace, &mut panels);
+
+    assert_eq!(
+        panels.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+        vec![
+            PanelId::Tokens,
+            PanelId::Params,
+            PanelId::Palette,
+            PanelId::ResolvedPrimary,
+            PanelId::ResolvedSecondary,
+            PanelId::Preview,
+            PanelId::Inspector,
+            PanelId::InteractionInspector,
+        ]
+    );
+    assert_eq!(
+        panels
+            .iter()
+            .find(|(id, _)| *id == PanelId::InteractionInspector)
+            .map(|(_, shortcut)| *shortcut),
+        Some(Some(8))
+    );
+}
+
+#[test]
 fn switch_tab_on_preview_body_bubbles_to_preview_tabs_owner() {
     let mut state = AppState::new().expect("state");
     state.ui.interaction.focus_path = vec![
@@ -364,6 +423,7 @@ fn interaction_tree_uses_visible_theme_tab_children() {
             SurfaceId::ResolvedSecondaryPanel,
             SurfaceId::PreviewPanel,
             SurfaceId::InspectorPanel,
+            SurfaceId::InteractionInspectorPanel,
         ]
     );
 }
@@ -404,6 +464,7 @@ fn interaction_tree_child_links_are_reciprocal() {
         SurfaceId::ResolvedPrimaryPanel,
         SurfaceId::ResolvedSecondaryPanel,
         SurfaceId::InspectorPanel,
+        SurfaceId::InteractionInspectorPanel,
         SurfaceId::ProjectConfigPanel,
         SurfaceId::ExportTargetsPanel,
         SurfaceId::EditorPreferencesPanel,
@@ -436,6 +497,7 @@ fn hidden_workspace_panels_do_not_report_an_active_parent() {
     assert_eq!(tree.parent_of(SurfaceId::ResolvedPrimaryPanel), None);
     assert_eq!(tree.parent_of(SurfaceId::ResolvedSecondaryPanel), None);
     assert_eq!(tree.parent_of(SurfaceId::InspectorPanel), None);
+    assert_eq!(tree.parent_of(SurfaceId::InteractionInspectorPanel), None);
 }
 
 #[test]
@@ -591,4 +653,16 @@ fn effective_focus_path_uses_stack_owner_instead_of_ui_flags() {
             SurfaceId::PreviewBody,
         ]
     );
+}
+
+fn collect_panels(node: &ViewNode, panels: &mut Vec<(PanelId, Option<u8>)>) {
+    match node {
+        ViewNode::Split(split) => {
+            for child in &split.children {
+                collect_panels(child, panels);
+            }
+        }
+        ViewNode::Panel(panel) => panels.push((panel.id, panel.shortcut)),
+        ViewNode::StatusBar(_) => {}
+    }
 }
