@@ -327,11 +327,12 @@ impl TuiRenderer {
             })
             .map(Line::from)
             .collect::<Vec<_>>();
+        let scroll = clamped_vertical_scroll(document.scroll, lines.len(), area.height);
 
         frame.render_widget(
             Paragraph::new(lines)
                 .wrap(Wrap { trim: false })
-                .scroll((document.scroll, 0)),
+                .scroll((scroll, 0)),
             area,
         );
     }
@@ -529,10 +530,11 @@ impl TuiRenderer {
                     .iter()
                     .map(|line| styled_line_to_tui(line, theme))
                     .collect::<Vec<_>>();
+                let scroll = clamped_vertical_scroll(*scroll, body.len(), sections[0].height);
                 frame.render_widget(
                     Paragraph::new(body)
                         .wrap(Wrap { trim: false })
-                        .scroll((*scroll, 0)),
+                        .scroll((scroll, 0)),
                     sections[0],
                 );
             }
@@ -599,11 +601,40 @@ fn action_hint_spans(
     ]
 }
 
+fn clamped_vertical_scroll(requested: u16, line_count: usize, viewport_height: u16) -> u16 {
+    if viewport_height == 0 {
+        return 0;
+    }
+
+    let max_scroll = line_count.saturating_sub(viewport_height as usize) as u16;
+    requested.min(max_scroll)
+}
+
 fn to_constraint(size: Size) -> Constraint {
     match size {
         Size::Length(value) => Constraint::Length(value),
         Size::Min(value) => Constraint::Min(value),
         Size::Percentage(value) => Constraint::Percentage(value),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clamped_vertical_scroll;
+
+    #[test]
+    fn vertical_scroll_is_clamped_to_last_visible_line() {
+        assert_eq!(clamped_vertical_scroll(99, 12, 5), 7);
+    }
+
+    #[test]
+    fn vertical_scroll_is_zero_when_viewport_is_taller_than_content() {
+        assert_eq!(clamped_vertical_scroll(4, 3, 8), 0);
+    }
+
+    #[test]
+    fn vertical_scroll_is_zero_for_zero_height_viewports() {
+        assert_eq!(clamped_vertical_scroll(4, 10, 0), 0);
     }
 }
 
