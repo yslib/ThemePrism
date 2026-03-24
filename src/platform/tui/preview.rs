@@ -41,6 +41,8 @@ impl PreviewRuntimeController {
         let Some(size) = preview_body_size(tree, area) else {
             if !preview_hidden_by_fullscreen {
                 self.stop_current();
+            } else {
+                self.drain_hidden_session(session);
             }
             return Ok(());
         };
@@ -126,6 +128,21 @@ impl PreviewRuntimeController {
         self.session = None;
         self.active_mode = None;
         self.last_size = None;
+    }
+
+    fn drain_hidden_session(&mut self, session: &mut CoreSession) {
+        let mut should_stop = false;
+        if let Some(hosted) = self.session.as_mut() {
+            while let Some(event) = hosted.poll(session.state()) {
+                if matches!(event, PreviewRuntimeEvent::Exited { .. }) {
+                    should_stop = true;
+                }
+                session.dispatch(Intent::PreviewRuntimeEvent(event));
+            }
+        }
+        if should_stop {
+            self.stop_current();
+        }
     }
 }
 
