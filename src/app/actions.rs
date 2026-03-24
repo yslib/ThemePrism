@@ -13,6 +13,7 @@ pub enum ActionId {
     AdjustValue,
     Activate,
     Toggle,
+    ToggleFullscreen,
     TypeInput,
     Filter,
     Nudge,
@@ -41,6 +42,7 @@ pub enum BoundAction {
     MoveRight,
     Activate,
     Toggle,
+    ToggleFullscreen,
     Apply,
     Cancel,
     Clear,
@@ -123,33 +125,28 @@ impl KeyBinding {
         }
     }
 
-    fn label(self) -> &'static str {
+    fn label(self) -> String {
         match self {
             Self::Char(ch) => match ch {
-                '?' => "?",
-                '[' => "[",
-                ']' => "]",
-                _ => {
-                    const FALLBACK: &str = "";
-                    if ch == ' ' { "Space" } else { FALLBACK }
-                }
+                '?' => "?".to_string(),
+                '[' => "[".to_string(),
+                ']' => "]".to_string(),
+                ' ' => "Space".to_string(),
+                _ => String::new(),
             },
             Self::Ctrl(ch) => match ch {
-                'a'..='z' => match ch {
-                    'g' => "Ctrl+G",
-                    _ => "Ctrl",
-                },
-                _ => "Ctrl",
+                'a'..='z' => format!("Ctrl+{}", ch.to_ascii_uppercase()),
+                _ => "Ctrl".to_string(),
             },
-            Self::Space => "Space",
-            Self::Enter => "Enter",
-            Self::Esc => "Esc",
-            Self::Left => "←",
-            Self::Right => "→",
-            Self::Up => "↑",
-            Self::Down => "↓",
-            Self::Backspace => "⌫",
-            Self::Delete => "Del",
+            Self::Space => "Space".to_string(),
+            Self::Enter => "Enter".to_string(),
+            Self::Esc => "Esc".to_string(),
+            Self::Left => "←".to_string(),
+            Self::Right => "→".to_string(),
+            Self::Up => "↑".to_string(),
+            Self::Down => "↓".to_string(),
+            Self::Backspace => "⌫".to_string(),
+            Self::Delete => "Del".to_string(),
         }
     }
 }
@@ -201,6 +198,11 @@ pub fn shortcut_help_sections(
                     binding_label(preset, BoundAction::OpenConfig),
                     i18n::text(locale, UiText::HelpConfigLabel),
                     i18n::text(locale, UiText::HelpConfigDesc),
+                ),
+                entry(
+                    binding_label(preset, BoundAction::ToggleFullscreen),
+                    i18n::text(locale, UiText::HelpFullscreenLabel),
+                    i18n::text(locale, UiText::HelpFullscreenDesc),
                 ),
                 entry(
                     binding_label(preset, BoundAction::SaveProject),
@@ -354,7 +356,7 @@ pub fn binding_label(preset: EditorKeymapPreset, action: BoundAction) -> String 
         if index > 0 {
             out.push('/');
         }
-        out.push_str(match binding {
+        let label = match binding {
             KeyBinding::Char(ch) => match ch {
                 '?' | '[' | ']' => binding.label(),
                 _ => {
@@ -364,7 +366,8 @@ pub fn binding_label(preset: EditorKeymapPreset, action: BoundAction) -> String 
             },
             KeyBinding::Ctrl(_) => binding.label(),
             _ => binding.label(),
-        });
+        };
+        out.push_str(&label);
     }
     out
 }
@@ -439,6 +442,7 @@ fn bindings_for(preset: EditorKeymapPreset, action: BoundAction) -> &'static [Ke
         (Preset::Standard, Action::Activate) => &[Key::Enter],
         (Preset::Vim, Action::Activate) => &[Key::Enter, Key::Char('i')],
         (_, Action::Toggle) => &[Key::Space],
+        (_, Action::ToggleFullscreen) => &[Key::Ctrl('f')],
         (_, Action::Apply) => &[Key::Enter],
         (_, Action::Cancel) => &[Key::Esc],
         (_, Action::Clear) => &[Key::Delete],

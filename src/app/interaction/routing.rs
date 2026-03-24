@@ -261,6 +261,7 @@ fn route_main_window_action(action: UiAction) -> Option<Vec<Intent>> {
         ]),
         UiAction::OpenConfig => Some(vec![Intent::OpenConfigRequested]),
         UiAction::OpenHelp => Some(vec![Intent::ToggleShortcutHelpRequested]),
+        UiAction::ToggleFullscreenRequested => Some(vec![Intent::ToggleFullscreenRequested]),
         UiAction::SaveProject => Some(vec![Intent::SaveProjectRequested]),
         UiAction::LoadProject => Some(vec![Intent::LoadProjectRequested]),
         UiAction::ExportTheme => Some(vec![Intent::ExportThemeRequested]),
@@ -297,6 +298,7 @@ fn route_panel_action(
         UiAction::Activate | UiAction::Toggle if state.active_config_field().is_some() => {
             Some(vec![Intent::ActivateConfigField])
         }
+        UiAction::ToggleFullscreenRequested => Some(vec![Intent::ToggleFullscreenRequested]),
         _ => None,
     }
 }

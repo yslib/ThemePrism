@@ -37,6 +37,7 @@ pub struct ViewTree {
 pub struct MainWindowView {
     pub menu_bar: MenuBarView,
     pub tab_bar: TabBarView,
+    pub fullscreen_panel: Option<PanelId>,
     pub workspace: ViewNode,
     pub status_bar: StatusBarView,
 }

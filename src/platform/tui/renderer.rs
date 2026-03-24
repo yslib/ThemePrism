@@ -12,6 +12,7 @@ use crate::app::view::{
     StatusBarView, StyledLine, StyledSpan, SurfaceBody, SurfaceSize, SurfaceView, SwatchItemView,
     SwatchListView, TabBarView, ViewNode, ViewTheme, ViewTree,
 };
+use crate::app::workspace::PanelId;
 use crate::domain::color::Color;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -45,7 +46,15 @@ impl TuiRenderer {
 
         self.render_menu_bar(frame, sections[0], &window.menu_bar, theme);
         self.render_tab_bar(frame, sections[1], &window.tab_bar, theme);
-        self.render_node(frame, sections[2], &window.workspace, theme);
+        if let Some(panel) = window.fullscreen_panel {
+            if let Some(fullscreen_panel) = find_panel_view(&window.workspace, panel) {
+                self.render_panel(frame, sections[2], fullscreen_panel, theme);
+            } else {
+                self.render_node(frame, sections[2], &window.workspace, theme);
+            }
+        } else {
+            self.render_node(frame, sections[2], &window.workspace, theme);
+        }
         self.render_status_bar(frame, sections[3], &window.status_bar, theme);
     }
 
@@ -650,6 +659,17 @@ mod tests {
     fn vertical_scroll_is_zero_for_zero_height_viewports() {
         let paragraph = Paragraph::new("wrapped text").wrap(Wrap { trim: false });
         assert_eq!(max_document_scroll(&paragraph, Rect::new(0, 0, 10, 0)), 0);
+    }
+}
+
+fn find_panel_view(node: &ViewNode, target: PanelId) -> Option<&PanelView> {
+    match node {
+        ViewNode::Split(view) => view
+            .children
+            .iter()
+            .find_map(|child| find_panel_view(child, target)),
+        ViewNode::Panel(view) if view.id == target => Some(view),
+        ViewNode::Panel(_) | ViewNode::StatusBar(_) => None,
     }
 }
 

@@ -33,6 +33,7 @@ pub enum UiAction {
     Clear,
     OpenConfig,
     OpenHelp,
+    ToggleFullscreenRequested,
     SaveProject,
     LoadProject,
     ExportTheme,

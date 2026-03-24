@@ -112,6 +112,10 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             set_preview_capture(state, active);
             Vec::new()
         }
+        Intent::ToggleFullscreenRequested => {
+            toggle_fullscreen(state);
+            Vec::new()
+        }
         Intent::SetParamValue(key, value) => {
             set_param_value(state, key, value);
             Vec::new()
@@ -355,6 +359,25 @@ fn set_preview_capture(state: &mut AppState, active: bool) {
     } else {
         tr(state, UiText::StatusPreviewCaptureReleased)
     };
+}
+
+fn toggle_fullscreen(state: &mut AppState) {
+    if state.ui.fullscreen_surface.is_some() {
+        state.ui.fullscreen_surface = None;
+        state.ui.status = tr(state, UiText::StatusFullscreenDisabled);
+        return;
+    }
+
+    let focused = state.ui.interaction.focused_surface();
+    if focused.panel_id().is_some() {
+        state.ui.fullscreen_surface = Some(focused);
+        state.ui.status = tr1(
+            state,
+            UiText::StatusFullscreenEnabled,
+            "surface",
+            surface_label(state, focused),
+        );
+    }
 }
 
 fn apply_preview_runtime_event(state: &mut AppState, event: PreviewRuntimeEvent) {
@@ -1267,6 +1290,7 @@ fn reset_state(state: &mut AppState) {
     close_source_picker_surface(state);
     close_config_surface(state);
     close_shortcut_help_surface(state);
+    state.ui.fullscreen_surface = None;
     state.preview.capture_active = false;
     pop_capture_owner(state, SurfaceId::PreviewBody);
     match state.recompute() {
@@ -2117,6 +2141,30 @@ mod tests {
         update(&mut state, Intent::SetPreviewCapture(false));
         assert!(!state.preview.capture_active);
         assert_eq!(state.ui.interaction.current_mode(), InteractionMode::Normal);
+    }
+
+    #[test]
+    fn toggle_fullscreen_targets_the_focused_surface() {
+        let mut state = AppState::new().expect("state should build");
+        state.ui.interaction.focus_path = vec![
+            SurfaceId::AppRoot,
+            SurfaceId::MainWindow,
+            SurfaceId::PreviewPanel,
+        ];
+
+        update(&mut state, Intent::ToggleFullscreenRequested);
+
+        assert_eq!(state.ui.fullscreen_surface, Some(SurfaceId::PreviewPanel));
+    }
+
+    #[test]
+    fn toggling_fullscreen_twice_restores_normal_layout() {
+        let mut state = AppState::new().expect("state should build");
+        state.ui.fullscreen_surface = Some(SurfaceId::PreviewPanel);
+
+        update(&mut state, Intent::ToggleFullscreenRequested);
+
+        assert_eq!(state.ui.fullscreen_surface, None);
     }
 
     #[test]

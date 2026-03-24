@@ -25,6 +25,7 @@ pub enum Intent {
     AdjustActiveNumericInputByStep(i32),
     CyclePreviewMode(i32),
     SetPreviewCapture(bool),
+    ToggleFullscreenRequested,
 
     SetParamValue(ParamKey, f32),
     SetRuleKind(TokenRole, RuleKind),

@@ -15,6 +15,7 @@ use crate::domain::tokens::{PaletteSlot, TokenRole};
 use crate::enum_meta::define_key_enum;
 use crate::export::{ExportProfile, default_export_profiles};
 use crate::i18n::{self, UiText};
+use crate::app::interaction::SurfaceId;
 use crate::persistence::editor_config::{
     DEFAULT_PROJECT_PATH, EditorConfig, EditorKeymapPreset, EditorLocale, EditorStartupFocus,
 };
@@ -119,6 +120,7 @@ pub struct UiState {
     pub interaction_inspector_scroll: u16,
     pub status: String,
     pub should_quit: bool,
+    pub fullscreen_surface: Option<SurfaceId>,
     pub text_input: Option<TextInputState>,
     pub source_picker: Option<SourcePickerState>,
     pub config_modal: Option<ConfigModalState>,
@@ -183,6 +185,7 @@ impl AppState {
                 interaction_inspector_scroll: 0,
                 status: i18n::text(EditorLocale::EnUs, UiText::StatusReady),
                 should_quit: false,
+                fullscreen_surface: None,
                 text_input: None,
                 source_picker: None,
                 config_modal: None,
@@ -239,6 +242,7 @@ impl AppState {
         self.ui.source_picker = None;
         self.ui.config_modal = None;
         self.ui.shortcut_help_open = false;
+        self.ui.fullscreen_surface = None;
         self.preview.capture_active = false;
         self.ui
             .interaction

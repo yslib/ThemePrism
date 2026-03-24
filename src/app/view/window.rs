@@ -1,5 +1,6 @@
 use crate::app::actions::menu_bar_actions;
 use crate::app::interaction::focus_breadcrumb;
+use crate::app::interaction::SurfaceId;
 use crate::app::state::AppState;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::tokens::TokenRole;
@@ -45,6 +46,7 @@ pub fn build_view_with_layout(state: &AppState, workspace_layout: &WorkspaceLayo
     let main_window = MainWindowView {
         menu_bar: build_menu_bar_view(state),
         tab_bar: build_tab_bar_view(state),
+        fullscreen_panel: state.ui.fullscreen_surface.and_then(SurfaceId::panel_id),
         workspace,
         status_bar: build_status_bar_view(state),
     };
