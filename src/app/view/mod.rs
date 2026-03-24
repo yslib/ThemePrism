@@ -13,8 +13,8 @@ pub(crate) use interaction_panel::build_interaction_panel;
 #[allow(unused_imports)]
 pub use layout::{
     LayoutChild, WorkspaceLayout, child, column, compose_layout, default_workspace_layout,
-    panel, panel_area, panel_order, preview_focus_layout, project_workspace_layout, row,
-    status_bar, workspace_layout_for_tab,
+    panel, panel_order, preview_focus_layout, project_workspace_layout, row, status_bar,
+    workspace_layout_for_tab,
 };
 pub use types::{
     Axis, DocumentView, FormFieldView, FormView, MainWindowView, MenuBarView, OverlayView,

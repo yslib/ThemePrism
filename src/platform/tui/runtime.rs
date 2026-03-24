@@ -11,13 +11,13 @@ use ratatui::backend::Backend;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
 
-use crate::app::view::{PanelBody, build_interaction_panel, panel_area, workspace_layout_for_tab};
-use crate::app::workspace::PanelId;
+use crate::app::view::PanelBody;
 use crate::app::interaction::{SurfaceId, has_active_capture};
 use crate::core::CoreSession;
 use crate::platform::tui::event_adapter::TuiEventAdapter;
 use crate::platform::tui::preview::PreviewRuntimeController;
-use crate::platform::tui::renderer::{TuiRenderer, max_document_scroll, panel_body_area};
+use crate::platform::tui::renderer::{TuiRenderer, max_document_scroll};
+use crate::platform::tui::view_metrics::locate_panel_body;
 use crate::platform::{PlatformError, PlatformKind, PlatformRuntime};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -98,15 +98,14 @@ fn run_terminal<B: Backend>(
 }
 
 fn sync_tui_view_state(session: &mut CoreSession, area: Rect) {
-    let workspace_area = main_window_workspace_area(area);
-    let workspace_layout = workspace_layout_for_tab(session.state().ui.active_tab);
-    let Some(panel_area) = panel_area(&workspace_layout, workspace_area, PanelId::InteractionInspector)
-    else {
+    let view = session.view_tree();
+    let Some((panel, body_area)) = locate_panel_body(
+        &view,
+        area,
+        crate::app::workspace::PanelId::InteractionInspector,
+    ) else {
         return;
     };
-
-    let panel = build_interaction_panel(session.state());
-    let body_area = panel_body_area(&panel, panel_area);
     let PanelBody::Document(document) = &panel.body else {
         return;
     };
@@ -129,24 +128,12 @@ fn sync_tui_view_state(session: &mut CoreSession, area: Rect) {
     session.clamp_interaction_inspector_scroll(max_document_scroll(&paragraph, body_area));
 }
 
-fn main_window_workspace_area(area: Rect) -> Rect {
-    let sections = ratatui::layout::Layout::default()
-        .direction(ratatui::layout::Direction::Vertical)
-        .constraints([
-            ratatui::layout::Constraint::Length(1),
-            ratatui::layout::Constraint::Length(1),
-            ratatui::layout::Constraint::Min(8),
-            ratatui::layout::Constraint::Length(1),
-        ])
-        .split(area);
-    sections[2]
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{main_window_workspace_area, sync_tui_view_state};
+    use super::sync_tui_view_state;
     use crate::app::{AppState, Intent};
     use crate::core::CoreSession;
+    use crate::platform::tui::view_metrics::main_window_workspace_area;
     use ratatui::layout::Rect;
 
     #[test]

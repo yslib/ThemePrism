@@ -5,11 +5,11 @@ use std::thread;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::Rect;
 
 use crate::app::Intent;
 use crate::app::actions::{BoundAction, matches_bound_action};
-use crate::app::view::{MainWindowView, PanelView, Size, ViewNode, ViewTree};
+use crate::app::view::ViewTree;
 use crate::app::workspace::PanelId;
 use crate::core::CoreSession;
 use crate::domain::color::Color;
@@ -18,6 +18,7 @@ use crate::domain::preview::{
     PreviewSpanStyle,
 };
 use crate::tokens::TokenRole;
+use crate::platform::tui::view_metrics::locate_panel_body;
 
 #[derive(Default)]
 pub struct PreviewRuntimeController {
@@ -397,75 +398,8 @@ fn map_ansi_color(index: u8, session: &crate::app::AppState) -> Color {
 }
 
 fn preview_body_size(tree: &ViewTree, area: Rect) -> Option<PreviewSize> {
-    let sections = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Min(8),
-            Constraint::Length(1),
-        ])
-        .split(area);
-
-    locate_preview_body(&tree.main_window, sections[2])
-}
-
-fn locate_preview_body(window: &MainWindowView, area: Rect) -> Option<PreviewSize> {
-    locate_preview_in_node(&window.workspace, area)
-}
-
-fn locate_preview_in_node(node: &ViewNode, area: Rect) -> Option<PreviewSize> {
-    match node {
-        ViewNode::Split(split) => {
-            let sections = Layout::default()
-                .direction(match split.axis {
-                    crate::app::view::Axis::Horizontal => Direction::Horizontal,
-                    crate::app::view::Axis::Vertical => Direction::Vertical,
-                })
-                .constraints(split.constraints.iter().copied().map(to_constraint))
-                .split(area);
-
-            for (child, child_area) in split.children.iter().zip(sections.iter().copied()) {
-                if let Some(size) = locate_preview_in_node(child, child_area) {
-                    return Some(size);
-                }
-            }
-            None
-        }
-        ViewNode::Panel(panel) if panel.id == PanelId::Preview => panel_body_size(panel, area),
-        ViewNode::Panel(_) | ViewNode::StatusBar(_) => None,
-    }
-}
-
-fn panel_body_size(panel: &PanelView, area: Rect) -> Option<PreviewSize> {
-    let inner = Rect::new(
-        area.x.saturating_add(1),
-        area.y.saturating_add(1),
-        area.width.saturating_sub(2),
-        area.height.saturating_sub(2),
-    );
-    let tab_height = u16::from(!panel.tabs.is_empty());
-    let header_height = panel.header_lines.len() as u16;
-    let sections = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(tab_height),
-            Constraint::Length(header_height),
-            Constraint::Min(1),
-        ])
-        .split(inner);
-    let body = sections[2];
-
-    (body.width > 0 && body.height > 0).then_some(PreviewSize {
+    locate_panel_body(tree, area, PanelId::Preview).map(|(_, body)| PreviewSize {
         cols: body.width.max(1),
         rows: body.height.max(1),
     })
-}
-
-fn to_constraint(size: Size) -> Constraint {
-    match size {
-        Size::Length(value) => Constraint::Length(value),
-        Size::Min(value) => Constraint::Min(value),
-        Size::Percentage(value) => Constraint::Percentage(value),
-    }
 }

@@ -430,6 +430,15 @@ fn cycle_workspace_tab(state: &mut AppState, delta: i32) {
     } else {
         state.ui.active_tab.previous()
     };
+    let visible_panels = panel_order(&workspace_layout_for_tab(state.ui.active_tab));
+    if state
+        .ui
+        .fullscreen_surface
+        .and_then(SurfaceId::panel_id)
+        .is_some_and(|panel| !visible_panels.contains(&panel))
+    {
+        state.ui.fullscreen_surface = None;
+    }
     if state
         .ui
         .interaction
@@ -2164,6 +2173,17 @@ mod tests {
 
         update(&mut state, Intent::ToggleFullscreenRequested);
 
+        assert_eq!(state.ui.fullscreen_surface, None);
+    }
+
+    #[test]
+    fn cycling_workspace_tabs_clears_fullscreen_for_hidden_panels() {
+        let mut state = AppState::new().expect("state should build");
+        state.ui.fullscreen_surface = Some(SurfaceId::PreviewPanel);
+
+        update(&mut state, Intent::CycleWorkspaceTab(1));
+
+        assert_eq!(state.ui.active_tab, WorkspaceTab::Project);
         assert_eq!(state.ui.fullscreen_surface, None);
     }
 
