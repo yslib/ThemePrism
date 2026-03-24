@@ -11,8 +11,8 @@ use ratatui::backend::Backend;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
 
-use crate::app::view::PanelBody;
 use crate::app::interaction::{SurfaceId, has_active_capture};
+use crate::app::view::PanelBody;
 use crate::core::CoreSession;
 use crate::platform::tui::event_adapter::TuiEventAdapter;
 use crate::platform::tui::preview::PreviewRuntimeController;
@@ -162,11 +162,17 @@ mod tests {
 
         session.dispatch(Intent::CycleWorkspaceTab(1));
         sync_tui_view_state(&mut session, Rect::new(0, 0, 90, 28));
-        assert_eq!(session.state().ui.interaction_inspector_scroll, theme_scroll);
+        assert_eq!(
+            session.state().ui.interaction_inspector_scroll,
+            theme_scroll
+        );
 
         session.dispatch(Intent::CycleWorkspaceTab(1));
         sync_tui_view_state(&mut session, Rect::new(0, 0, 90, 28));
-        assert_eq!(session.state().ui.interaction_inspector_scroll, theme_scroll);
+        assert_eq!(
+            session.state().ui.interaction_inspector_scroll,
+            theme_scroll
+        );
     }
 
     #[test]

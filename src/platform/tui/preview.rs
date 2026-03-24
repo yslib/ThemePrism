@@ -17,8 +17,8 @@ use crate::domain::preview::{
     PreviewDocument, PreviewFrame, PreviewLine, PreviewMode, PreviewRuntimeEvent, PreviewSpan,
     PreviewSpanStyle,
 };
-use crate::tokens::TokenRole;
 use crate::platform::tui::view_metrics::locate_panel_body;
+use crate::tokens::TokenRole;
 
 #[derive(Default)]
 pub struct PreviewRuntimeController {
@@ -455,6 +455,9 @@ mod tests {
             .expect("sync");
 
         assert_eq!(controller.active_mode, Some(PreviewMode::Shell));
-        assert_eq!(controller.last_size, Some(PreviewSize { cols: 80, rows: 20 }));
+        assert_eq!(
+            controller.last_size,
+            Some(PreviewSize { cols: 80, rows: 20 })
+        );
     }
 }

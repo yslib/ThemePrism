@@ -1,6 +1,6 @@
 use crate::app::actions::menu_bar_actions;
-use crate::app::interaction::focus_breadcrumb;
 use crate::app::interaction::SurfaceId;
+use crate::app::interaction::focus_breadcrumb;
 use crate::app::state::AppState;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::tokens::TokenRole;

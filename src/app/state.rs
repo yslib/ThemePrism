@@ -4,6 +4,7 @@ use thiserror::Error;
 
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::interaction::InteractionState;
+use crate::app::interaction::SurfaceId;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::color::Color;
 use crate::domain::evaluator::{EvalError, ResolvedTheme, resolve_theme};
@@ -15,7 +16,6 @@ use crate::domain::tokens::{PaletteSlot, TokenRole};
 use crate::enum_meta::define_key_enum;
 use crate::export::{ExportProfile, default_export_profiles};
 use crate::i18n::{self, UiText};
-use crate::app::interaction::SurfaceId;
 use crate::persistence::editor_config::{
     DEFAULT_PROJECT_PATH, EditorConfig, EditorKeymapPreset, EditorLocale, EditorStartupFocus,
 };

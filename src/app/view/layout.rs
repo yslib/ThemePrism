@@ -143,7 +143,6 @@ fn collect_panel_order(layout: &WorkspaceLayout, panels: &mut Vec<PanelId>) {
     }
 }
 
-
 pub fn compose_layout<P, S>(
     layout: &WorkspaceLayout,
     panel_for_slot: &mut P,

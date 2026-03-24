@@ -329,10 +329,7 @@ impl TuiRenderer {
         let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
         let scroll = document.scroll.min(max_document_scroll(&paragraph, area));
 
-        frame.render_widget(
-            paragraph.scroll((scroll, 0)),
-            area,
-        );
+        frame.render_widget(paragraph.scroll((scroll, 0)), area);
     }
 
     fn render_swatch_list(
@@ -530,10 +527,7 @@ impl TuiRenderer {
                     .collect::<Vec<_>>();
                 let paragraph = Paragraph::new(body).wrap(Wrap { trim: false });
                 let scroll = (*scroll).min(max_document_scroll(&paragraph, sections[0]));
-                frame.render_widget(
-                    paragraph.scroll((scroll, 0)),
-                    sections[0],
-                );
+                frame.render_widget(paragraph.scroll((scroll, 0)), sections[0]);
             }
             SurfaceBody::Node(node) => self.render_node(frame, sections[0], node, theme),
             SurfaceBody::Window(window) => {
@@ -554,7 +548,9 @@ impl TuiRenderer {
 }
 
 pub(crate) fn panel_body_area(panel: &PanelView, area: Rect) -> Rect {
-    let block = Block::default().title(panel.title.as_str()).borders(Borders::ALL);
+    let block = Block::default()
+        .title(panel.title.as_str())
+        .borders(Borders::ALL);
     let inner = block.inner(area);
     panel_body_sections(panel, inner)[2]
 }

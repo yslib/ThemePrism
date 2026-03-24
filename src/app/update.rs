@@ -531,11 +531,13 @@ fn move_selection(state: &mut AppState, delta: i32) {
         }
         PanelId::InteractionInspector => {
             state.ui.interaction_inspector_scroll = if delta < 0 {
-                state.ui
+                state
+                    .ui
                     .interaction_inspector_scroll
                     .saturating_sub(delta.unsigned_abs() as u16)
             } else {
-                state.ui
+                state
+                    .ui
                     .interaction_inspector_scroll
                     .saturating_add(delta as u16)
             };
@@ -2089,7 +2091,10 @@ mod tests {
     fn interaction_inspector_panel_scrolls_instead_of_reporting_no_list_selection() {
         let mut state = AppState::new().expect("state should build");
         state.set_active_panel(PanelId::InteractionInspector);
-        state.ui.interaction.focus_panel(PanelId::InteractionInspector);
+        state
+            .ui
+            .interaction
+            .focus_panel(PanelId::InteractionInspector);
 
         let previous_status = state.ui.status.clone();
         update(&mut state, Intent::MoveSelection(1));
