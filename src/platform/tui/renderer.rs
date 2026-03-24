@@ -328,7 +328,12 @@ impl TuiRenderer {
             .map(Line::from)
             .collect::<Vec<_>>();
 
-        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+        frame.render_widget(
+            Paragraph::new(lines)
+                .wrap(Wrap { trim: false })
+                .scroll((document.scroll, 0)),
+            area,
+        );
     }
 
     fn render_swatch_list(

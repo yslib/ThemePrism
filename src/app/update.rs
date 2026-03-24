@@ -497,11 +497,21 @@ fn move_selection(state: &mut AppState, delta: i32) {
         PanelId::EditorPreferences => {
             move_project_field_selection(state, PanelId::EditorPreferences, delta)
         }
+        PanelId::InteractionInspector => {
+            state.ui.interaction_inspector_scroll = if delta < 0 {
+                state.ui
+                    .interaction_inspector_scroll
+                    .saturating_sub(delta.unsigned_abs() as u16)
+            } else {
+                state.ui
+                    .interaction_inspector_scroll
+                    .saturating_add(delta as u16)
+            };
+        }
         PanelId::Preview
         | PanelId::Palette
         | PanelId::ResolvedPrimary
-        | PanelId::ResolvedSecondary
-        | PanelId::InteractionInspector => {
+        | PanelId::ResolvedSecondary => {
             state.ui.status = tr1(
                 state,
                 UiText::StatusPanelNoListSelection,
@@ -2030,9 +2040,29 @@ mod tests {
         update(&mut state, Intent::FocusPanelByNumber(6));
         assert_eq!(state.active_panel(), PanelId::Preview);
 
+        update(&mut state, Intent::FocusPanelByNumber(8));
+        assert_eq!(state.active_panel(), PanelId::InteractionInspector);
+        assert_eq!(
+            state.ui.interaction.focused_surface(),
+            SurfaceId::InteractionInspectorPanel
+        );
+
         update(&mut state, Intent::CycleWorkspaceTab(1));
         update(&mut state, Intent::FocusPanelByNumber(3));
         assert_eq!(state.active_panel(), PanelId::EditorPreferences);
+    }
+
+    #[test]
+    fn interaction_inspector_panel_scrolls_instead_of_reporting_no_list_selection() {
+        let mut state = AppState::new().expect("state should build");
+        state.set_active_panel(PanelId::InteractionInspector);
+        state.ui.interaction.focus_panel(PanelId::InteractionInspector);
+
+        let previous_status = state.ui.status.clone();
+        update(&mut state, Intent::MoveSelection(1));
+
+        assert!(state.ui.interaction_inspector_scroll > 0);
+        assert_eq!(state.ui.status, previous_status);
     }
 
     #[test]

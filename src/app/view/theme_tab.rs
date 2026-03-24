@@ -127,7 +127,7 @@ pub(crate) fn build_preview_panel(state: &AppState) -> PanelView {
             })
             .collect(),
         header_lines: preview_header_lines(state),
-        body: PanelBody::Document(DocumentView { lines }),
+        body: PanelBody::Document(DocumentView { lines, scroll: 0 }),
     }
 }
 

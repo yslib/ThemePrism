@@ -68,7 +68,10 @@ pub(crate) fn build_interaction_panel(state: &AppState) -> PanelView {
         shortcut: None,
         tabs: Vec::new(),
         header_lines: Vec::new(),
-        body: PanelBody::Document(DocumentView { lines }),
+        body: PanelBody::Document(DocumentView {
+            lines,
+            scroll: state.ui.interaction_inspector_scroll,
+        }),
     }
 }
 

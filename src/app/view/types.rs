@@ -128,6 +128,7 @@ pub struct FormFieldView {
 #[derive(Debug, Clone)]
 pub struct DocumentView {
     pub lines: Vec<StyledLine>,
+    pub scroll: u16,
 }
 
 #[derive(Debug, Clone)]
