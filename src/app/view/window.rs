@@ -1,6 +1,7 @@
 use crate::app::actions::menu_bar_actions;
-use crate::app::interaction::SurfaceId;
+use crate::app::hint_nav::workspace_tab_hint_label;
 use crate::app::interaction::focus_breadcrumb;
+use crate::app::interaction::{InteractionMode, SurfaceId};
 use crate::app::state::AppState;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::tokens::TokenRole;
@@ -30,6 +31,10 @@ pub fn build_view(state: &AppState) -> ViewTree {
 }
 
 pub fn build_view_with_layout(state: &AppState, workspace_layout: &WorkspaceLayout) -> ViewTree {
+    let hint_navigation_active = matches!(
+        state.ui.interaction.current_mode(),
+        InteractionMode::NavigateScope(SurfaceId::MainWindow)
+    );
     let theme = ViewTheme {
         background: state.theme_color(TokenRole::Background),
         surface: state.theme_color(TokenRole::Surface),
@@ -44,6 +49,7 @@ pub fn build_view_with_layout(state: &AppState, workspace_layout: &WorkspaceLayo
     let mut status_bar_view = || build_status_bar_view(state);
     let workspace = compose_layout(workspace_layout, &mut panel_for_slot, &mut status_bar_view);
     let main_window = MainWindowView {
+        hint_navigation_active,
         menu_bar: build_menu_bar_view(state),
         tab_bar: build_tab_bar_view(state),
         fullscreen_panel: state.ui.fullscreen_surface.and_then(SurfaceId::panel_id),
@@ -92,14 +98,14 @@ fn build_panel_for_slot(state: &AppState, slot: PanelId, visible_panels: &[Panel
     };
     panel.id = slot;
     panel.active = state.active_panel() == slot;
+    panel.hint_navigation_active = matches!(
+        state.ui.interaction.current_mode(),
+        InteractionMode::NavigateScope(SurfaceId::MainWindow)
+    );
     panel.shortcut = visible_panels
         .iter()
         .position(|panel_id| *panel_id == slot)
         .and_then(|index| u8::try_from(index + 1).ok());
-    panel.title = match panel.shortcut {
-        Some(shortcut) => format!("[{shortcut}] {}", panel.title),
-        None => panel.title,
-    };
     panel
 }
 
@@ -111,10 +117,18 @@ fn build_menu_bar_view(state: &AppState) -> MenuBarView {
 }
 
 fn build_tab_bar_view(state: &AppState) -> TabBarView {
+    let show_navigation_shortcuts = matches!(
+        state.ui.interaction.current_mode(),
+        InteractionMode::NavigateScope(SurfaceId::MainWindow)
+    );
+
     TabBarView {
         tabs: WorkspaceTab::ALL
             .iter()
             .map(|tab| TabItemView {
+                shortcut: show_navigation_shortcuts
+                    .then(|| workspace_tab_hint_label(state, *tab))
+                    .flatten(),
                 label: i18n::workspace_tab_label(state.locale(), *tab),
                 selected: *tab == state.ui.active_tab,
             })

@@ -2,6 +2,7 @@ use crate::app::controls::{
     ChoiceControlSpec, ColorControlSpec, ControlId, ControlSpec, DisplayFieldSpec, ReferenceField,
     ReferencePickerControlSpec, ScalarControlSpec,
 };
+use crate::app::hint_nav::preview_tab_hint_label;
 use crate::app::interaction::{SurfaceId, has_active_capture};
 use crate::app::state::AppState;
 use crate::app::workspace::PanelId;
@@ -39,6 +40,7 @@ pub(crate) fn build_token_panel(state: &AppState) -> PanelView {
         id: PanelId::Tokens,
         title: i18n::text(state.locale(), UiText::PanelTokenList),
         active: false,
+        hint_navigation_active: false,
         shortcut: None,
         tabs: Vec::new(),
         header_lines: Vec::new(),
@@ -93,6 +95,7 @@ pub(crate) fn build_params_panel(state: &AppState) -> PanelView {
         id: PanelId::Params,
         title: i18n::text(locale, UiText::PanelThemeParams),
         active: false,
+        hint_navigation_active: false,
         shortcut: None,
         tabs: Vec::new(),
         header_lines: Vec::new(),
@@ -118,10 +121,12 @@ pub(crate) fn build_preview_panel(state: &AppState) -> PanelView {
         id: PanelId::Preview,
         title: i18n::text(state.locale(), UiText::PanelPreviewSampleCode),
         active: false,
+        hint_navigation_active: false,
         shortcut: None,
         tabs: PreviewMode::ALL
             .iter()
             .map(|mode| PanelTabView {
+                shortcut: preview_tab_hint_label(state, *mode),
                 label: preview_mode_label(state, *mode),
                 active: *mode == state.preview.active_mode,
             })
@@ -148,6 +153,7 @@ pub(crate) fn build_palette_panel(state: &AppState) -> PanelView {
         id: PanelId::Palette,
         title: i18n::text(state.locale(), UiText::PanelPalette),
         active: false,
+        hint_navigation_active: false,
         shortcut: None,
         tabs: Vec::new(),
         header_lines: Vec::new(),
@@ -182,6 +188,7 @@ pub(crate) fn build_token_swatch_panel(
             _ => title.to_string(),
         },
         active: false,
+        hint_navigation_active: false,
         shortcut: None,
         tabs: Vec::new(),
         header_lines: Vec::new(),
@@ -236,6 +243,7 @@ pub(crate) fn build_inspector_panel(state: &AppState) -> PanelView {
         id: PanelId::Inspector,
         title: i18n::text(locale, UiText::PanelInspector),
         active: false,
+        hint_navigation_active: false,
         shortcut: None,
         tabs: Vec::new(),
         header_lines: Vec::new(),
@@ -347,6 +355,41 @@ fn preview_line_to_view_line(line: crate::domain::preview::PreviewLine) -> Style
                 },
             })
             .collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_preview_panel;
+    use crate::app::AppState;
+    use crate::app::interaction::{InteractionMode, SurfaceId};
+
+    #[test]
+    fn preview_panel_tabs_show_hint_shortcuts_during_navigation_mode() {
+        let mut state = AppState::new().expect("state");
+        state
+            .ui
+            .interaction
+            .set_mode(InteractionMode::NavigateScope(SurfaceId::MainWindow));
+
+        let panel = build_preview_panel(&state);
+
+        assert_eq!(panel.tabs.len(), 3);
+        assert_eq!(panel.tabs[0].shortcut, Some('c'));
+        assert_eq!(panel.tabs[1].shortcut, Some('d'));
+        assert_eq!(panel.tabs[2].shortcut, Some('e'));
+    }
+
+    #[test]
+    fn preview_panel_tabs_hide_hint_shortcuts_outside_navigation_mode() {
+        let state = AppState::new().expect("state");
+
+        let panel = build_preview_panel(&state);
+
+        assert_eq!(panel.tabs.len(), 3);
+        assert_eq!(panel.tabs[0].shortcut, None);
+        assert_eq!(panel.tabs[1].shortcut, None);
+        assert_eq!(panel.tabs[2].shortcut, None);
     }
 }
 

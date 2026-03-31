@@ -44,7 +44,13 @@ impl TuiRenderer {
             ])
             .split(area);
 
-        self.render_menu_bar(frame, sections[0], &window.menu_bar, theme);
+        self.render_menu_bar(
+            frame,
+            sections[0],
+            &window.menu_bar,
+            theme,
+            window.hint_navigation_active,
+        );
         self.render_tab_bar(frame, sections[1], &window.tab_bar, theme);
         if let Some(panel) = window.fullscreen_panel {
             if let Some(fullscreen_panel) = find_panel_view(&window.workspace, panel) {
@@ -55,7 +61,13 @@ impl TuiRenderer {
         } else {
             self.render_node(frame, sections[2], &window.workspace, theme);
         }
-        self.render_status_bar(frame, sections[3], &window.status_bar, theme);
+        self.render_status_bar(
+            frame,
+            sections[3],
+            &window.status_bar,
+            theme,
+            window.hint_navigation_active,
+        );
     }
 
     fn render_node(self, frame: &mut Frame, area: Rect, node: &ViewNode, theme: &ViewTheme) {
@@ -74,11 +86,18 @@ impl TuiRenderer {
                 }
             }
             ViewNode::Panel(view) => self.render_panel(frame, area, view, theme),
-            ViewNode::StatusBar(view) => self.render_status_bar(frame, area, view, theme),
+            ViewNode::StatusBar(view) => self.render_status_bar(frame, area, view, theme, false),
         }
     }
 
-    fn render_menu_bar(self, frame: &mut Frame, area: Rect, view: &MenuBarView, theme: &ViewTheme) {
+    fn render_menu_bar(
+        self,
+        frame: &mut Frame,
+        area: Rect,
+        view: &MenuBarView,
+        theme: &ViewTheme,
+        hint_navigation_active: bool,
+    ) {
         let mut spans = vec![Span::styled(
             format!(" {} ", view.title),
             Style::default()
@@ -94,6 +113,7 @@ impl TuiRenderer {
                 &view.actions,
                 available - title_width - 2,
                 theme,
+                hint_navigation_active,
             ));
         }
 
@@ -105,6 +125,7 @@ impl TuiRenderer {
     }
 
     fn render_tab_bar(self, frame: &mut Frame, area: Rect, view: &TabBarView, theme: &ViewTheme) {
+        let hint_navigation_active = view.tabs.iter().any(|tab| tab.shortcut.is_some());
         let mut spans = Vec::new();
         for (index, tab) in view.tabs.iter().enumerate() {
             if index > 0 {
@@ -114,17 +135,23 @@ impl TuiRenderer {
                 ));
             }
 
-            let style = if tab.selected {
-                Style::default()
-                    .bg(tui(theme.selection))
-                    .fg(tui(theme.background))
-                    .add_modifier(Modifier::BOLD)
+            if let Some(shortcut) = tab.shortcut {
+                spans.push(Span::styled(
+                    format!(" [{}] ", shortcut),
+                    hint_shortcut_style(theme),
+                ));
+                let label_style = hint_tab_label_style(tab.selected, theme, true);
+                spans.push(Span::styled(tab.label.clone(), label_style));
+                spans.push(Span::styled(" ", label_style));
             } else {
-                Style::default()
-                    .bg(tui(theme.background))
-                    .fg(tui(theme.text_muted))
-            };
-            spans.push(Span::styled(format!(" {} ", tab.label), style));
+                let style = hint_tab_label_style(tab.selected, theme, false);
+                let style = if hint_navigation_active {
+                    style.add_modifier(Modifier::DIM)
+                } else {
+                    style
+                };
+                spans.push(Span::styled(format!(" {} ", tab.label), style));
+            }
         }
 
         frame.render_widget(
@@ -138,15 +165,11 @@ impl TuiRenderer {
     }
 
     fn render_panel(self, frame: &mut Frame, area: Rect, view: &PanelView, theme: &ViewTheme) {
-        let border = if view.active {
-            theme.selection
-        } else {
-            theme.border
-        };
+        let border = panel_border_color(view, theme);
         let block = Block::default()
-            .title(view.title.as_str())
+            .title(panel_title_line(view, theme))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(tui(border)));
+            .border_style(panel_border_style(view, border));
         let inner = block.inner(area);
         frame.render_widget(block, area);
         let sections = panel_body_sections(view, inner);
@@ -159,21 +182,37 @@ impl TuiRenderer {
             let header = view
                 .header_lines
                 .iter()
-                .map(|line| styled_line_to_tui(line, theme))
+                .map(|line| styled_line_to_tui(line, theme, view.hint_navigation_active))
                 .collect::<Vec<_>>();
             frame.render_widget(
-                Paragraph::new(header).wrap(Wrap { trim: false }),
+                Paragraph::new(header)
+                    .wrap(Wrap { trim: false })
+                    .style(hint_content_style(view.hint_navigation_active)),
                 sections[1],
             );
         }
 
         match &view.body {
-            PanelBody::SelectionList(list) => {
-                self.render_selection_list(frame, sections[2], list, theme)
+            PanelBody::SelectionList(list) => self.render_selection_list(
+                frame,
+                sections[2],
+                list,
+                theme,
+                view.hint_navigation_active,
+            ),
+            PanelBody::Form(form) => {
+                self.render_form(frame, sections[2], form, theme, view.hint_navigation_active)
             }
-            PanelBody::Form(form) => self.render_form(frame, sections[2], form, theme),
-            PanelBody::Document(document) => self.render_document(frame, sections[2], document),
-            PanelBody::SwatchList(list) => self.render_swatch_list(frame, sections[2], list, theme),
+            PanelBody::Document(document) => {
+                self.render_document(frame, sections[2], document, view.hint_navigation_active)
+            }
+            PanelBody::SwatchList(list) => self.render_swatch_list(
+                frame,
+                sections[2],
+                list,
+                theme,
+                view.hint_navigation_active,
+            ),
         }
     }
 
@@ -184,24 +223,30 @@ impl TuiRenderer {
         tabs: &[crate::app::view::PanelTabView],
         theme: &ViewTheme,
     ) {
+        let hint_navigation_active = tabs.iter().any(|tab| tab.shortcut.is_some());
         let mut spans = Vec::new();
         for (index, tab) in tabs.iter().enumerate() {
             if index > 0 {
                 spans.push(Span::raw(" "));
             }
 
-            let style = if tab.active {
-                Style::default()
-                    .bg(tui(theme.selection))
-                    .fg(tui(theme.background))
-                    .add_modifier(Modifier::BOLD)
+            if let Some(shortcut) = tab.shortcut {
+                spans.push(Span::styled(
+                    format!(" [{}] ", shortcut),
+                    hint_shortcut_style(theme),
+                ));
+                let label_style = hint_panel_tab_label_style(tab.active, theme, true);
+                spans.push(Span::styled(tab.label.clone(), label_style));
+                spans.push(Span::styled(" ", label_style));
             } else {
-                Style::default()
-                    .bg(tui(theme.surface))
-                    .fg(tui(theme.text_muted))
-            };
-
-            spans.push(Span::styled(format!(" {} ", tab.label), style));
+                let style = hint_panel_tab_label_style(tab.active, theme, false);
+                let style = if hint_navigation_active {
+                    style.add_modifier(Modifier::DIM)
+                } else {
+                    style
+                };
+                spans.push(Span::styled(format!(" {} ", tab.label), style));
+            }
         }
 
         frame.render_widget(
@@ -217,6 +262,7 @@ impl TuiRenderer {
         area: Rect,
         list: &SelectionListView,
         theme: &ViewTheme,
+        hint_navigation_active: bool,
     ) {
         let lines = list
             .rows
@@ -251,14 +297,26 @@ impl TuiRenderer {
             })
             .collect::<Vec<_>>();
 
-        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+        frame.render_widget(
+            Paragraph::new(lines)
+                .wrap(Wrap { trim: false })
+                .style(hint_content_style(hint_navigation_active)),
+            area,
+        );
     }
 
-    fn render_form(self, frame: &mut Frame, area: Rect, form: &FormView, theme: &ViewTheme) {
+    fn render_form(
+        self,
+        frame: &mut Frame,
+        area: Rect,
+        form: &FormView,
+        theme: &ViewTheme,
+        hint_navigation_active: bool,
+    ) {
         let mut lines = form
             .header_lines
             .iter()
-            .map(|line| styled_line_to_tui(line, theme))
+            .map(|line| styled_line_to_tui(line, theme, hint_navigation_active))
             .collect::<Vec<_>>();
 
         for field in &form.fields {
@@ -277,7 +335,12 @@ impl TuiRenderer {
             )));
         }
 
-        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+        frame.render_widget(
+            Paragraph::new(lines)
+                .wrap(Wrap { trim: false })
+                .style(hint_content_style(hint_navigation_active)),
+            area,
+        );
     }
 
     fn render_form_field(self, field: &FormFieldView, theme: &ViewTheme) -> Line<'static> {
@@ -313,7 +376,13 @@ impl TuiRenderer {
         Line::from(spans)
     }
 
-    fn render_document(self, frame: &mut Frame, area: Rect, document: &DocumentView) {
+    fn render_document(
+        self,
+        frame: &mut Frame,
+        area: Rect,
+        document: &DocumentView,
+        hint_navigation_active: bool,
+    ) {
         let lines = document
             .lines
             .iter()
@@ -321,12 +390,14 @@ impl TuiRenderer {
                 line.spans
                     .iter()
                     .cloned()
-                    .map(to_tui_span)
+                    .map(|span| to_tui_span(span, hint_navigation_active))
                     .collect::<Vec<_>>()
             })
             .map(Line::from)
             .collect::<Vec<_>>();
-        let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
+        let paragraph = Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .style(hint_content_style(hint_navigation_active));
         let scroll = document.scroll.min(max_document_scroll(&paragraph, area));
 
         frame.render_widget(paragraph.scroll((scroll, 0)), area);
@@ -338,6 +409,7 @@ impl TuiRenderer {
         area: Rect,
         list: &SwatchListView,
         theme: &ViewTheme,
+        hint_navigation_active: bool,
     ) {
         let lines = list
             .items
@@ -345,7 +417,12 @@ impl TuiRenderer {
             .map(|item| self.render_swatch_item(item, theme))
             .collect::<Vec<_>>();
 
-        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+        frame.render_widget(
+            Paragraph::new(lines)
+                .wrap(Wrap { trim: false })
+                .style(hint_content_style(hint_navigation_active)),
+            area,
+        );
     }
 
     fn render_swatch_item(self, item: &SwatchItemView, theme: &ViewTheme) -> Line<'static> {
@@ -369,6 +446,7 @@ impl TuiRenderer {
         area: Rect,
         view: &StatusBarView,
         theme: &ViewTheme,
+        hint_navigation_active: bool,
     ) {
         let line = Line::from(vec![
             Span::styled(
@@ -380,7 +458,13 @@ impl TuiRenderer {
             ),
             Span::styled(
                 view.status_text.as_str(),
-                Style::default().fg(tui(theme.text_muted)),
+                if hint_navigation_active {
+                    Style::default()
+                        .fg(tui(theme.text_muted))
+                        .add_modifier(Modifier::DIM)
+                } else {
+                    Style::default().fg(tui(theme.text_muted))
+                },
             ),
         ]);
 
@@ -523,7 +607,7 @@ impl TuiRenderer {
             SurfaceBody::Lines { lines, scroll } => {
                 let body = lines
                     .iter()
-                    .map(|line| styled_line_to_tui(line, theme))
+                    .map(|line| styled_line_to_tui(line, theme, false))
                     .collect::<Vec<_>>();
                 let paragraph = Paragraph::new(body).wrap(Wrap { trim: false });
                 let scroll = (*scroll).min(max_document_scroll(&paragraph, sections[0]));
@@ -538,7 +622,7 @@ impl TuiRenderer {
         let footer = surface
             .footer_lines
             .iter()
-            .map(|line| styled_line_to_tui(line, theme))
+            .map(|line| styled_line_to_tui(line, theme, false))
             .collect::<Vec<_>>();
         frame.render_widget(
             Paragraph::new(footer).wrap(Wrap { trim: false }),
@@ -559,6 +643,7 @@ fn fitting_action_spans(
     actions: &[ActionHint],
     max_width: usize,
     theme: &ViewTheme,
+    hint_navigation_active: bool,
 ) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
     let mut used_width = 0;
@@ -580,8 +665,18 @@ fn fitting_action_spans(
             action,
             Style::default()
                 .fg(tui(theme.text_muted))
-                .add_modifier(Modifier::BOLD),
-            Style::default().fg(tui(theme.text)),
+                .add_modifier(if hint_navigation_active {
+                    Modifier::BOLD | Modifier::DIM
+                } else {
+                    Modifier::BOLD
+                }),
+            if hint_navigation_active {
+                Style::default()
+                    .fg(tui(theme.text_muted))
+                    .add_modifier(Modifier::DIM)
+            } else {
+                Style::default().fg(tui(theme.text))
+            },
         ));
         used_width += action_width;
     }
@@ -635,9 +730,62 @@ fn to_constraint(size: Size) -> Constraint {
 
 #[cfg(test)]
 mod tests {
-    use super::max_document_scroll;
+    use super::{TuiRenderer, max_document_scroll, panel_title_line, tui};
+    use crate::app::view::{
+        DocumentView, PanelBody, PanelTabView, PanelView, TabBarView, TabItemView, ViewTheme,
+    };
+    use crate::app::workspace::PanelId;
+    use crate::domain::color::Color;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    use ratatui::buffer::Cell;
     use ratatui::layout::Rect;
+    use ratatui::style::Modifier;
     use ratatui::widgets::{Paragraph, Wrap};
+
+    fn sample_theme() -> ViewTheme {
+        ViewTheme {
+            background: Color::from_hex("#0D1017").unwrap(),
+            surface: Color::from_hex("#1A2028").unwrap(),
+            border: Color::from_hex("#34404D").unwrap(),
+            selection: Color::from_hex("#5AA9E6").unwrap(),
+            text: Color::from_hex("#E6EDF3").unwrap(),
+            text_muted: Color::from_hex("#92A1B2").unwrap(),
+        }
+    }
+
+    fn sample_panel() -> PanelView {
+        PanelView {
+            id: PanelId::Preview,
+            title: "Preview".to_string(),
+            active: false,
+            hint_navigation_active: true,
+            shortcut: Some(3),
+            tabs: Vec::new(),
+            header_lines: Vec::new(),
+            body: PanelBody::Document(DocumentView {
+                lines: Vec::new(),
+                scroll: 0,
+            }),
+        }
+    }
+
+    fn cell_symbols(cells: &[Cell]) -> String {
+        cells.iter().map(Cell::symbol).collect::<Vec<_>>().join("")
+    }
+
+    fn row_cells(terminal: &Terminal<TestBackend>, y: u16, width: u16) -> Vec<Cell> {
+        let buffer = terminal.backend().buffer();
+        (0..width)
+            .map(|x| buffer.cell((x, y)).unwrap().clone())
+            .collect::<Vec<_>>()
+    }
+
+    fn find_text_start(cells: &[Cell], text: &str) -> usize {
+        let row = cell_symbols(cells);
+        row.find(text)
+            .unwrap_or_else(|| panic!("could not find `{text}` in row `{row}`"))
+    }
 
     #[test]
     fn vertical_scroll_is_clamped_to_last_visible_line() {
@@ -656,6 +804,106 @@ mod tests {
         let paragraph = Paragraph::new("wrapped text").wrap(Wrap { trim: false });
         assert_eq!(max_document_scroll(&paragraph, Rect::new(0, 0, 10, 0)), 0);
     }
+
+    #[test]
+    fn hint_active_panel_title_uses_primary_text_without_dimming() {
+        let theme = sample_theme();
+        let title = panel_title_line(&sample_panel(), &theme);
+
+        let title_span = &title.spans[2];
+        assert_eq!(title_span.style.fg, Some(tui(theme.text)));
+        assert!(!title_span.style.add_modifier.contains(Modifier::DIM));
+        assert!(title_span.style.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn hint_active_panel_border_uses_selection_color() {
+        let theme = sample_theme();
+        let panel = sample_panel();
+        let backend = TestBackend::new(24, 8);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| {
+                TuiRenderer.render_panel(frame, Rect::new(0, 0, 24, 8), &panel, &theme);
+            })
+            .unwrap();
+
+        let border_cell = terminal.backend().buffer().cell((0, 0)).unwrap();
+        assert_eq!(border_cell.fg, tui(theme.selection));
+    }
+
+    #[test]
+    fn hint_active_workspace_tabs_promote_target_labels() {
+        let theme = sample_theme();
+        let view = TabBarView {
+            tabs: vec![
+                TabItemView {
+                    shortcut: Some('a'),
+                    label: "Theme".to_string(),
+                    selected: false,
+                },
+                TabItemView {
+                    shortcut: Some('b'),
+                    label: "Project".to_string(),
+                    selected: false,
+                },
+            ],
+        };
+        let backend = TestBackend::new(40, 1);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| {
+                TuiRenderer.render_tab_bar(frame, Rect::new(0, 0, 40, 1), &view, &theme);
+            })
+            .unwrap();
+
+        let row = row_cells(&terminal, 0, 40);
+        let start = find_text_start(&row, "Theme");
+        let theme_cells = row[start..start + "Theme".len()].to_vec();
+
+        assert_eq!(cell_symbols(&theme_cells), "Theme");
+        for cell in theme_cells {
+            assert_eq!(cell.fg, tui(theme.text));
+            assert!(cell.modifier.contains(Modifier::BOLD));
+        }
+    }
+
+    #[test]
+    fn hint_active_preview_tabs_promote_target_labels() {
+        let theme = sample_theme();
+        let tabs = vec![
+            PanelTabView {
+                shortcut: Some('c'),
+                label: "Code".to_string(),
+                active: false,
+            },
+            PanelTabView {
+                shortcut: Some('d'),
+                label: "Shell".to_string(),
+                active: false,
+            },
+        ];
+        let backend = TestBackend::new(32, 1);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        terminal
+            .draw(|frame| {
+                TuiRenderer.render_panel_tabs(frame, Rect::new(0, 0, 32, 1), &tabs, &theme);
+            })
+            .unwrap();
+
+        let row = row_cells(&terminal, 0, 32);
+        let start = find_text_start(&row, "Code");
+        let code_cells = row[start..start + "Code".len()].to_vec();
+
+        assert_eq!(cell_symbols(&code_cells), "Code");
+        for cell in code_cells {
+            assert_eq!(cell.fg, tui(theme.text));
+            assert!(cell.modifier.contains(Modifier::BOLD));
+        }
+    }
 }
 
 fn find_panel_view(node: &ViewNode, target: PanelId) -> Option<&PanelView> {
@@ -669,13 +917,17 @@ fn find_panel_view(node: &ViewNode, target: PanelId) -> Option<&PanelView> {
     }
 }
 
-fn styled_line_to_tui(line: &StyledLine, theme: &ViewTheme) -> Line<'static> {
+fn styled_line_to_tui(
+    line: &StyledLine,
+    theme: &ViewTheme,
+    hint_navigation_active: bool,
+) -> Line<'static> {
     Line::from(
         line.spans
             .iter()
             .cloned()
             .map(|span| {
-                let mut tui_span = to_tui_span(span);
+                let mut tui_span = to_tui_span(span, hint_navigation_active);
                 if tui_span.style.fg.is_none() {
                     tui_span.style = tui_span.style.fg(tui(theme.text_muted));
                 }
@@ -685,8 +937,12 @@ fn styled_line_to_tui(line: &StyledLine, theme: &ViewTheme) -> Line<'static> {
     )
 }
 
-fn to_tui_span(span: StyledSpan) -> Span<'static> {
-    Span::styled(span.text, to_tui_style(span.style))
+fn to_tui_span(span: StyledSpan, hint_navigation_active: bool) -> Span<'static> {
+    let mut style = to_tui_style(span.style);
+    if hint_navigation_active {
+        style = style.add_modifier(Modifier::DIM);
+    }
+    Span::styled(span.text, style)
 }
 
 fn to_tui_style(style: SpanStyle) -> Style {
@@ -737,4 +993,110 @@ fn centered_rect_absolute(width: u16, height: u16, area: Rect) -> Rect {
 
 fn tui(color: Color) -> ratatui::style::Color {
     color.into()
+}
+
+fn hint_content_style(hint_navigation_active: bool) -> Style {
+    if hint_navigation_active {
+        Style::default().add_modifier(Modifier::DIM)
+    } else {
+        Style::default()
+    }
+}
+
+fn hint_shortcut_style(theme: &ViewTheme) -> Style {
+    Style::default()
+        .bg(tui(theme.selection))
+        .fg(tui(theme.background))
+        .add_modifier(Modifier::BOLD)
+}
+
+fn panel_border_color(view: &PanelView, theme: &ViewTheme) -> Color {
+    if view.active || is_hint_target_panel(view) {
+        theme.selection
+    } else {
+        theme.border
+    }
+}
+
+fn panel_border_style(view: &PanelView, border: Color) -> Style {
+    let style = Style::default().fg(tui(border));
+    if is_hint_target_panel(view) || view.active {
+        style.add_modifier(Modifier::BOLD)
+    } else {
+        style
+    }
+}
+
+fn is_hint_target_panel(view: &PanelView) -> bool {
+    view.hint_navigation_active && view.shortcut.is_some()
+}
+
+fn hint_tab_label_style(selected: bool, theme: &ViewTheme, hinted: bool) -> Style {
+    if selected {
+        Style::default()
+            .bg(tui(theme.selection))
+            .fg(tui(theme.background))
+            .add_modifier(Modifier::BOLD)
+    } else if hinted {
+        Style::default()
+            .bg(tui(theme.background))
+            .fg(tui(theme.text))
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+            .bg(tui(theme.background))
+            .fg(tui(theme.text_muted))
+    }
+}
+
+fn hint_panel_tab_label_style(active: bool, theme: &ViewTheme, hinted: bool) -> Style {
+    if active {
+        Style::default()
+            .bg(tui(theme.selection))
+            .fg(tui(theme.background))
+            .add_modifier(Modifier::BOLD)
+    } else if hinted {
+        Style::default()
+            .bg(tui(theme.surface))
+            .fg(tui(theme.text))
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+            .bg(tui(theme.surface))
+            .fg(tui(theme.text_muted))
+    }
+}
+
+fn panel_title_line(view: &PanelView, theme: &ViewTheme) -> Line<'static> {
+    let mut spans = Vec::new();
+    if let Some(shortcut) = view.shortcut {
+        let shortcut_style = if view.hint_navigation_active {
+            hint_shortcut_style(theme)
+        } else if view.active {
+            Style::default()
+                .fg(tui(theme.selection))
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(tui(theme.text_muted))
+        };
+        spans.push(Span::styled(format!("[{shortcut}]"), shortcut_style));
+        spans.push(Span::raw(" "));
+    }
+    let title_style = if is_hint_target_panel(view) {
+        Style::default()
+            .fg(tui(theme.text))
+            .add_modifier(Modifier::BOLD)
+    } else if view.hint_navigation_active {
+        Style::default()
+            .fg(tui(theme.text_muted))
+            .add_modifier(Modifier::DIM)
+    } else if view.active {
+        Style::default()
+            .fg(tui(theme.text))
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(tui(theme.text))
+    };
+    spans.push(Span::styled(view.title.clone(), title_style));
+    Line::from(spans)
 }

@@ -104,25 +104,100 @@ fn pop_mode_only_pops_focus_when_owner_matches_trailing_surface() {
 }
 
 #[test]
-fn select_child_routing_requires_navigate_children_mode() {
+fn digit_navigation_works_without_scope_navigation_mode() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_panel(PanelId::Tokens);
+
+    let intents = route_ui_action(&state, UiAction::NavigateTo('2'));
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::FocusPanelByNumber(2)]
+    ));
+}
+
+#[test]
+fn open_navigation_on_workspace_surface_enters_main_window_scope_navigation() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_panel(PanelId::Tokens);
+
+    let intents = route_ui_action(&state, UiAction::OpenNavigation);
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::SetInteractionMode(
+            InteractionMode::NavigateScope(SurfaceId::MainWindow)
+        )]
+    ));
+}
+
+#[test]
+fn navigate_to_letter_switches_workspace_tab_immediately() {
     let mut state = AppState::new().expect("state");
     state.ui.interaction.focus_root();
-
-    assert!(route_ui_action(&state, UiAction::SelectChild(2)).is_empty());
-
     state
         .ui
         .interaction
-        .set_mode(InteractionMode::NavigateChildren(SurfaceId::MainWindow));
+        .set_mode(InteractionMode::NavigateScope(SurfaceId::MainWindow));
 
-    let intents = route_ui_action(&state, UiAction::SelectChild(2));
+    let intents = route_ui_action(&state, UiAction::NavigateTo('b'));
 
     assert!(matches!(
         intents.as_slice(),
         [
-            crate::app::Intent::FocusPanelByNumber(2),
+            crate::app::Intent::SetWorkspaceTab(WorkspaceTab::Project),
             crate::app::Intent::SetInteractionMode(InteractionMode::Normal)
         ]
+    ));
+}
+
+#[test]
+fn letter_navigation_requires_scope_navigation_mode() {
+    let mut state = AppState::new().expect("state");
+    state.ui.interaction.focus_panel(PanelId::Tokens);
+
+    assert!(route_ui_action(&state, UiAction::NavigateTo('b')).is_empty());
+}
+
+#[test]
+fn navigate_to_preview_tab_switches_mode_and_focuses_preview_tabs() {
+    let mut state = AppState::new().expect("state");
+    state.set_active_panel(PanelId::Tokens);
+    state.ui.interaction.focus_panel(PanelId::Tokens);
+    state
+        .ui
+        .interaction
+        .set_mode(InteractionMode::NavigateScope(SurfaceId::MainWindow));
+
+    let intents = route_ui_action(&state, UiAction::NavigateTo('d'));
+
+    assert!(matches!(
+        intents.as_slice(),
+        [
+            crate::app::Intent::SetPreviewMode(crate::preview::PreviewMode::Shell),
+            crate::app::Intent::FocusSurface(SurfaceId::PreviewTabs),
+            crate::app::Intent::SetInteractionMode(InteractionMode::Normal)
+        ]
+    ));
+}
+
+#[test]
+fn cancel_on_main_window_scope_navigation_only_exits_nav_mode() {
+    let mut state = AppState::new().expect("state");
+    state.set_active_panel(PanelId::Inspector);
+    state.ui.interaction.focus_panel(PanelId::Inspector);
+    state
+        .ui
+        .interaction
+        .set_mode(InteractionMode::NavigateScope(SurfaceId::MainWindow));
+
+    let intents = route_ui_action(&state, UiAction::Cancel);
+
+    assert!(matches!(
+        intents.as_slice(),
+        [crate::app::Intent::SetInteractionMode(
+            InteractionMode::Normal
+        )]
     ));
 }
 

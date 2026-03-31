@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use crate::app::controls::ControlId;
 use crate::app::effect::ProjectData;
 use crate::app::interaction::{InteractionMode, SurfaceId};
+use crate::app::workspace::WorkspaceTab;
 use crate::domain::color::Color;
 use crate::domain::params::ParamKey;
 use crate::domain::preview::PreviewRuntimeEvent;
@@ -10,11 +11,13 @@ use crate::domain::rules::{AdjustOp, RuleKind, SourceRef};
 use crate::domain::tokens::TokenRole;
 use crate::export::ExportArtifact;
 use crate::persistence::editor_config::{EditorKeymapPreset, EditorLocale};
+use crate::preview::PreviewMode;
 
 #[derive(Debug, Clone)]
 pub enum Intent {
     QuitRequested,
     CycleWorkspaceTab(i32),
+    SetWorkspaceTab(WorkspaceTab),
     FocusPanelByNumber(u8),
     FocusSurface(SurfaceId),
     SetInteractionMode(InteractionMode),
@@ -24,6 +27,7 @@ pub enum Intent {
     ActivateControl(ControlId),
     AdjustActiveNumericInputByStep(i32),
     CyclePreviewMode(i32),
+    SetPreviewMode(PreviewMode),
     SetPreviewCapture(bool),
     ToggleFullscreenRequested,
 

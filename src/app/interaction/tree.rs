@@ -103,7 +103,6 @@ pub enum DefaultAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChildNavigation {
     None,
-    Numbered,
     Sequential,
 }
 
@@ -172,6 +171,7 @@ impl InteractionTree {
         self.node(id).and_then(|node| node.parent)
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn is_visible(&self, id: SurfaceId) -> bool {
         let Some(node) = self.node(id) else {
             return false;
@@ -245,8 +245,8 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             true,
             None,
             TabScope::Global,
-            DefaultAction::Activate,
-            ChildNavigation::Numbered,
+            DefaultAction::None,
+            ChildNavigation::None,
             BubblePolicy::Bubble,
             Some(SurfaceId::AppRoot),
         ),

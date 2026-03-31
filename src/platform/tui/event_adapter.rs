@@ -85,13 +85,27 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
         )
         .map(bound_action_to_ui_action),
         surface if surface.is_workspace_surface() => {
-            if state.ui.interaction.current_mode()
-                == InteractionMode::NavigateChildren(SurfaceId::MainWindow)
-            {
+            if matches!(
+                state.ui.interaction.current_mode(),
+                InteractionMode::NavigateScope(_)
+            ) {
                 if let KeyCode::Char(ch) = key.code {
-                    if ('1'..='9').contains(&ch) {
-                        return Some(UiAction::SelectChild(ch as u8 - b'0'));
+                    if ch.is_ascii_alphanumeric()
+                        && !key.modifiers.intersects(
+                            KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER,
+                        )
+                    {
+                        return Some(UiAction::NavigateTo(ch.to_ascii_lowercase()));
                     }
+                }
+            }
+            if let KeyCode::Char(ch) = key.code {
+                if ('1'..='9').contains(&ch)
+                    && !key
+                        .modifiers
+                        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SUPER)
+                {
+                    return Some(UiAction::NavigateTo(ch));
                 }
             }
 
@@ -99,6 +113,7 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
                 preset,
                 key,
                 &[
+                    BoundAction::OpenNavigation,
                     BoundAction::Quit,
                     BoundAction::PreviousTab,
                     BoundAction::NextTab,
@@ -135,6 +150,7 @@ fn free_text_action(key: &KeyEvent) -> Option<UiAction> {
 
 fn bound_action_to_ui_action(action: BoundAction) -> UiAction {
     match action {
+        BoundAction::OpenNavigation => UiAction::OpenNavigation,
         BoundAction::PreviousTab => UiAction::PreviousTab,
         BoundAction::NextTab => UiAction::NextTab,
         BoundAction::MoveUp => UiAction::MoveUp,
@@ -429,26 +445,121 @@ mod tests {
     }
 
     #[test]
-    fn main_window_navigation_uses_digit_selection_after_activate() {
+    fn g_opens_main_window_navigation_mode() {
         let mut state = AppState::new().unwrap();
-        state.ui.interaction.focus_root();
+        state.set_active_panel(PanelId::Tokens);
+        state.ui.interaction.focus_panel(PanelId::Tokens);
 
-        let activate = TuiEventAdapter.map_event(&state, key(KeyCode::Enter));
-        assert!(matches!(
-            activate.as_slice(),
-            [Intent::FocusSurface(_), Intent::SetInteractionMode(_)]
-        ));
+        let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Char('g')));
 
-        state
-            .ui
-            .interaction
-            .set_mode(crate::app::interaction::InteractionMode::NavigateChildren(
-                crate::app::interaction::SurfaceId::MainWindow,
-            ));
-        let select = TuiEventAdapter.map_event(&state, key(KeyCode::Char('2')));
         assert!(matches!(
-            select.as_slice(),
-            [Intent::FocusPanelByNumber(2), Intent::SetInteractionMode(_)]
+            intents.as_slice(),
+            [Intent::SetInteractionMode(
+                crate::app::interaction::InteractionMode::NavigateScope(
+                    crate::app::interaction::SurfaceId::MainWindow
+                )
+            )]
         ));
+    }
+
+    #[test]
+    fn digits_switch_panels_without_opening_navigation_mode() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Tokens);
+        state.ui.interaction.focus_panel(PanelId::Tokens);
+
+        let jump = TuiEventAdapter.map_event(&state, key(KeyCode::Char('2')));
+        apply_intents(&mut state, jump);
+
+        assert_eq!(state.active_panel(), PanelId::Params);
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            crate::app::interaction::InteractionMode::Normal
+        );
+    }
+
+    #[test]
+    fn main_window_navigation_letter_switches_workspace_tab_immediately() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Tokens);
+        state.ui.interaction.focus_panel(PanelId::Tokens);
+
+        let open_navigation = TuiEventAdapter.map_event(&state, key(KeyCode::Char('g')));
+        apply_intents(&mut state, open_navigation);
+        let jump = TuiEventAdapter.map_event(&state, key(KeyCode::Char('b')));
+        apply_intents(&mut state, jump);
+
+        assert_eq!(
+            state.ui.active_tab,
+            crate::app::workspace::WorkspaceTab::Project
+        );
+        assert_eq!(state.active_panel(), PanelId::ProjectConfig);
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            crate::app::interaction::InteractionMode::Normal
+        );
+    }
+
+    #[test]
+    fn hint_navigation_can_jump_directly_to_preview_tabs() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Tokens);
+        state.ui.interaction.focus_panel(PanelId::Tokens);
+
+        let open_navigation = TuiEventAdapter.map_event(&state, key(KeyCode::Char('g')));
+        apply_intents(&mut state, open_navigation);
+        let jump = TuiEventAdapter.map_event(&state, key(KeyCode::Char('d')));
+        apply_intents(&mut state, jump);
+
+        assert_eq!(state.active_panel(), PanelId::Preview);
+        assert_eq!(
+            state.preview.active_mode,
+            crate::preview::PreviewMode::Shell
+        );
+        assert_eq!(
+            state.ui.interaction.focused_surface(),
+            crate::app::interaction::SurfaceId::PreviewTabs
+        );
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            crate::app::interaction::InteractionMode::Normal
+        );
+    }
+
+    #[test]
+    fn escape_cancels_navigation_mode_without_moving_focus() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Inspector);
+        state.ui.interaction.focus_panel(PanelId::Inspector);
+
+        let open_navigation = TuiEventAdapter.map_event(&state, key(KeyCode::Char('g')));
+        apply_intents(&mut state, open_navigation);
+        let cancel = TuiEventAdapter.map_event(&state, key(KeyCode::Esc));
+        apply_intents(&mut state, cancel);
+
+        assert_eq!(state.active_panel(), PanelId::Inspector);
+        assert_eq!(
+            state.ui.interaction.focused_surface(),
+            crate::app::interaction::SurfaceId::InspectorPanel
+        );
+        assert_eq!(
+            state.ui.interaction.current_mode(),
+            crate::app::interaction::InteractionMode::Normal
+        );
+    }
+
+    #[test]
+    fn letters_do_not_switch_tabs_without_navigation_mode() {
+        let mut state = AppState::new().unwrap();
+        state.set_active_panel(PanelId::Tokens);
+        state.ui.interaction.focus_panel(PanelId::Tokens);
+
+        let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Char('b')));
+
+        assert!(intents.is_empty());
+        assert_eq!(
+            state.ui.active_tab,
+            crate::app::workspace::WorkspaceTab::Theme
+        );
     }
 }

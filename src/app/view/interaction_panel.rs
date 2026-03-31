@@ -17,6 +17,7 @@ pub(crate) fn build_interaction_panel(state: &AppState) -> PanelView {
         id: PanelId::InteractionInspector,
         title: i18n::text(state.locale(), UiText::PanelInteractionInspector),
         active: false,
+        hint_navigation_active: false,
         shortcut: None,
         tabs: Vec::new(),
         header_lines: Vec::new(),
@@ -146,7 +147,6 @@ fn capability_badges(node: &SurfaceNode) -> Vec<String> {
     }
     match node.child_navigation {
         ChildNavigation::None => {}
-        ChildNavigation::Numbered => badges.push("children:1-9".to_string()),
         ChildNavigation::Sequential => badges.push("children:seq".to_string()),
     }
     badges.push(match node.bubble_policy {
@@ -161,6 +161,7 @@ fn format_mode(mode: InteractionMode) -> String {
     match mode {
         InteractionMode::Normal => "Normal".to_string(),
         InteractionMode::NavigateChildren(owner) => format!("NavigateChildren({owner:?})"),
+        InteractionMode::NavigateScope(owner) => format!("NavigateScope({owner:?})"),
         InteractionMode::Capture { owner } => format!("Capture({owner:?})"),
         InteractionMode::Modal { owner } => format!("Modal({owner:?})"),
     }

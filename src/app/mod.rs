@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod controls;
 pub mod effect;
+pub mod hint_nav;
 pub mod intent;
 pub mod interaction;
 pub mod snapshot;

@@ -1,4 +1,5 @@
 use crate::app::Intent;
+use crate::app::hint_nav::{HintTarget, main_window_hint_targets};
 use crate::app::state::AppState;
 
 use super::{
@@ -56,6 +57,8 @@ fn route_on_node(
     action: UiAction,
 ) -> Option<Vec<Intent>> {
     match action {
+        UiAction::OpenNavigation => route_open_navigation(state, node),
+        UiAction::NavigateTo(label) => route_navigation_target(state, node, label),
         UiAction::PreviousTab => route_tab_action(tree, node, -1),
         UiAction::NextTab => route_tab_action(tree, node, 1),
         UiAction::Activate => route_default_action(state, node)
@@ -68,7 +71,6 @@ fn route_on_node(
             route_child_navigation_move(tree, state, node, 1)
                 .or_else(|| route_surface_action(state, node.id, action))
         }
-        UiAction::SelectChild(number) => route_select_child(state, node, number),
         _ => route_surface_action(state, node.id, action),
     }
 }
@@ -120,13 +122,106 @@ fn route_open_action(surface: SurfaceId) -> Option<Vec<Intent>> {
     }
 }
 
+fn route_open_navigation(state: &AppState, node: &SurfaceNode) -> Option<Vec<Intent>> {
+    let scope = navigation_scope_for_surface(node.id)?;
+    if scope != SurfaceId::MainWindow || main_window_hint_targets(state).is_empty() {
+        return Some(Vec::new());
+    }
+
+    Some(vec![Intent::SetInteractionMode(
+        InteractionMode::NavigateScope(scope),
+    )])
+}
+
+fn route_navigation_target(
+    state: &AppState,
+    node: &SurfaceNode,
+    label: char,
+) -> Option<Vec<Intent>> {
+    let hinted_navigation = matches!(
+        state.ui.interaction.current_mode(),
+        InteractionMode::NavigateScope(_)
+    );
+    let scope = match state.ui.interaction.current_mode() {
+        InteractionMode::NavigateScope(scope) => scope,
+        _ if label.is_ascii_digit() => navigation_scope_for_surface(node.id)?,
+        _ => return None,
+    };
+
+    if scope != SurfaceId::MainWindow {
+        return None;
+    }
+
+    if hinted_navigation && navigation_scope_for_surface(node.id) != Some(scope) && node.id != scope
+    {
+        return None;
+    }
+
+    let target = main_window_hint_targets(state)
+        .into_iter()
+        .find(|target| target.label() == label.to_ascii_lowercase())?;
+
+    Some(match target {
+        HintTarget::Panel { panel, .. } => {
+            let layout = crate::app::view::workspace_layout_for_tab(state.ui.active_tab);
+            let panels = crate::app::view::panel_order(&layout);
+            let number = panels
+                .iter()
+                .position(|candidate| *candidate == panel)
+                .and_then(|index| u8::try_from(index + 1).ok())?;
+            let mut intents = vec![Intent::FocusPanelByNumber(number)];
+            if hinted_navigation {
+                intents.push(Intent::SetInteractionMode(InteractionMode::Normal));
+            }
+            intents
+        }
+        HintTarget::WorkspaceTab { tab, .. } => {
+            let mut intents = vec![Intent::SetWorkspaceTab(tab)];
+            if hinted_navigation {
+                intents.push(Intent::SetInteractionMode(InteractionMode::Normal));
+            }
+            intents
+        }
+        HintTarget::PreviewTab { mode, .. } => {
+            let mut intents = vec![
+                Intent::SetPreviewMode(mode),
+                Intent::FocusSurface(SurfaceId::PreviewTabs),
+            ];
+            if hinted_navigation {
+                intents.push(Intent::SetInteractionMode(InteractionMode::Normal));
+            }
+            intents
+        }
+    })
+}
+
+fn navigation_scope_for_surface(surface: SurfaceId) -> Option<SurfaceId> {
+    match surface {
+        SurfaceId::AppRoot => None,
+        SurfaceId::MainWindow
+        | SurfaceId::TokensPanel
+        | SurfaceId::ParamsPanel
+        | SurfaceId::PreviewPanel
+        | SurfaceId::PreviewTabs
+        | SurfaceId::PreviewBody
+        | SurfaceId::ResolvedPrimaryPanel
+        | SurfaceId::ResolvedSecondaryPanel
+        | SurfaceId::PalettePanel
+        | SurfaceId::InspectorPanel
+        | SurfaceId::InteractionInspectorPanel
+        | SurfaceId::ProjectConfigPanel
+        | SurfaceId::ExportTargetsPanel
+        | SurfaceId::EditorPreferencesPanel => Some(SurfaceId::MainWindow),
+        SurfaceId::NumericEditorSurface
+        | SurfaceId::SourcePicker
+        | SurfaceId::ConfigDialog
+        | SurfaceId::ShortcutHelp => Some(surface),
+    }
+}
+
 fn enter_child_navigation(node: &SurfaceNode) -> Option<Vec<Intent>> {
     match node.child_navigation {
         ChildNavigation::None => None,
-        ChildNavigation::Numbered => Some(vec![
-            Intent::FocusSurface(node.id),
-            Intent::SetInteractionMode(InteractionMode::NavigateChildren(node.id)),
-        ]),
         ChildNavigation::Sequential => node.children.first().copied().map(|child| {
             vec![
                 Intent::FocusSurface(child),
@@ -141,6 +236,12 @@ fn route_child_navigation_cancel(
     state: &AppState,
     node: &SurfaceNode,
 ) -> Option<Vec<Intent>> {
+    if let InteractionMode::NavigateScope(scope) = state.ui.interaction.current_mode() {
+        if navigation_scope_for_surface(node.id) == Some(scope) || node.id == scope {
+            return Some(vec![Intent::SetInteractionMode(InteractionMode::Normal)]);
+        }
+    }
+
     let owner = match state.ui.interaction.current_mode() {
         InteractionMode::NavigateChildren(owner) => owner,
         _ => return None,
@@ -207,20 +308,6 @@ fn resolve_child_navigation_owner<'a>(
     None
 }
 
-fn route_select_child(state: &AppState, node: &SurfaceNode, number: u8) -> Option<Vec<Intent>> {
-    if state.ui.interaction.current_mode() != InteractionMode::NavigateChildren(node.id) {
-        return None;
-    }
-
-    match node.child_navigation {
-        ChildNavigation::Numbered if node.id == SurfaceId::MainWindow => Some(vec![
-            Intent::FocusPanelByNumber(number),
-            Intent::SetInteractionMode(InteractionMode::Normal),
-        ]),
-        ChildNavigation::None | ChildNavigation::Sequential | ChildNavigation::Numbered => None,
-    }
-}
-
 fn route_surface_action(
     state: &AppState,
     surface: SurfaceId,
@@ -259,6 +346,9 @@ fn route_main_window_action(action: UiAction) -> Option<Vec<Intent>> {
             Intent::FocusSurface(SurfaceId::MainWindow),
             Intent::SetInteractionMode(InteractionMode::Normal),
         ]),
+        UiAction::OpenNavigation => Some(vec![Intent::SetInteractionMode(
+            InteractionMode::NavigateScope(SurfaceId::MainWindow),
+        )]),
         UiAction::OpenConfig => Some(vec![Intent::OpenConfigRequested]),
         UiAction::OpenHelp => Some(vec![Intent::ToggleShortcutHelpRequested]),
         UiAction::ToggleFullscreenRequested => Some(vec![Intent::ToggleFullscreenRequested]),
@@ -305,6 +395,7 @@ fn route_panel_action(
 
 fn route_text_input_action(state: &AppState, action: UiAction) -> Option<Vec<Intent>> {
     match action {
+        UiAction::OpenNavigation => Some(Vec::new()),
         UiAction::Apply => Some(vec![Intent::CommitTextInput]),
         UiAction::Cancel => Some(vec![Intent::CancelTextInput]),
         UiAction::Backspace => Some(vec![Intent::BackspaceTextInput]),
@@ -328,6 +419,7 @@ fn route_text_input_action(state: &AppState, action: UiAction) -> Option<Vec<Int
 
 fn route_source_picker_action(action: UiAction) -> Option<Vec<Intent>> {
     match action {
+        UiAction::OpenNavigation => Some(Vec::new()),
         UiAction::Apply => Some(vec![Intent::ApplySourcePickerSelection]),
         UiAction::Cancel => Some(vec![Intent::CloseSourcePicker]),
         UiAction::MoveUp => Some(vec![Intent::MoveSourcePickerSelection(-1)]),
@@ -341,6 +433,7 @@ fn route_source_picker_action(action: UiAction) -> Option<Vec<Intent>> {
 
 fn route_config_dialog_action(action: UiAction) -> Option<Vec<Intent>> {
     match action {
+        UiAction::OpenNavigation => Some(Vec::new()),
         UiAction::OpenHelp => Some(vec![Intent::ToggleShortcutHelpRequested]),
         UiAction::Cancel => Some(vec![Intent::CloseConfigRequested]),
         UiAction::Activate | UiAction::Toggle => Some(vec![Intent::ActivateConfigField]),
@@ -352,6 +445,7 @@ fn route_config_dialog_action(action: UiAction) -> Option<Vec<Intent>> {
 
 fn route_shortcut_help_action(action: UiAction) -> Option<Vec<Intent>> {
     match action {
+        UiAction::OpenNavigation => Some(Vec::new()),
         UiAction::OpenHelp | UiAction::Cancel => Some(vec![Intent::ToggleShortcutHelpRequested]),
         UiAction::MoveUp => Some(vec![Intent::ScrollShortcutHelp(-1)]),
         UiAction::MoveDown => Some(vec![Intent::ScrollShortcutHelp(1)]),

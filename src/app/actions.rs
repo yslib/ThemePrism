@@ -34,6 +34,7 @@ pub enum ActionId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BoundAction {
+    OpenNavigation,
     PreviousTab,
     NextTab,
     MoveUp,
@@ -240,7 +241,7 @@ pub fn shortcut_help_sections(
                     i18n::text(locale, UiText::HelpSwitchTabsDesc),
                 ),
                 entry(
-                    "1-9".to_string(),
+                    "1-9 / ".to_string() + &binding_label(preset, BoundAction::OpenNavigation),
                     i18n::text(locale, UiText::HelpFocusPanelLabel),
                     i18n::text(locale, UiText::HelpFocusPanelDesc),
                 ),
@@ -429,6 +430,7 @@ fn bindings_for(preset: EditorKeymapPreset, action: BoundAction) -> &'static [Ke
     use KeyBinding as Key;
 
     match (preset, action) {
+        (_, Action::OpenNavigation) => &[Key::Char('g')],
         (_, Action::PreviousTab) => &[Key::Char('[')],
         (_, Action::NextTab) => &[Key::Char(']')],
         (Preset::Standard, Action::MoveUp) => &[Key::Up],

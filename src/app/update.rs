@@ -37,6 +37,17 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             cycle_workspace_tab(state, delta);
             Vec::new()
         }
+        Intent::SetWorkspaceTab(tab) => {
+            if state.ui.source_picker.is_some()
+                || state.ui.text_input.is_some()
+                || state.ui.config_modal.is_some()
+                || state.ui.shortcut_help_open
+            {
+                return Vec::new();
+            }
+            set_workspace_tab(state, tab);
+            Vec::new()
+        }
         Intent::FocusPanelByNumber(number) => {
             if state.ui.source_picker.is_some()
                 || state.ui.text_input.is_some()
@@ -106,6 +117,17 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
                 return Vec::new();
             }
             cycle_preview_mode(state, delta);
+            Vec::new()
+        }
+        Intent::SetPreviewMode(mode) => {
+            if state.ui.source_picker.is_some()
+                || state.ui.text_input.is_some()
+                || state.ui.config_modal.is_some()
+                || state.ui.shortcut_help_open
+            {
+                return Vec::new();
+            }
+            set_preview_mode(state, mode);
             Vec::new()
         }
         Intent::SetPreviewCapture(active) => {
@@ -311,15 +333,20 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
 }
 
 fn cycle_preview_mode(state: &mut AppState, delta: i32) {
-    if state.active_panel() != PanelId::Preview {
-        return;
-    }
-
-    state.preview.active_mode = if delta >= 0 {
+    let next_mode = if delta >= 0 {
         state.preview.active_mode.next()
     } else {
         state.preview.active_mode.previous()
     };
+    set_preview_mode(state, next_mode);
+}
+
+fn set_preview_mode(state: &mut AppState, mode: crate::preview::PreviewMode) {
+    if state.preview.active_mode == mode {
+        return;
+    }
+
+    state.preview.active_mode = mode;
     state.preview.capture_active = false;
     pop_capture_owner(state, SurfaceId::PreviewBody);
     state.preview.runtime_status.clear();
@@ -425,11 +452,16 @@ fn tr2(
 }
 
 fn cycle_workspace_tab(state: &mut AppState, delta: i32) {
-    state.ui.active_tab = if delta >= 0 {
+    let target = if delta >= 0 {
         state.ui.active_tab.next()
     } else {
         state.ui.active_tab.previous()
     };
+    set_workspace_tab(state, target);
+}
+
+fn set_workspace_tab(state: &mut AppState, tab: crate::app::workspace::WorkspaceTab) {
+    state.ui.active_tab = tab;
     let visible_panels = panel_order(&workspace_layout_for_tab(state.ui.active_tab));
     if state
         .ui
@@ -560,7 +592,7 @@ fn focus_surface(state: &mut AppState, surface: SurfaceId) {
     match surface {
         SurfaceId::AppRoot => {}
         SurfaceId::MainWindow => {
-            state.ui.interaction.focus_root();
+            state.ui.interaction.set_focus_root_path();
             state.ui.status = tr1(
                 state,
                 UiText::StatusFocusedSurface,
@@ -627,7 +659,9 @@ fn focus_path_for_surface(state: &AppState, surface: SurfaceId) -> Option<Vec<Su
 
 fn set_interaction_mode(state: &mut AppState, mode: InteractionMode) {
     state.ui.interaction.set_mode(mode);
-    if let InteractionMode::NavigateChildren(surface) = mode {
+    if let InteractionMode::NavigateChildren(surface) | InteractionMode::NavigateScope(surface) =
+        mode
+    {
         state.ui.status = tr1(
             state,
             UiText::StatusSurfaceNavigationActive,
@@ -2085,6 +2119,25 @@ mod tests {
         update(&mut state, Intent::CycleWorkspaceTab(1));
         update(&mut state, Intent::FocusPanelByNumber(3));
         assert_eq!(state.active_panel(), PanelId::EditorPreferences);
+    }
+
+    #[test]
+    fn set_workspace_tab_switches_directly_and_restores_last_panel_focus() {
+        let mut state = AppState::new().expect("state should build");
+        state.set_active_panel(PanelId::Inspector);
+        state.ui.interaction.focus_panel(PanelId::Inspector);
+
+        update(&mut state, Intent::SetWorkspaceTab(WorkspaceTab::Project));
+        assert_eq!(state.ui.active_tab, WorkspaceTab::Project);
+        assert_eq!(state.active_panel(), PanelId::ProjectConfig);
+
+        update(&mut state, Intent::SetWorkspaceTab(WorkspaceTab::Theme));
+        assert_eq!(state.ui.active_tab, WorkspaceTab::Theme);
+        assert_eq!(state.active_panel(), PanelId::Inspector);
+        assert_eq!(
+            state.ui.interaction.focused_surface(),
+            SurfaceId::InspectorPanel
+        );
     }
 
     #[test]

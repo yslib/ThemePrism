@@ -6,6 +6,7 @@ use super::SurfaceId;
 pub enum InteractionMode {
     Normal,
     NavigateChildren(SurfaceId),
+    NavigateScope(SurfaceId),
     Capture { owner: SurfaceId },
     Modal { owner: SurfaceId },
 }
@@ -62,6 +63,7 @@ impl InteractionState {
         self.mode_stack.push(mode);
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn pop_mode(&mut self) -> Option<InteractionMode> {
         if self.mode_stack.len() <= 1 {
             return None;
@@ -107,14 +109,17 @@ impl InteractionState {
         }
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn has_mode_for(&self, surface: SurfaceId) -> bool {
         self.mode_stack.iter().any(|mode| {
             matches!(mode, InteractionMode::NavigateChildren(target) if *target == surface)
+                || matches!(mode, InteractionMode::NavigateScope(target) if *target == surface)
                 || matches!(mode, InteractionMode::Capture { owner } if *owner == surface)
                 || matches!(mode, InteractionMode::Modal { owner } if *owner == surface)
         })
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn focus_root(&mut self) {
         self.set_focus_root_path();
         self.set_mode(InteractionMode::Normal);
@@ -142,7 +147,9 @@ impl InteractionState {
 fn owner_for_mode(mode: InteractionMode) -> Option<SurfaceId> {
     match mode {
         InteractionMode::Capture { owner } | InteractionMode::Modal { owner } => Some(owner),
-        InteractionMode::Normal | InteractionMode::NavigateChildren(_) => None,
+        InteractionMode::Normal
+        | InteractionMode::NavigateChildren(_)
+        | InteractionMode::NavigateScope(_) => None,
     }
 }
 

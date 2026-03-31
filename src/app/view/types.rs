@@ -35,6 +35,7 @@ pub struct ViewTree {
 
 #[derive(Debug, Clone)]
 pub struct MainWindowView {
+    pub hint_navigation_active: bool,
     pub menu_bar: MenuBarView,
     pub tab_bar: TabBarView,
     pub fullscreen_panel: Option<PanelId>,
@@ -55,6 +56,7 @@ pub struct TabBarView {
 
 #[derive(Debug, Clone)]
 pub struct TabItemView {
+    pub shortcut: Option<char>,
     pub label: String,
     pub selected: bool,
 }
@@ -78,6 +80,7 @@ pub struct PanelView {
     pub id: PanelId,
     pub title: String,
     pub active: bool,
+    pub hint_navigation_active: bool,
     pub shortcut: Option<u8>,
     pub tabs: Vec<PanelTabView>,
     pub header_lines: Vec<StyledLine>,
@@ -86,6 +89,7 @@ pub struct PanelView {
 
 #[derive(Debug, Clone)]
 pub struct PanelTabView {
+    pub shortcut: Option<char>,
     pub label: String,
     pub active: bool,
 }

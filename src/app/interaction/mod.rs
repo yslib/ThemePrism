@@ -19,6 +19,8 @@ use crate::i18n::{self, UiText};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UiAction {
+    OpenNavigation,
+    NavigateTo(char),
     PreviousTab,
     NextTab,
     MoveUp,
@@ -39,7 +41,6 @@ pub enum UiAction {
     ExportTheme,
     Reset,
     Quit,
-    SelectChild(u8),
     TypeChar(char),
 }
 
