@@ -6,6 +6,7 @@ use crate::app::interaction::{
 use crate::app::state::AppState;
 use crate::app::view::{PanelBody, ViewNode, build_interaction_panel, build_view};
 use crate::app::workspace::{PanelId, WorkspaceTab};
+use crate::app::{Intent, update};
 use crate::domain::params::ParamKey;
 use crate::domain::tokens::TokenRole;
 
@@ -292,6 +293,16 @@ fn activate_on_preview_body_enters_capture_mode() {
         intents.as_slice(),
         [crate::app::Intent::SetPreviewCapture(true)]
     ));
+}
+
+#[test]
+fn command_palette_is_visible_as_a_modal_surface_when_open() {
+    let mut state = AppState::new().unwrap();
+    update(&mut state, Intent::OpenCommandPaletteRequested);
+
+    let tree = build_interaction_tree(&state);
+
+    assert!(tree.is_visible(SurfaceId::CommandPalette));
 }
 
 #[test]

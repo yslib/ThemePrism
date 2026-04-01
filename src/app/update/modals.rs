@@ -52,7 +52,7 @@ pub(super) fn close_config_surface(state: &mut AppState) {
 
 pub(super) fn close_command_palette_surface(state: &mut AppState) {
     if state.ui.command_palette.take().is_some() {
-        pop_modal_owner(state, SurfaceId::CommandPaletteDialog);
+        pop_modal_owner(state, SurfaceId::CommandPalette);
     }
 }
 
@@ -93,8 +93,8 @@ pub(super) fn open_command_palette_modal(state: &mut AppState) {
         query: String::new(),
         selected: 0,
     });
-    push_modal_owner(state, SurfaceId::CommandPaletteDialog);
-    navigation::focus_surface(state, SurfaceId::CommandPaletteDialog);
+    push_modal_owner(state, SurfaceId::CommandPalette);
+    navigation::focus_surface(state, SurfaceId::CommandPalette);
 }
 
 pub(super) fn close_command_palette_modal(state: &mut AppState) {

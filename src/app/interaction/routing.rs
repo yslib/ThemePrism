@@ -215,7 +215,7 @@ fn navigation_scope_for_surface(surface: SurfaceId) -> Option<SurfaceId> {
         SurfaceId::NumericEditorSurface
         | SurfaceId::SourcePicker
         | SurfaceId::ConfigDialog
-        | SurfaceId::CommandPaletteDialog
+        | SurfaceId::CommandPalette
         | SurfaceId::ShortcutHelp => Some(surface),
     }
 }
@@ -324,7 +324,7 @@ fn route_surface_action(
         SurfaceId::NumericEditorSurface => route_text_input_action(state, action),
         SurfaceId::SourcePicker => route_source_picker_action(action),
         SurfaceId::ConfigDialog => route_config_dialog_action(action),
-        SurfaceId::CommandPaletteDialog => None,
+        SurfaceId::CommandPalette => route_command_palette_action(action),
         SurfaceId::ShortcutHelp => route_shortcut_help_action(action),
         SurfaceId::PreviewTabs
         | SurfaceId::PreviewBody
@@ -351,6 +351,7 @@ fn route_main_window_action(action: UiAction) -> Option<Vec<Intent>> {
         UiAction::OpenNavigation => Some(vec![Intent::SetInteractionMode(
             InteractionMode::NavigateScope(SurfaceId::MainWindow),
         )]),
+        UiAction::OpenCommandPalette => Some(vec![Intent::OpenCommandPaletteRequested]),
         UiAction::OpenConfig => Some(vec![Intent::OpenConfigRequested]),
         UiAction::OpenHelp => Some(vec![Intent::ToggleShortcutHelpRequested]),
         UiAction::ToggleFullscreenRequested => Some(vec![Intent::ToggleFullscreenRequested]),
@@ -415,6 +416,20 @@ fn route_text_input_action(state: &AppState, action: UiAction) -> Option<Vec<Int
             )
         }) => Some(vec![Intent::AdjustActiveNumericInputByStep(1)]),
         UiAction::TypeChar(ch) => Some(vec![Intent::AppendTextInput(ch)]),
+        _ => None,
+    }
+}
+
+fn route_command_palette_action(action: UiAction) -> Option<Vec<Intent>> {
+    match action {
+        UiAction::OpenNavigation => Some(Vec::new()),
+        UiAction::Apply => Some(vec![Intent::RunSelectedCommandPaletteItem]),
+        UiAction::Cancel => Some(vec![Intent::CloseCommandPaletteRequested]),
+        UiAction::Backspace => Some(vec![Intent::BackspaceCommandPaletteQuery]),
+        UiAction::Clear => Some(vec![Intent::ClearCommandPaletteQuery]),
+        UiAction::MoveUp => Some(vec![Intent::MoveCommandPaletteSelection(-1)]),
+        UiAction::MoveDown => Some(vec![Intent::MoveCommandPaletteSelection(1)]),
+        UiAction::TypeChar(ch) => Some(vec![Intent::AppendCommandPaletteQuery(ch)]),
         _ => None,
     }
 }

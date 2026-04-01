@@ -19,6 +19,7 @@ use crate::i18n::{self, UiText};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UiAction {
+    OpenCommandPalette,
     OpenNavigation,
     NavigateTo(char),
     PreviousTab,
@@ -122,7 +123,7 @@ pub fn surface_label(state: &AppState, surface: SurfaceId) -> String {
         SurfaceId::NumericEditorSurface => i18n::text(state.locale(), UiText::SurfaceInputEditor),
         SurfaceId::SourcePicker => i18n::text(state.locale(), UiText::SurfaceSourcePicker),
         SurfaceId::ConfigDialog => i18n::text(state.locale(), UiText::SurfaceConfigDialog),
-        SurfaceId::CommandPaletteDialog => "Command Palette".to_string(),
+        SurfaceId::CommandPalette => "Command Palette".to_string(),
         SurfaceId::ShortcutHelp => i18n::text(state.locale(), UiText::SurfaceShortcutHelp),
     }
 }

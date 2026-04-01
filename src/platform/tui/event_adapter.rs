@@ -84,6 +84,20 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
             ],
         )
         .map(bound_action_to_ui_action),
+        SurfaceId::CommandPalette => match_action(
+            preset,
+            key,
+            &[
+                BoundAction::Cancel,
+                BoundAction::Apply,
+                BoundAction::MoveUp,
+                BoundAction::MoveDown,
+                BoundAction::Backspace,
+                BoundAction::Clear,
+            ],
+        )
+        .map(bound_action_to_ui_action)
+        .or_else(|| free_text_action(key)),
         surface if surface.is_workspace_surface() => {
             if matches!(
                 state.ui.interaction.current_mode(),
@@ -114,6 +128,7 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
                 key,
                 &[
                     BoundAction::OpenNavigation,
+                    BoundAction::OpenCommandPalette,
                     BoundAction::Quit,
                     BoundAction::PreviousTab,
                     BoundAction::NextTab,
@@ -150,6 +165,7 @@ fn free_text_action(key: &KeyEvent) -> Option<UiAction> {
 
 fn bound_action_to_ui_action(action: BoundAction) -> UiAction {
     match action {
+        BoundAction::OpenCommandPalette => UiAction::OpenCommandPalette,
         BoundAction::OpenNavigation => UiAction::OpenNavigation,
         BoundAction::PreviousTab => UiAction::PreviousTab,
         BoundAction::NextTab => UiAction::NextTab,
@@ -204,6 +220,15 @@ mod tests {
         })
     }
 
+    fn ctrl_key(ch: char) -> Event {
+        Event::Key(KeyEvent {
+            code: KeyCode::Char(ch),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        })
+    }
+
     fn apply_intents(state: &mut AppState, intents: Vec<Intent>) {
         for intent in intents {
             update(state, intent);
@@ -217,6 +242,30 @@ mod tests {
         assert!(matches!(
             intents.as_slice(),
             [Intent::ToggleShortcutHelpRequested]
+        ));
+    }
+
+    #[test]
+    fn ctrl_p_opens_command_palette() {
+        let state = AppState::new().unwrap();
+        let intents = TuiEventAdapter.map_event(&state, ctrl_key('p'));
+
+        assert!(matches!(
+            intents.as_slice(),
+            [Intent::OpenCommandPaletteRequested]
+        ));
+    }
+
+    #[test]
+    fn palette_text_input_consumes_printable_keys_without_leaking_workspace_shortcuts() {
+        let mut state = AppState::new().unwrap();
+        update(&mut state, Intent::OpenCommandPaletteRequested);
+
+        let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Char('e')));
+
+        assert!(matches!(
+            intents.as_slice(),
+            [Intent::AppendCommandPaletteQuery('e')]
         ));
     }
 

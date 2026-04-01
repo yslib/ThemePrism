@@ -7,6 +7,7 @@ use crate::persistence::editor_config::EditorLocale;
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ActionId {
+    OpenCommandPalette,
     SwitchTabs,
     FocusPanels,
     MoveSelection,
@@ -34,6 +35,7 @@ pub enum ActionId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BoundAction {
+    OpenCommandPalette,
     OpenNavigation,
     PreviousTab,
     NextTab,
@@ -430,6 +432,7 @@ fn bindings_for(preset: EditorKeymapPreset, action: BoundAction) -> &'static [Ke
     use KeyBinding as Key;
 
     match (preset, action) {
+        (_, Action::OpenCommandPalette) => &[Key::Ctrl('p')],
         (_, Action::OpenNavigation) => &[Key::Char('g')],
         (_, Action::PreviousTab) => &[Key::Char('[')],
         (_, Action::NextTab) => &[Key::Char(']')],

@@ -23,7 +23,7 @@ pub enum SurfaceId {
     NumericEditorSurface,
     SourcePicker,
     ConfigDialog,
-    CommandPaletteDialog,
+    CommandPalette,
     ShortcutHelp,
 }
 
@@ -207,14 +207,14 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
     let numeric_parent = modal_parent(state, SurfaceId::NumericEditorSurface);
     let source_picker_parent = modal_parent(state, SurfaceId::SourcePicker);
     let config_parent = modal_parent(state, SurfaceId::ConfigDialog);
-    let command_palette_parent = modal_parent(state, SurfaceId::CommandPaletteDialog);
+    let command_palette_parent = modal_parent(state, SurfaceId::CommandPalette);
     let shortcut_help_parent = modal_parent(state, SurfaceId::ShortcutHelp);
     let modal_children = |surface: SurfaceId| {
         [
             (SurfaceId::NumericEditorSurface, numeric_parent),
             (SurfaceId::SourcePicker, source_picker_parent),
             (SurfaceId::ConfigDialog, config_parent),
-            (SurfaceId::CommandPaletteDialog, command_palette_parent),
+            (SurfaceId::CommandPalette, command_palette_parent),
             (SurfaceId::ShortcutHelp, shortcut_help_parent),
         ]
         .into_iter()
@@ -466,9 +466,9 @@ pub fn build_interaction_tree(state: &AppState) -> InteractionTree {
             config_parent,
         ),
         SurfaceNode::new(
-            SurfaceId::CommandPaletteDialog,
+            SurfaceId::CommandPalette,
             command_palette_parent,
-            modal_children(SurfaceId::CommandPaletteDialog),
+            modal_children(SurfaceId::CommandPalette),
             true,
             state.ui.command_palette.is_some(),
             None,
@@ -523,7 +523,7 @@ fn modal_is_visible(state: &AppState, modal: SurfaceId) -> bool {
         SurfaceId::NumericEditorSurface => state.ui.text_input.is_some(),
         SurfaceId::SourcePicker => state.ui.source_picker.is_some(),
         SurfaceId::ConfigDialog => state.ui.config_modal.is_some(),
-        SurfaceId::CommandPaletteDialog => state.ui.command_palette.is_some(),
+        SurfaceId::CommandPalette => state.ui.command_palette.is_some(),
         SurfaceId::ShortcutHelp => state.ui.shortcut_help_open,
         _ => false,
     }

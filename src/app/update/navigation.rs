@@ -190,7 +190,7 @@ pub(super) fn focus_surface(state: &mut AppState, surface: SurfaceId) {
         SurfaceId::NumericEditorSurface
         | SurfaceId::SourcePicker
         | SurfaceId::ConfigDialog
-        | SurfaceId::CommandPaletteDialog
+        | SurfaceId::CommandPalette
         | SurfaceId::ShortcutHelp => {
             if let Some(path) = focus_path_for_surface(state, surface) {
                 state.ui.interaction.focus_path = path;
