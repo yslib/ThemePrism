@@ -143,23 +143,14 @@ impl TuiRenderer {
 
         match &surface.body {
             SurfaceBody::Lines { lines, scroll } => {
-                if lines.iter().any(line_has_background) {
-                    self.render_highlightable_surface_lines(
-                        frame,
-                        sections[0],
-                        lines,
-                        *scroll,
-                        theme,
-                    );
-                } else {
-                    let body = lines
-                        .iter()
-                        .map(|line| style::styled_line_to_tui(line, theme, false))
-                        .collect::<Vec<_>>();
-                    let paragraph = Paragraph::new(body).wrap(Wrap { trim: false });
-                    let scroll = (*scroll).min(max_document_scroll(&paragraph, sections[0]));
-                    frame.render_widget(paragraph.scroll((scroll, 0)), sections[0]);
-                }
+                let body = lines
+                    .iter()
+                    .map(|line| style::styled_line_to_tui(line, theme, false))
+                    .collect::<Vec<_>>();
+                let paragraph = Paragraph::new(body).wrap(Wrap { trim: false });
+                let scroll = (*scroll).min(max_document_scroll(&paragraph, sections[0]));
+                render_highlighted_surface_backgrounds(frame, sections[0], lines, scroll);
+                frame.render_widget(paragraph.scroll((scroll, 0)), sections[0]);
             }
             SurfaceBody::Node(node) => self.render_node(frame, sections[0], node, theme),
             SurfaceBody::Window(window) => {
@@ -177,48 +168,55 @@ impl TuiRenderer {
             sections[1],
         );
     }
+}
 
-    fn render_highlightable_surface_lines(
-        self,
-        frame: &mut Frame,
-        area: Rect,
-        lines: &[StyledLine],
-        scroll: u16,
-        theme: &ViewTheme,
-    ) {
-        if area.height == 0 {
-            return;
-        }
+fn line_background(line: &StyledLine) -> Option<Color> {
+    line.spans.iter().find_map(|span| span.style.bg)
+}
 
-        let max_scroll = lines.len().saturating_sub(area.height as usize) as u16;
-        let scroll = scroll.min(max_scroll);
+fn render_highlighted_surface_backgrounds(
+    frame: &mut Frame,
+    area: Rect,
+    lines: &[StyledLine],
+    scroll: u16,
+) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
 
-        for (row_offset, line) in lines
-            .iter()
-            .skip(scroll as usize)
-            .take(area.height as usize)
-            .enumerate()
-        {
-            let row_area = Rect::new(area.x, area.y + row_offset as u16, area.width, 1);
-            if let Some(bg) = line_background(line) {
+    let mut visual_row = 0u16;
+    for line in lines {
+        let wrapped_height = wrapped_line_height(line, area.width);
+        if let Some(bg) = line_background(line) {
+            for row in 0..wrapped_height {
+                let absolute_row = visual_row + row;
+                if absolute_row < scroll {
+                    continue;
+                }
+                let viewport_row = absolute_row - scroll;
+                if viewport_row >= area.height {
+                    break;
+                }
+                let row_area = Rect::new(area.x, area.y + viewport_row, area.width, 1);
                 frame.render_widget(
                     Block::default().style(Style::default().bg(style::tui(bg))),
                     row_area,
                 );
             }
-            let paragraph = Paragraph::new(vec![style::styled_line_to_tui(line, theme, false)])
-                .wrap(Wrap { trim: false });
-            frame.render_widget(paragraph, row_area);
         }
+        visual_row = visual_row.saturating_add(wrapped_height);
     }
 }
 
-fn line_has_background(line: &StyledLine) -> bool {
-    line.spans.iter().any(|span| span.style.bg.is_some())
-}
-
-fn line_background(line: &StyledLine) -> Option<Color> {
-    line.spans.iter().find_map(|span| span.style.bg)
+fn wrapped_line_height(line: &StyledLine, width: u16) -> u16 {
+    let display_width = line
+        .spans
+        .iter()
+        .map(|span| span.text.chars().count())
+        .sum::<usize>();
+    let width = usize::from(width.max(1));
+    let rows = display_width.max(1).div_ceil(width);
+    u16::try_from(rows).unwrap_or(u16::MAX)
 }
 
 fn centered_rect(height_percent: u16, width_percent: u16, area: Rect) -> Rect {

@@ -95,6 +95,28 @@ fn find_row_containing(
     panic!("could not find `{text}` in rendered buffer");
 }
 
+fn overlay_view_with_surface(surface: SurfaceView) -> ViewTree {
+    let theme = sample_theme();
+    ViewTree {
+        theme,
+        main_window: MainWindowView {
+            hint_navigation_active: false,
+            menu_bar: MenuBarView {
+                title: "Theme".to_string(),
+                actions: Vec::new(),
+            },
+            tab_bar: TabBarView { tabs: Vec::new() },
+            fullscreen_panel: None,
+            workspace: ViewNode::Panel(sample_panel()),
+            status_bar: StatusBarView {
+                focus_label: "Preview".to_string(),
+                status_text: "Ready".to_string(),
+            },
+        },
+        overlays: vec![OverlayView::Surface(surface)],
+    }
+}
+
 #[test]
 fn vertical_scroll_is_clamped_to_last_visible_line() {
     let paragraph = Paragraph::new("1234 5678 90").wrap(Wrap { trim: false });
@@ -252,56 +274,39 @@ fn hint_active_preview_tabs_promote_target_labels() {
 #[test]
 fn selected_surface_row_fills_the_overlay_width_with_highlight() {
     let theme = sample_theme();
-    let view = ViewTree {
-        theme: theme.clone(),
-        main_window: MainWindowView {
-            hint_navigation_active: false,
-            menu_bar: MenuBarView {
-                title: "Theme".to_string(),
-                actions: Vec::new(),
-            },
-            tab_bar: TabBarView { tabs: Vec::new() },
-            fullscreen_panel: None,
-            workspace: ViewNode::Panel(sample_panel()),
-            status_bar: StatusBarView {
-                focus_label: "Preview".to_string(),
-                status_text: "Ready".to_string(),
-            },
+    let view = overlay_view_with_surface(SurfaceView {
+        title: "Command Palette".to_string(),
+        size: SurfaceSize::Absolute {
+            width: 32,
+            height: 8,
         },
-        overlays: vec![OverlayView::Surface(SurfaceView {
-            title: "Command Palette".to_string(),
-            size: SurfaceSize::Absolute {
-                width: 32,
-                height: 8,
-            },
-            body: SurfaceBody::Lines {
-                lines: vec![StyledLine {
-                    spans: vec![
-                        StyledSpan {
-                            text: "> ".to_string(),
-                            style: SpanStyle {
-                                fg: Some(theme.background),
-                                bg: Some(theme.selection),
-                                bold: true,
-                                italic: false,
-                            },
+        body: SurfaceBody::Lines {
+            lines: vec![StyledLine {
+                spans: vec![
+                    StyledSpan {
+                        text: "> ".to_string(),
+                        style: SpanStyle {
+                            fg: Some(theme.background),
+                            bg: Some(theme.selection),
+                            bold: true,
+                            italic: false,
                         },
-                        StyledSpan {
-                            text: "Export Theme".to_string(),
-                            style: SpanStyle {
-                                fg: Some(theme.background),
-                                bg: Some(theme.selection),
-                                bold: true,
-                                italic: false,
-                            },
+                    },
+                    StyledSpan {
+                        text: "Export Theme".to_string(),
+                        style: SpanStyle {
+                            fg: Some(theme.background),
+                            bg: Some(theme.selection),
+                            bold: true,
+                            italic: false,
                         },
-                    ],
-                }],
-                scroll: 0,
-            },
-            footer_lines: Vec::new(),
-        })],
-    };
+                    },
+                ],
+            }],
+            scroll: 0,
+        },
+        footer_lines: Vec::new(),
+    });
     let backend = TestBackend::new(60, 20);
     let mut terminal = Terminal::new(backend).unwrap();
 
@@ -319,5 +324,66 @@ fn selected_surface_row_fills_the_overlay_width_with_highlight() {
         trailing.bg,
         tui(theme.selection),
         "row {y} was not fully highlighted"
+    );
+}
+
+#[test]
+fn wrapped_highlighted_surface_row_keeps_rendering_continuation_text() {
+    let theme = sample_theme();
+    let long_value =
+        "/Users/ysl/projects/this/is/a/very/long/output/path/that/must/wrap/cleanly/theme.json";
+    let view = overlay_view_with_surface(SurfaceView {
+        title: "Config".to_string(),
+        size: SurfaceSize::Absolute {
+            width: 34,
+            height: 10,
+        },
+        body: SurfaceBody::Lines {
+            lines: vec![StyledLine {
+                spans: vec![
+                    StyledSpan {
+                        text: "> ".to_string(),
+                        style: SpanStyle {
+                            fg: Some(theme.background),
+                            bg: Some(theme.selection),
+                            bold: true,
+                            italic: false,
+                        },
+                    },
+                    StyledSpan {
+                        text: format!("Output {long_value}"),
+                        style: SpanStyle {
+                            fg: Some(theme.background),
+                            bg: Some(theme.selection),
+                            bold: true,
+                            italic: false,
+                        },
+                    },
+                ],
+            }],
+            scroll: 0,
+        },
+        footer_lines: Vec::new(),
+    });
+    let backend = TestBackend::new(60, 20);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    terminal
+        .draw(|frame| TuiRenderer.present(frame, &view))
+        .unwrap();
+
+    let (first_y, first_row) = find_row_containing(&terminal, 60, "Output");
+    let (second_y, second_row) = find_row_containing(&terminal, 60, "path/that");
+
+    assert!(
+        second_y > first_y,
+        "expected wrapped continuation on a later row"
+    );
+    let second_start = find_text_start(&second_row, "path/that");
+    assert_eq!(second_row[second_start].fg, tui(theme.background));
+    assert_eq!(second_row[second_start].bg, tui(theme.selection));
+    assert_eq!(
+        first_row[find_text_start(&first_row, "Output")].bg,
+        tui(theme.selection)
     );
 }
