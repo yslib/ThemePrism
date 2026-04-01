@@ -40,6 +40,7 @@ macro_rules! define_ui_texts {
 
 define_ui_texts! {
     MenuTitle => "menu-title",
+    MenuPalette => "menu-palette",
     MenuTabs => "menu-tabs",
     MenuPanels => "menu-panels",
     MenuEdit => "menu-edit",
@@ -92,10 +93,16 @@ define_ui_texts! {
     NumericEditorTitle => "numeric-editor-title",
     NumericFooter => "numeric-footer",
     SourcePickerTitle => "source-picker-title",
+    CommandPaletteTitle => "command-palette-title",
+    CommandPaletteQueryLabel => "command-palette-query-label",
+    CommandPaletteEmpty => "command-palette-empty",
+    CommandPaletteFooter => "command-palette-footer",
     HelpSectionGlobal => "help-section-global",
     HelpSectionWorkspace => "help-section-workspace",
     HelpSectionPreview => "help-section-preview",
     HelpSectionPickerInput => "help-section-picker-input",
+    HelpCommandPaletteLabel => "help-command-palette-label",
+    HelpCommandPaletteDesc => "help-command-palette-desc",
     HelpShortcutHelpLabel => "help-shortcut-help-label",
     HelpShortcutHelpDesc => "help-shortcut-help-desc",
     HelpConfigLabel => "help-config-label",
@@ -461,6 +468,12 @@ mod tests {
     fn locales_return_different_ui_copy() {
         assert_eq!(text(EditorLocale::EnUs, UiText::MenuHelp), "Help");
         assert_eq!(text(EditorLocale::ZhCn, UiText::MenuHelp), "帮助");
+    }
+
+    #[test]
+    fn command_palette_strings_exist_in_both_locales() {
+        assert_ne!(text(EditorLocale::EnUs, UiText::CommandPaletteTitle), "");
+        assert_ne!(text(EditorLocale::ZhCn, UiText::CommandPaletteTitle), "");
     }
 
     #[test]

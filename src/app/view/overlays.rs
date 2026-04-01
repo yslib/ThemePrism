@@ -1,4 +1,5 @@
 use crate::app::actions::shortcut_help_sections;
+use crate::app::command_palette::filter_commands;
 use crate::app::controls::ControlId;
 use crate::app::state::{AppState, ConfigFieldId, TextInputTarget};
 use crate::app::update::{config_fields, filtered_source_options};
@@ -173,6 +174,42 @@ pub(crate) fn build_config_overlay(state: &AppState) -> Option<OverlayView> {
                 &config_footer_close,
             ],
         ),
+    }))
+}
+
+pub(crate) fn build_command_palette_overlay(state: &AppState) -> Option<OverlayView> {
+    let palette = state.ui.command_palette.as_ref()?;
+    let results = filter_commands(state, &palette.query);
+    let selected = palette.selected.min(results.len().saturating_sub(1));
+    let mut lines = vec![
+        command_palette_query_line(state, &palette.query),
+        StyledLine { spans: Vec::new() },
+    ];
+
+    if results.is_empty() {
+        lines.push(command_palette_empty_line(state));
+    } else {
+        for (index, command) in results.iter().enumerate() {
+            lines.push(command_palette_result_line(
+                state,
+                command.title,
+                index == selected,
+            ));
+        }
+    }
+
+    let footer = i18n::text(state.locale(), UiText::CommandPaletteFooter);
+    let footer_lines = surface_footer_lines(state, &[&footer]);
+    let preferred_height = body_height(lines.len(), footer_lines.len(), 12);
+
+    Some(OverlayView::Surface(SurfaceView {
+        title: i18n::text(state.locale(), UiText::CommandPaletteTitle),
+        size: SurfaceSize::Absolute {
+            width: 56,
+            height: preferred_height,
+        },
+        body: SurfaceBody::Lines { lines, scroll: 0 },
+        footer_lines,
     }))
 }
 
@@ -372,6 +409,63 @@ fn config_field_line(
     }
 }
 
+fn command_palette_query_line(state: &AppState, query: &str) -> StyledLine {
+    let prompt = i18n::text(state.locale(), UiText::CommandPaletteQueryLabel);
+    StyledLine {
+        spans: vec![
+            colored_span(
+                format!("{prompt} "),
+                state.theme_color(TokenRole::TextMuted),
+                true,
+                false,
+            ),
+            colored_span(
+                if query.is_empty() {
+                    "_".to_string()
+                } else {
+                    query.to_string()
+                },
+                state.theme_color(TokenRole::Text),
+                true,
+                query.is_empty(),
+            ),
+        ],
+    }
+}
+
+fn command_palette_result_line(state: &AppState, title: &str, is_selected: bool) -> StyledLine {
+    let fg = if is_selected {
+        state.theme_color(TokenRole::Background)
+    } else {
+        state.theme_color(TokenRole::Text)
+    };
+    let bg = is_selected.then_some(state.theme_color(TokenRole::Selection));
+
+    StyledLine {
+        spans: vec![
+            styled_text_span(
+                if is_selected { "> " } else { "  " },
+                fg,
+                bg,
+                is_selected,
+                false,
+            ),
+            styled_text_span(title, fg, bg, is_selected, false),
+        ],
+    }
+}
+
+fn command_palette_empty_line(state: &AppState) -> StyledLine {
+    StyledLine {
+        spans: vec![colored_span(
+            i18n::text(state.locale(), UiText::CommandPaletteEmpty),
+            state.theme_color(TokenRole::TextMuted),
+            false,
+            true,
+        )],
+    }
+}
+
 fn section_header_line(state: &AppState, title: &str) -> StyledLine {
     StyledLine {
         spans: vec![colored_span(
@@ -422,6 +516,10 @@ fn surface_footer_lines(state: &AppState, lines: &[&str]) -> Vec<StyledLine> {
         .collect()
 }
 
+fn body_height(body_lines: usize, footer_lines: usize, min_height: u16) -> u16 {
+    (body_lines as u16 + footer_lines as u16 + 4).max(min_height)
+}
+
 fn styled_text_span(
     text: impl Into<String>,
     fg: Color,
@@ -456,5 +554,64 @@ fn scalar_track_color(state: &AppState, position: f32, fill: f32) -> Color {
         filled_start.mix(filled_end, segment)
     } else {
         empty
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::intent::Intent;
+    use crate::app::update::update;
+    use crate::app::view::build_view;
+
+    #[test]
+    fn command_palette_overlay_appears_when_palette_is_open() {
+        let mut state = AppState::new().unwrap();
+        update(&mut state, Intent::OpenCommandPaletteRequested);
+
+        let tree = build_view(&state);
+        assert!(tree.overlays.iter().any(is_command_palette_overlay));
+    }
+
+    #[test]
+    fn command_palette_selected_result_is_highlighted() {
+        let mut state = AppState::new().unwrap();
+        update(&mut state, Intent::OpenCommandPaletteRequested);
+        update(&mut state, Intent::SetCommandPaletteQuery("expo".into()));
+
+        let tree = build_view(&state);
+        let palette = extract_command_palette_overlay(&tree);
+        assert!(palette_has_selected_row(
+            palette,
+            state.theme_color(TokenRole::Selection)
+        ));
+    }
+
+    fn is_command_palette_overlay(overlay: &OverlayView) -> bool {
+        matches!(overlay, OverlayView::Surface(_))
+    }
+
+    fn extract_command_palette_overlay(tree: &super::super::ViewTree) -> &SurfaceView {
+        tree.overlays
+            .iter()
+            .find_map(|overlay| match overlay {
+                OverlayView::Surface(surface) => Some(surface),
+                OverlayView::Picker(_) => None,
+            })
+            .expect("expected command palette surface overlay")
+    }
+
+    fn palette_has_selected_row(surface: &SurfaceView, selection: Color) -> bool {
+        let SurfaceBody::Lines { lines, .. } = &surface.body else {
+            panic!("expected line-based surface body");
+        };
+
+        lines.iter().any(|line| {
+            line.spans.iter().any(|span| {
+                span.style.bg == Some(selection)
+                    && span.style.bold
+                    && span.text.contains("Export Theme")
+            })
+        })
     }
 }

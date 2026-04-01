@@ -157,6 +157,11 @@ impl KeyBinding {
 pub fn menu_bar_actions(locale: EditorLocale, preset: EditorKeymapPreset) -> Vec<ActionHint> {
     vec![
         hint(
+            ActionId::OpenCommandPalette,
+            binding_label(preset, BoundAction::OpenCommandPalette),
+            i18n::text(locale, UiText::MenuPalette),
+        ),
+        hint(
             ActionId::SwitchTabs,
             switch_tabs_shortcut_label(preset),
             i18n::text(locale, UiText::MenuTabs),
@@ -192,6 +197,11 @@ pub fn shortcut_help_sections(
         ActionHelpSection {
             title: i18n::text(locale, UiText::HelpSectionGlobal),
             entries: vec![
+                entry(
+                    binding_label(preset, BoundAction::OpenCommandPalette),
+                    i18n::text(locale, UiText::HelpCommandPaletteLabel),
+                    i18n::text(locale, UiText::HelpCommandPaletteDesc),
+                ),
                 entry(
                     binding_label(preset, BoundAction::OpenHelp),
                     i18n::text(locale, UiText::HelpShortcutHelpLabel),

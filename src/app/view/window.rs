@@ -13,7 +13,8 @@ use super::layout::{
     WorkspaceLayout, compose_layout, panel_order, visible_panels_for_tab, workspace_layout_for_tab,
 };
 use super::overlays::{
-    build_config_overlay, build_help_overlay, build_numeric_editor_overlay, build_picker_overlay,
+    build_command_palette_overlay, build_config_overlay, build_help_overlay,
+    build_numeric_editor_overlay, build_picker_overlay,
 };
 use super::project_tab::{
     build_editor_preferences_panel, build_export_targets_panel, build_project_config_panel,
@@ -72,6 +73,9 @@ fn build_view_from_layout(
     let mut overlays = Vec::new();
     if let Some(picker) = build_picker_overlay(state) {
         overlays.push(OverlayView::Picker(picker));
+    }
+    if let Some(command_palette) = build_command_palette_overlay(state) {
+        overlays.push(command_palette);
     }
     if let Some(config) = build_config_overlay(state) {
         overlays.push(config);

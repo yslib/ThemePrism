@@ -1,13 +1,14 @@
 use super::{TuiRenderer, max_document_scroll};
 use super::{panels::panel_title_line, style::tui};
 use crate::app::view::{
-    DocumentView, MainWindowView, MenuBarView, PanelBody, PanelTabView, PanelView, StatusBarView,
+    DocumentView, MainWindowView, MenuBarView, OverlayView, PanelBody, PanelTabView, PanelView,
+    SpanStyle, StatusBarView, StyledLine, StyledSpan, SurfaceBody, SurfaceSize, SurfaceView,
     TabBarView, TabItemView, ViewNode, ViewTheme, ViewTree,
 };
 use crate::app::workspace::PanelId;
 use crate::domain::color::Color;
 use ratatui::Terminal;
-use ratatui::backend::TestBackend;
+use ratatui::backend::{Backend, TestBackend};
 use ratatui::buffer::Cell;
 use ratatui::layout::Rect;
 use ratatui::style::Modifier;
@@ -76,6 +77,22 @@ fn find_text_start(cells: &[Cell], text: &str) -> usize {
     let row = cell_symbols(cells);
     row.find(text)
         .unwrap_or_else(|| panic!("could not find `{text}` in row `{row}`"))
+}
+
+fn find_row_containing(
+    terminal: &Terminal<TestBackend>,
+    width: u16,
+    text: &str,
+) -> (u16, Vec<Cell>) {
+    let height = terminal.backend().size().unwrap().height;
+    for y in 0..height {
+        let row = row_cells(terminal, y, width);
+        if cell_symbols(&row).contains(text) {
+            return (y, row);
+        }
+    }
+
+    panic!("could not find `{text}` in rendered buffer");
 }
 
 #[test]
@@ -230,4 +247,77 @@ fn hint_active_preview_tabs_promote_target_labels() {
         assert_eq!(cell.fg, tui(theme.text));
         assert!(cell.modifier.contains(Modifier::BOLD));
     }
+}
+
+#[test]
+fn selected_surface_row_fills_the_overlay_width_with_highlight() {
+    let theme = sample_theme();
+    let view = ViewTree {
+        theme: theme.clone(),
+        main_window: MainWindowView {
+            hint_navigation_active: false,
+            menu_bar: MenuBarView {
+                title: "Theme".to_string(),
+                actions: Vec::new(),
+            },
+            tab_bar: TabBarView { tabs: Vec::new() },
+            fullscreen_panel: None,
+            workspace: ViewNode::Panel(sample_panel()),
+            status_bar: StatusBarView {
+                focus_label: "Preview".to_string(),
+                status_text: "Ready".to_string(),
+            },
+        },
+        overlays: vec![OverlayView::Surface(SurfaceView {
+            title: "Command Palette".to_string(),
+            size: SurfaceSize::Absolute {
+                width: 32,
+                height: 8,
+            },
+            body: SurfaceBody::Lines {
+                lines: vec![StyledLine {
+                    spans: vec![
+                        StyledSpan {
+                            text: "> ".to_string(),
+                            style: SpanStyle {
+                                fg: Some(theme.background),
+                                bg: Some(theme.selection),
+                                bold: true,
+                                italic: false,
+                            },
+                        },
+                        StyledSpan {
+                            text: "Export Theme".to_string(),
+                            style: SpanStyle {
+                                fg: Some(theme.background),
+                                bg: Some(theme.selection),
+                                bold: true,
+                                italic: false,
+                            },
+                        },
+                    ],
+                }],
+                scroll: 0,
+            },
+            footer_lines: Vec::new(),
+        })],
+    };
+    let backend = TestBackend::new(60, 20);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    terminal
+        .draw(|frame| TuiRenderer.present(frame, &view))
+        .unwrap();
+
+    let (y, row) = find_row_containing(&terminal, 60, "Export Theme");
+    let start = find_text_start(&row, "Export Theme");
+    let trailing = row[start + "Export Theme".len() + 1].clone();
+
+    assert_eq!(row[start].fg, tui(theme.background));
+    assert_eq!(row[start].bg, tui(theme.selection));
+    assert_eq!(
+        trailing.bg,
+        tui(theme.selection),
+        "row {y} was not fully highlighted"
+    );
 }

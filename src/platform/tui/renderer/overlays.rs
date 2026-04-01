@@ -28,7 +28,11 @@ impl TuiRenderer {
             .title(overlay.title.as_str())
             .borders(Borders::ALL)
             .border_style(Style::default().fg(style::tui(theme.selection)))
-            .style(Style::default().bg(style::tui(theme.surface)).fg(style::tui(theme.text)));
+            .style(
+                Style::default()
+                    .bg(style::tui(theme.surface))
+                    .fg(style::tui(theme.text)),
+            );
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
@@ -119,7 +123,11 @@ impl TuiRenderer {
             .title(surface.title.as_str())
             .borders(Borders::ALL)
             .border_style(Style::default().fg(style::tui(theme.selection)))
-            .style(Style::default().bg(style::tui(theme.surface)).fg(style::tui(theme.text)));
+            .style(
+                Style::default()
+                    .bg(style::tui(theme.surface))
+                    .fg(style::tui(theme.text)),
+            );
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
@@ -135,13 +143,23 @@ impl TuiRenderer {
 
         match &surface.body {
             SurfaceBody::Lines { lines, scroll } => {
-                let body = lines
-                    .iter()
-                    .map(|line| style::styled_line_to_tui(line, theme, false))
-                    .collect::<Vec<_>>();
-                let paragraph = Paragraph::new(body).wrap(Wrap { trim: false });
-                let scroll = (*scroll).min(max_document_scroll(&paragraph, sections[0]));
-                frame.render_widget(paragraph.scroll((scroll, 0)), sections[0]);
+                if lines.iter().any(line_has_background) {
+                    self.render_highlightable_surface_lines(
+                        frame,
+                        sections[0],
+                        lines,
+                        *scroll,
+                        theme,
+                    );
+                } else {
+                    let body = lines
+                        .iter()
+                        .map(|line| style::styled_line_to_tui(line, theme, false))
+                        .collect::<Vec<_>>();
+                    let paragraph = Paragraph::new(body).wrap(Wrap { trim: false });
+                    let scroll = (*scroll).min(max_document_scroll(&paragraph, sections[0]));
+                    frame.render_widget(paragraph.scroll((scroll, 0)), sections[0]);
+                }
             }
             SurfaceBody::Node(node) => self.render_node(frame, sections[0], node, theme),
             SurfaceBody::Window(window) => {
@@ -159,6 +177,48 @@ impl TuiRenderer {
             sections[1],
         );
     }
+
+    fn render_highlightable_surface_lines(
+        self,
+        frame: &mut Frame,
+        area: Rect,
+        lines: &[StyledLine],
+        scroll: u16,
+        theme: &ViewTheme,
+    ) {
+        if area.height == 0 {
+            return;
+        }
+
+        let max_scroll = lines.len().saturating_sub(area.height as usize) as u16;
+        let scroll = scroll.min(max_scroll);
+
+        for (row_offset, line) in lines
+            .iter()
+            .skip(scroll as usize)
+            .take(area.height as usize)
+            .enumerate()
+        {
+            let row_area = Rect::new(area.x, area.y + row_offset as u16, area.width, 1);
+            if let Some(bg) = line_background(line) {
+                frame.render_widget(
+                    Block::default().style(Style::default().bg(style::tui(bg))),
+                    row_area,
+                );
+            }
+            let paragraph = Paragraph::new(vec![style::styled_line_to_tui(line, theme, false)])
+                .wrap(Wrap { trim: false });
+            frame.render_widget(paragraph, row_area);
+        }
+    }
+}
+
+fn line_has_background(line: &StyledLine) -> bool {
+    line.spans.iter().any(|span| span.style.bg.is_some())
+}
+
+fn line_background(line: &StyledLine) -> Option<Color> {
+    line.spans.iter().find_map(|span| span.style.bg)
 }
 
 fn centered_rect(height_percent: u16, width_percent: u16, area: Rect) -> Rect {
