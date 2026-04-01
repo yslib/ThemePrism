@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod command_palette;
 pub mod controls;
 pub mod effect;
 pub mod hint_nav;
