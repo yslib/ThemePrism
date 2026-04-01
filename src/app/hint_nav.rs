@@ -171,4 +171,18 @@ mod tests {
         );
         assert_eq!(preview_tab_hint_label(&state, PreviewMode::Code), None);
     }
+
+    #[test]
+    fn preview_mode_order_is_shared_by_view_and_hint_navigation() {
+        let state = AppState::new().expect("state");
+        let hinted_modes = main_window_hint_targets(&state)
+            .into_iter()
+            .filter_map(|target| match target {
+                HintTarget::PreviewTab { mode, .. } => Some(mode),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(hinted_modes, PreviewMode::ALL.to_vec());
+    }
 }

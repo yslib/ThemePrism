@@ -431,8 +431,13 @@ mod tests {
     use std::collections::BTreeSet;
     use std::path::PathBuf;
 
-    use super::{UiText, locale_file_message_ids, text};
+    use super::{
+        UiText, locale_file_message_ids, panel_label, preview_mode_label, text, workspace_tab_label,
+    };
+    use crate::app::ui_meta::{panel_spec, preview_mode_spec, workspace_tab_spec};
+    use crate::app::workspace::{PanelId, WorkspaceTab};
     use crate::persistence::editor_config::EditorLocale;
+    use crate::preview::PreviewMode;
 
     #[test]
     fn every_ui_text_key_exists_in_both_locales() {
@@ -456,5 +461,45 @@ mod tests {
     fn locales_return_different_ui_copy() {
         assert_eq!(text(EditorLocale::EnUs, UiText::MenuHelp), "Help");
         assert_eq!(text(EditorLocale::ZhCn, UiText::MenuHelp), "帮助");
+    }
+
+    #[test]
+    fn metadata_backed_label_helpers_stay_in_sync() {
+        const PANELS: [PanelId; 11] = [
+            PanelId::Tokens,
+            PanelId::Params,
+            PanelId::Preview,
+            PanelId::Palette,
+            PanelId::ResolvedPrimary,
+            PanelId::ResolvedSecondary,
+            PanelId::Inspector,
+            PanelId::InteractionInspector,
+            PanelId::ProjectConfig,
+            PanelId::ExportTargets,
+            PanelId::EditorPreferences,
+        ];
+
+        for locale in [EditorLocale::EnUs, EditorLocale::ZhCn] {
+            for tab in WorkspaceTab::ALL {
+                assert_eq!(
+                    workspace_tab_label(locale, tab),
+                    text(locale, workspace_tab_spec(tab).ui_text)
+                );
+            }
+
+            for panel in PANELS {
+                assert_eq!(
+                    panel_label(locale, panel),
+                    text(locale, panel_spec(panel).ui_text)
+                );
+            }
+
+            for mode in PreviewMode::ALL {
+                assert_eq!(
+                    preview_mode_label(locale, mode),
+                    text(locale, preview_mode_spec(mode).ui_text)
+                );
+            }
+        }
     }
 }

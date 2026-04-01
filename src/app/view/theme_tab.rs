@@ -5,7 +5,6 @@ use crate::app::controls::{
 use crate::app::hint_nav::preview_tab_hint_label;
 use crate::app::interaction::{SurfaceId, has_active_capture};
 use crate::app::state::AppState;
-use crate::app::ui_meta::preview_mode_spec;
 use crate::app::workspace::PanelId;
 use crate::domain::preview::{PreviewFrame, PreviewMode, PreviewSpanStyle, sample_document};
 use crate::domain::rules::Rule;
@@ -126,17 +125,11 @@ pub(crate) fn build_preview_panel(state: &AppState) -> PanelView {
         shortcut: None,
         tabs: PreviewMode::ALL
             .iter()
-            .map(|mode| {
-                let spec = preview_mode_spec(*mode);
-                PanelTabView {
-                    shortcut: if spec.hint_navigation {
-                        preview_tab_hint_label(state, spec.id)
-                    } else {
-                        None
-                    },
-                    label: i18n::text(state.locale(), spec.ui_text),
-                    active: spec.id == state.preview.active_mode,
-                }
+            .copied()
+            .map(|mode| PanelTabView {
+                shortcut: preview_tab_hint_label(state, mode),
+                label: i18n::preview_mode_label(state.locale(), mode),
+                active: mode == state.preview.active_mode,
             })
             .collect(),
         header_lines: preview_header_lines(state),
@@ -360,7 +353,10 @@ fn preview_line_to_view_line(line: crate::domain::preview::PreviewLine) -> Style
 mod tests {
     use super::build_preview_panel;
     use crate::app::AppState;
+    use crate::app::hint_nav::preview_tab_hint_label;
     use crate::app::interaction::{InteractionMode, SurfaceId};
+    use crate::i18n;
+    use crate::preview::PreviewMode;
 
     #[test]
     fn preview_panel_tabs_show_hint_shortcuts_during_navigation_mode() {
@@ -372,10 +368,11 @@ mod tests {
 
         let panel = build_preview_panel(&state);
 
-        assert_eq!(panel.tabs.len(), 3);
-        assert_eq!(panel.tabs[0].shortcut, Some('c'));
-        assert_eq!(panel.tabs[1].shortcut, Some('d'));
-        assert_eq!(panel.tabs[2].shortcut, Some('e'));
+        assert_eq!(panel.tabs.len(), PreviewMode::ALL.len());
+        for (tab, mode) in panel.tabs.iter().zip(PreviewMode::ALL.iter().copied()) {
+            assert_eq!(tab.shortcut, preview_tab_hint_label(&state, mode));
+            assert_eq!(tab.label, i18n::preview_mode_label(state.locale(), mode));
+        }
     }
 
     #[test]
@@ -384,10 +381,11 @@ mod tests {
 
         let panel = build_preview_panel(&state);
 
-        assert_eq!(panel.tabs.len(), 3);
-        assert_eq!(panel.tabs[0].shortcut, None);
-        assert_eq!(panel.tabs[1].shortcut, None);
-        assert_eq!(panel.tabs[2].shortcut, None);
+        assert_eq!(panel.tabs.len(), PreviewMode::ALL.len());
+        for (tab, mode) in panel.tabs.iter().zip(PreviewMode::ALL.iter().copied()) {
+            assert_eq!(tab.shortcut, None);
+            assert_eq!(tab.label, i18n::preview_mode_label(state.locale(), mode));
+        }
     }
 }
 

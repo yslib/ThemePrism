@@ -135,6 +135,10 @@ pub fn project_workspace_layout() -> WorkspaceLayout {
     ])
 }
 
+pub fn visible_panels_for_tab(tab: WorkspaceTab) -> Vec<PanelId> {
+    panel_order(&workspace_layout_for_tab(tab))
+}
+
 pub fn panel_order(layout: &WorkspaceLayout) -> Vec<PanelId> {
     let mut panels = Vec::new();
     collect_panel_order(layout, &mut panels);

@@ -3,14 +3,15 @@ use crate::app::hint_nav::workspace_tab_hint_label;
 use crate::app::interaction::focus_breadcrumb;
 use crate::app::interaction::{InteractionMode, SurfaceId};
 use crate::app::state::AppState;
-use crate::app::ui_meta::workspace_tab_spec;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::tokens::TokenRole;
 use crate::i18n::{self, UiText};
 
 use super::helpers::export_status_summary;
 use super::interaction_panel::build_interaction_panel;
-use super::layout::{WorkspaceLayout, compose_layout, panel_order, workspace_layout_for_tab};
+use super::layout::{
+    WorkspaceLayout, compose_layout, panel_order, visible_panels_for_tab, workspace_layout_for_tab,
+};
 use super::overlays::{
     build_config_overlay, build_help_overlay, build_numeric_editor_overlay, build_picker_overlay,
 };
@@ -28,10 +29,21 @@ use super::{
 
 pub fn build_view(state: &AppState) -> ViewTree {
     let workspace_layout = workspace_layout_for_tab(state.ui.active_tab);
-    build_view_with_layout(state, &workspace_layout)
+    let visible_panels = visible_panels_for_tab(state.ui.active_tab);
+    build_view_from_layout(state, &workspace_layout, &visible_panels)
 }
 
+#[allow(dead_code)]
 pub fn build_view_with_layout(state: &AppState, workspace_layout: &WorkspaceLayout) -> ViewTree {
+    let visible_panels = panel_order(workspace_layout);
+    build_view_from_layout(state, workspace_layout, &visible_panels)
+}
+
+fn build_view_from_layout(
+    state: &AppState,
+    workspace_layout: &WorkspaceLayout,
+    visible_panels: &[PanelId],
+) -> ViewTree {
     let hint_navigation_active = matches!(
         state.ui.interaction.current_mode(),
         InteractionMode::NavigateScope(SurfaceId::MainWindow)
@@ -45,8 +57,7 @@ pub fn build_view_with_layout(state: &AppState, workspace_layout: &WorkspaceLayo
         text_muted: state.theme_color(TokenRole::TextMuted),
     };
 
-    let visible_panels = panel_order(workspace_layout);
-    let mut panel_for_slot = |slot| build_panel_for_slot(state, slot, &visible_panels);
+    let mut panel_for_slot = |slot| build_panel_for_slot(state, slot, visible_panels);
     let mut status_bar_view = || build_status_bar_view(state);
     let workspace = compose_layout(workspace_layout, &mut panel_for_slot, &mut status_bar_view);
     let main_window = MainWindowView {
@@ -126,17 +137,15 @@ fn build_tab_bar_view(state: &AppState) -> TabBarView {
     TabBarView {
         tabs: WorkspaceTab::ALL
             .iter()
-            .map(|tab| {
-                let spec = workspace_tab_spec(*tab);
-                TabItemView {
-                    shortcut: if show_navigation_shortcuts && spec.hint_navigation {
-                        workspace_tab_hint_label(state, spec.id)
-                    } else {
-                        None
-                    },
-                    label: i18n::text(state.locale(), spec.ui_text),
-                    selected: spec.id == state.ui.active_tab,
-                }
+            .copied()
+            .map(|tab| TabItemView {
+                shortcut: if show_navigation_shortcuts {
+                    workspace_tab_hint_label(state, tab)
+                } else {
+                    None
+                },
+                label: i18n::workspace_tab_label(state.locale(), tab),
+                selected: tab == state.ui.active_tab,
             })
             .collect(),
     }
