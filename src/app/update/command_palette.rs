@@ -68,10 +68,11 @@ pub(super) fn run_selected(state: &mut AppState) -> Vec<Effect> {
         .get(palette.selected)
         .map(|item| item.id);
 
-    modals::close_command_palette_modal(state);
-
     match selected {
-        Some(command) => update(state, command_intent(command)),
+        Some(command) => {
+            modals::close_command_palette_modal(state);
+            update(state, command_intent(command))
+        }
         None => Vec::new(),
     }
 }

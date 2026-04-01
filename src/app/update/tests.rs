@@ -78,6 +78,23 @@ fn running_selected_palette_command_dispatches_existing_command_path() {
 }
 
 #[test]
+fn running_palette_with_no_matches_keeps_palette_open_and_query_intact() {
+    let mut state = AppState::new().unwrap();
+    update(&mut state, Intent::OpenCommandPaletteRequested);
+    update(
+        &mut state,
+        Intent::SetCommandPaletteQuery("no-such-command".into()),
+    );
+
+    let effects = update(&mut state, Intent::RunSelectedCommandPaletteItem);
+
+    assert!(effects.is_empty());
+    let palette = state.ui.command_palette.as_ref().unwrap();
+    assert_eq!(palette.query, "no-such-command");
+    assert_eq!(palette.selected, 0);
+}
+
+#[test]
 fn command_palette_query_edits_reset_selection_and_clamp_matches() {
     let mut state = AppState::new().unwrap();
 
