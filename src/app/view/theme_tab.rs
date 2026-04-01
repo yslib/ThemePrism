@@ -127,7 +127,7 @@ pub(crate) fn build_preview_panel(state: &AppState) -> PanelView {
         tabs: PreviewMode::ALL
             .iter()
             .map(|mode| {
-                let spec = preview_mode_spec(*mode).expect("preview mode spec should exist");
+                let spec = preview_mode_spec(*mode);
                 PanelTabView {
                     shortcut: if spec.hint_navigation {
                         preview_tab_hint_label(state, spec.id)

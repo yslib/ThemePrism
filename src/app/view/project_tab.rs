@@ -16,7 +16,7 @@ pub(crate) fn build_project_config_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::ProjectConfig,
-        title: i18n::text(state.locale(), UiText::PanelProjectConfig),
+        title: i18n::panel_label(state.locale(), PanelId::ProjectConfig),
         active: false,
         hint_navigation_active: false,
         shortcut: None,
@@ -40,7 +40,7 @@ pub(crate) fn build_export_targets_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::ExportTargets,
-        title: i18n::text(state.locale(), UiText::PanelExportTargets),
+        title: i18n::panel_label(state.locale(), PanelId::ExportTargets),
         active: false,
         hint_navigation_active: false,
         shortcut: None,
@@ -64,7 +64,7 @@ pub(crate) fn build_editor_preferences_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::EditorPreferences,
-        title: i18n::text(state.locale(), UiText::PanelEditorPreferences),
+        title: i18n::panel_label(state.locale(), PanelId::EditorPreferences),
         active: false,
         hint_navigation_active: false,
         shortcut: None,

@@ -348,12 +348,12 @@ pub fn format2(
 }
 
 pub fn workspace_tab_label(locale: EditorLocale, tab: WorkspaceTab) -> String {
-    let spec = workspace_tab_spec(tab).expect("workspace tab spec should exist");
+    let spec = workspace_tab_spec(tab);
     text(locale, spec.ui_text)
 }
 
 pub fn panel_label(locale: EditorLocale, panel: PanelId) -> String {
-    let spec = panel_spec(panel).expect("panel spec should exist");
+    let spec = panel_spec(panel);
     text(locale, spec.ui_text)
 }
 
@@ -380,7 +380,7 @@ pub fn locale_label(locale: EditorLocale, choice: EditorLocale) -> String {
 }
 
 pub fn preview_mode_label(locale: EditorLocale, mode: PreviewMode) -> String {
-    let spec = preview_mode_spec(mode).expect("preview mode spec should exist");
+    let spec = preview_mode_spec(mode);
     text(locale, spec.ui_text)
 }
 

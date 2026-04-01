@@ -44,21 +44,3 @@ pub enum PanelId {
     ExportTargets,
     EditorPreferences,
 }
-
-impl PanelId {
-    pub const fn tab(self) -> WorkspaceTab {
-        match self {
-            Self::Tokens
-            | Self::Params
-            | Self::Preview
-            | Self::Palette
-            | Self::ResolvedPrimary
-            | Self::ResolvedSecondary
-            | Self::Inspector
-            | Self::InteractionInspector => WorkspaceTab::Theme,
-            Self::ProjectConfig | Self::ExportTargets | Self::EditorPreferences => {
-                WorkspaceTab::Project
-            }
-        }
-    }
-}

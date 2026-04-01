@@ -127,7 +127,7 @@ fn build_tab_bar_view(state: &AppState) -> TabBarView {
         tabs: WorkspaceTab::ALL
             .iter()
             .map(|tab| {
-                let spec = workspace_tab_spec(*tab).expect("workspace tab spec should exist");
+                let spec = workspace_tab_spec(*tab);
                 TabItemView {
                     shortcut: if show_navigation_shortcuts && spec.hint_navigation {
                         workspace_tab_hint_label(state, spec.id)

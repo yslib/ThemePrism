@@ -56,11 +56,9 @@ pub fn workspace_layout_for_tab(tab: WorkspaceTab) -> WorkspaceLayout {
     };
 
     debug_assert!(
-        panel_order(&layout).into_iter().all(|panel| {
-            panel_spec(panel)
-                .map(|spec| spec.workspace_tab == tab)
-                .unwrap_or(false)
-        }),
+        panel_order(&layout)
+            .into_iter()
+            .all(|panel| panel_spec(panel).workspace_tab == tab),
         "workspace layout should only contain panels for its tab"
     );
 

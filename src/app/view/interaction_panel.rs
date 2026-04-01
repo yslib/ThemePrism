@@ -15,7 +15,7 @@ pub(crate) fn build_interaction_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::InteractionInspector,
-        title: i18n::text(state.locale(), UiText::PanelInteractionInspector),
+        title: i18n::panel_label(state.locale(), PanelId::InteractionInspector),
         active: false,
         hint_navigation_active: false,
         shortcut: None,

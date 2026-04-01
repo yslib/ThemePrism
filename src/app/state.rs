@@ -5,6 +5,7 @@ use thiserror::Error;
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::interaction::InteractionState;
 use crate::app::interaction::SurfaceId;
+use crate::app::ui_meta::panel_workspace_tab;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::color::Color;
 use crate::domain::evaluator::{EvalError, ResolvedTheme, resolve_theme};
@@ -267,8 +268,8 @@ impl AppState {
     }
 
     pub fn set_active_panel(&mut self, panel: PanelId) {
-        self.ui.active_tab = panel.tab();
-        match panel.tab() {
+        self.ui.active_tab = panel_workspace_tab(panel);
+        match panel_workspace_tab(panel) {
             WorkspaceTab::Theme => self.ui.theme_panel = panel,
             WorkspaceTab::Project => self.ui.project_panel = panel,
         }
