@@ -159,12 +159,12 @@ mod tests {
             .iter()
             .position(|item| item.id == CommandId::ToggleFullscreen)
             .unwrap();
-        let quit_index = ranked
+        let help_index = ranked
             .iter()
-            .position(|item| item.id == CommandId::Quit)
+            .position(|item| item.id == CommandId::OpenHelp)
             .unwrap();
 
-        assert!(preview_index < quit_index);
+        assert!(preview_index < help_index);
     }
 
     #[test]
