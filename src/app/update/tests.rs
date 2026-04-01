@@ -2,7 +2,7 @@ use super::{navigation, text_input, update};
 use crate::app::controls::ControlId;
 use crate::app::intent::Intent;
 use crate::app::interaction::{
-    effective_focus_path, effective_focus_surface, InteractionMode, SurfaceId,
+    InteractionMode, SurfaceId, effective_focus_path, effective_focus_surface,
 };
 use crate::app::state::{
     AppState, ConfigFieldId, ConfigModalState, TextInputState, TextInputTarget,
@@ -12,6 +12,7 @@ use crate::domain::params::ParamKey;
 use crate::domain::preview::PreviewRuntimeEvent;
 use crate::domain::rules::{Rule, RuleKind};
 use crate::domain::tokens::TokenRole;
+use crate::persistence::editor_config::EditorLocale;
 use crate::preview::{PreviewFrame, PreviewMode};
 
 #[test]
@@ -72,9 +73,27 @@ fn running_selected_palette_command_dispatches_existing_command_path() {
 
     let effects = update(&mut state, Intent::RunSelectedCommandPaletteItem);
 
-    assert!(effects
-        .iter()
-        .any(|effect| matches!(effect, crate::app::effect::Effect::ExportTheme { .. })));
+    assert!(
+        effects
+            .iter()
+            .any(|effect| matches!(effect, crate::app::effect::Effect::ExportTheme { .. }))
+    );
+}
+
+#[test]
+fn running_selected_palette_command_accepts_localized_queries() {
+    let mut state = AppState::new().unwrap();
+    state.editor.locale = EditorLocale::ZhCn;
+    update(&mut state, Intent::OpenCommandPaletteRequested);
+    update(&mut state, Intent::SetCommandPaletteQuery("设置".into()));
+
+    let effects = update(&mut state, Intent::RunSelectedCommandPaletteItem);
+
+    assert!(effects.is_empty());
+    assert_eq!(
+        state.ui.interaction.focus_path.last().copied(),
+        Some(SurfaceId::ConfigDialog)
+    );
 }
 
 #[test]

@@ -9,8 +9,8 @@ pub use routing::route_ui_action;
 pub use state::{InteractionMode, InteractionState};
 #[allow(unused_imports)]
 pub use tree::{
-    build_interaction_tree, BubblePolicy, ChildNavigation, DefaultAction, InteractionTree,
-    SurfaceId, SurfaceNode, TabScope,
+    BubblePolicy, ChildNavigation, DefaultAction, InteractionTree, SurfaceId, SurfaceNode,
+    TabScope, build_interaction_tree,
 };
 
 use crate::app::state::AppState;
@@ -123,7 +123,7 @@ pub fn surface_label(state: &AppState, surface: SurfaceId) -> String {
         SurfaceId::NumericEditorSurface => i18n::text(state.locale(), UiText::SurfaceInputEditor),
         SurfaceId::SourcePicker => i18n::text(state.locale(), UiText::SurfaceSourcePicker),
         SurfaceId::ConfigDialog => i18n::text(state.locale(), UiText::SurfaceConfigDialog),
-        SurfaceId::CommandPalette => "Command Palette".to_string(),
+        SurfaceId::CommandPalette => i18n::text(state.locale(), UiText::CommandPaletteTitle),
         SurfaceId::ShortcutHelp => i18n::text(state.locale(), UiText::SurfaceShortcutHelp),
     }
 }

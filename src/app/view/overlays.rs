@@ -192,7 +192,7 @@ pub(crate) fn build_command_palette_overlay(state: &AppState) -> Option<OverlayV
         for (index, command) in results.iter().enumerate() {
             lines.push(command_palette_result_line(
                 state,
-                command.title,
+                &command.title,
                 index == selected,
             ));
         }

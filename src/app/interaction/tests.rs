@@ -1,7 +1,7 @@
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::interaction::{
     InteractionMode, InteractionState, SurfaceId, UiAction, build_interaction_tree,
-    effective_focus_path, route_ui_action,
+    effective_focus_path, route_ui_action, surface_label,
 };
 use crate::app::state::AppState;
 use crate::app::view::{PanelBody, ViewNode, build_interaction_panel, build_view};
@@ -9,6 +9,7 @@ use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::app::{Intent, update};
 use crate::domain::params::ParamKey;
 use crate::domain::tokens::TokenRole;
+use crate::persistence::editor_config::EditorLocale;
 
 #[test]
 fn modal_mode_pushes_and_pops_without_losing_owner_focus() {
@@ -217,6 +218,14 @@ fn switch_tab_bubbles_from_tokens_panel_to_main_window() {
         intents.as_slice(),
         [crate::app::Intent::CycleWorkspaceTab(1)]
     ));
+}
+
+#[test]
+fn command_palette_surface_label_is_localized() {
+    let mut state = AppState::new().expect("state");
+    state.editor.locale = EditorLocale::ZhCn;
+
+    assert_eq!(surface_label(&state, SurfaceId::CommandPalette), "命令面板");
 }
 
 #[test]

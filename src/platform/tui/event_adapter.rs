@@ -285,6 +285,24 @@ mod tests {
     }
 
     #[test]
+    fn command_palette_maps_enter_and_escape_to_run_and_close() {
+        let mut state = AppState::new().unwrap();
+        update(&mut state, Intent::OpenCommandPaletteRequested);
+
+        let run = TuiEventAdapter.map_event(&state, key(KeyCode::Enter));
+        let close = TuiEventAdapter.map_event(&state, key(KeyCode::Esc));
+
+        assert!(matches!(
+            run.as_slice(),
+            [Intent::RunSelectedCommandPaletteItem]
+        ));
+        assert!(matches!(
+            close.as_slice(),
+            [Intent::CloseCommandPaletteRequested]
+        ));
+    }
+
+    #[test]
     fn vim_preset_maps_j_to_move_selection() {
         let mut state = AppState::new().unwrap();
         state.editor.keymap_preset = EditorKeymapPreset::Vim;

@@ -5,6 +5,7 @@ use std::path::Path;
 use fluent_bundle::FluentValue;
 use fluent_templates::{Loader, static_loader};
 
+use crate::app::command_palette::CommandId;
 use crate::app::state::{ConfigFieldId, FocusPane};
 use crate::app::ui_meta::{panel_spec, preview_mode_spec, workspace_tab_spec};
 use crate::app::workspace::{PanelId, WorkspaceTab};
@@ -97,6 +98,22 @@ define_ui_texts! {
     CommandPaletteQueryLabel => "command-palette-query-label",
     CommandPaletteEmpty => "command-palette-empty",
     CommandPaletteFooter => "command-palette-footer",
+    CommandItemSaveProjectLabel => "command-item-save-project-label",
+    CommandItemSaveProjectKeywords => "command-item-save-project-keywords",
+    CommandItemLoadProjectLabel => "command-item-load-project-label",
+    CommandItemLoadProjectKeywords => "command-item-load-project-keywords",
+    CommandItemExportThemeLabel => "command-item-export-theme-label",
+    CommandItemExportThemeKeywords => "command-item-export-theme-keywords",
+    CommandItemResetLabel => "command-item-reset-label",
+    CommandItemResetKeywords => "command-item-reset-keywords",
+    CommandItemOpenConfigLabel => "command-item-open-config-label",
+    CommandItemOpenConfigKeywords => "command-item-open-config-keywords",
+    CommandItemOpenHelpLabel => "command-item-open-help-label",
+    CommandItemOpenHelpKeywords => "command-item-open-help-keywords",
+    CommandItemToggleFullscreenLabel => "command-item-toggle-fullscreen-label",
+    CommandItemToggleFullscreenKeywords => "command-item-toggle-fullscreen-keywords",
+    CommandItemQuitLabel => "command-item-quit-label",
+    CommandItemQuitKeywords => "command-item-quit-keywords",
     HelpSectionGlobal => "help-section-global",
     HelpSectionWorkspace => "help-section-workspace",
     HelpSectionPreview => "help-section-preview",
@@ -323,6 +340,12 @@ pub fn text(locale: EditorLocale, key: UiText) -> String {
     LOCALES.lookup(&lang, key.key())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandText {
+    pub label: String,
+    pub keywords: Vec<String>,
+}
+
 pub fn format1(locale: EditorLocale, key: UiText, name: &str, value: impl ToString) -> String {
     let lang = locale.language_identifier();
     let args = HashMap::from([(
@@ -362,6 +385,18 @@ pub fn workspace_tab_label(locale: EditorLocale, tab: WorkspaceTab) -> String {
 pub fn panel_label(locale: EditorLocale, panel: PanelId) -> String {
     let spec = panel_spec(panel);
     text(locale, spec.ui_text)
+}
+
+pub fn command_text(locale: EditorLocale, command: CommandId) -> CommandText {
+    CommandText {
+        label: text(locale, command_label_key(command)),
+        keywords: text(locale, command_keyword_key(command))
+            .split('|')
+            .map(str::trim)
+            .filter(|keyword| !keyword.is_empty())
+            .map(ToOwned::to_owned)
+            .collect(),
+    }
 }
 
 pub fn focus_pane_label(locale: EditorLocale, focus: FocusPane) -> String {
@@ -414,6 +449,32 @@ pub fn config_field_label(locale: EditorLocale, field: ConfigFieldId) -> String 
 
 pub fn window_title(locale: EditorLocale, project_name: &str) -> String {
     format1(locale, UiText::WindowTitle, "name", project_name)
+}
+
+fn command_label_key(command: CommandId) -> UiText {
+    match command {
+        CommandId::SaveProject => UiText::CommandItemSaveProjectLabel,
+        CommandId::LoadProject => UiText::CommandItemLoadProjectLabel,
+        CommandId::ExportTheme => UiText::CommandItemExportThemeLabel,
+        CommandId::Reset => UiText::CommandItemResetLabel,
+        CommandId::OpenConfig => UiText::CommandItemOpenConfigLabel,
+        CommandId::OpenHelp => UiText::CommandItemOpenHelpLabel,
+        CommandId::ToggleFullscreen => UiText::CommandItemToggleFullscreenLabel,
+        CommandId::Quit => UiText::CommandItemQuitLabel,
+    }
+}
+
+fn command_keyword_key(command: CommandId) -> UiText {
+    match command {
+        CommandId::SaveProject => UiText::CommandItemSaveProjectKeywords,
+        CommandId::LoadProject => UiText::CommandItemLoadProjectKeywords,
+        CommandId::ExportTheme => UiText::CommandItemExportThemeKeywords,
+        CommandId::Reset => UiText::CommandItemResetKeywords,
+        CommandId::OpenConfig => UiText::CommandItemOpenConfigKeywords,
+        CommandId::OpenHelp => UiText::CommandItemOpenHelpKeywords,
+        CommandId::ToggleFullscreen => UiText::CommandItemToggleFullscreenKeywords,
+        CommandId::Quit => UiText::CommandItemQuitKeywords,
+    }
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
