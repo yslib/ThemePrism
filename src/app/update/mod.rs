@@ -1,3 +1,4 @@
+mod command_palette;
 mod config;
 mod inspector;
 mod modals;
@@ -209,6 +210,35 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             modals::close_config_modal(state);
             Vec::new()
         }
+        Intent::OpenCommandPaletteRequested => {
+            command_palette::open_command_palette(state);
+            Vec::new()
+        }
+        Intent::CloseCommandPaletteRequested => {
+            command_palette::close_command_palette(state);
+            Vec::new()
+        }
+        Intent::SetCommandPaletteQuery(query) => {
+            command_palette::set_query(state, query);
+            Vec::new()
+        }
+        Intent::AppendCommandPaletteQuery(ch) => {
+            command_palette::append_query(state, ch);
+            Vec::new()
+        }
+        Intent::BackspaceCommandPaletteQuery => {
+            command_palette::backspace_query(state);
+            Vec::new()
+        }
+        Intent::ClearCommandPaletteQuery => {
+            command_palette::clear_query(state);
+            Vec::new()
+        }
+        Intent::MoveCommandPaletteSelection(delta) => {
+            command_palette::move_selection(state, delta);
+            Vec::new()
+        }
+        Intent::RunSelectedCommandPaletteItem => command_palette::run_selected(state),
         Intent::ToggleShortcutHelpRequested => {
             modals::toggle_shortcut_help(state);
             Vec::new()
@@ -303,6 +333,7 @@ fn transient_surface_open(state: &AppState) -> bool {
     state.ui.source_picker.is_some()
         || state.ui.text_input.is_some()
         || state.ui.config_modal.is_some()
+        || state.ui.command_palette.is_some()
         || state.ui.shortcut_help_open
 }
 

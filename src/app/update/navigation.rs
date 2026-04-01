@@ -1,4 +1,4 @@
-use crate::app::interaction::{InteractionMode, SurfaceId, build_interaction_tree, surface_label};
+use crate::app::interaction::{build_interaction_tree, surface_label, InteractionMode, SurfaceId};
 use crate::app::state::{AppState, TextInputTarget};
 use crate::app::view::{panel_order, workspace_layout_for_tab};
 use crate::app::workspace::PanelId;
@@ -190,6 +190,7 @@ pub(super) fn focus_surface(state: &mut AppState, surface: SurfaceId) {
         SurfaceId::NumericEditorSurface
         | SurfaceId::SourcePicker
         | SurfaceId::ConfigDialog
+        | SurfaceId::CommandPaletteDialog
         | SurfaceId::ShortcutHelp => {
             if let Some(path) = focus_path_for_surface(state, surface) {
                 state.ui.interaction.focus_path = path;

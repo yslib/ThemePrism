@@ -1,7 +1,9 @@
 use super::{navigation, text_input, update};
 use crate::app::controls::ControlId;
 use crate::app::intent::Intent;
-use crate::app::interaction::{InteractionMode, SurfaceId, effective_focus_path};
+use crate::app::interaction::{
+    effective_focus_path, effective_focus_surface, InteractionMode, SurfaceId,
+};
 use crate::app::state::{
     AppState, ConfigFieldId, ConfigModalState, TextInputState, TextInputTarget,
 };
@@ -37,6 +39,63 @@ fn modal_intent_toggles_shortcut_help_state() {
     update(&mut state, Intent::ToggleShortcutHelpRequested);
 
     assert!(state.ui.shortcut_help_open);
+}
+
+#[test]
+fn open_command_palette_initializes_query_and_selection() {
+    let mut state = AppState::new().unwrap();
+
+    update(&mut state, Intent::OpenCommandPaletteRequested);
+
+    let palette = state.ui.command_palette.as_ref().unwrap();
+    assert!(palette.query.is_empty());
+    assert_eq!(palette.selected, 0);
+}
+
+#[test]
+fn closing_command_palette_restores_prior_focus() {
+    let mut state = AppState::new().unwrap();
+    state.set_active_panel(PanelId::Preview);
+    state.ui.interaction.focus_panel(PanelId::Preview);
+
+    update(&mut state, Intent::OpenCommandPaletteRequested);
+    update(&mut state, Intent::CloseCommandPaletteRequested);
+
+    assert_eq!(effective_focus_surface(&state), SurfaceId::PreviewPanel);
+}
+
+#[test]
+fn running_selected_palette_command_dispatches_existing_command_path() {
+    let mut state = AppState::new().unwrap();
+    update(&mut state, Intent::OpenCommandPaletteRequested);
+    update(&mut state, Intent::SetCommandPaletteQuery("expo".into()));
+
+    let effects = update(&mut state, Intent::RunSelectedCommandPaletteItem);
+
+    assert!(effects
+        .iter()
+        .any(|effect| matches!(effect, crate::app::effect::Effect::ExportTheme { .. })));
+}
+
+#[test]
+fn command_palette_query_edits_reset_selection_and_clamp_matches() {
+    let mut state = AppState::new().unwrap();
+
+    update(&mut state, Intent::OpenCommandPaletteRequested);
+    update(&mut state, Intent::AppendCommandPaletteQuery('e'));
+    update(&mut state, Intent::AppendCommandPaletteQuery('x'));
+    update(&mut state, Intent::MoveCommandPaletteSelection(1));
+    assert_eq!(state.ui.command_palette.as_ref().unwrap().selected, 1);
+
+    update(&mut state, Intent::BackspaceCommandPaletteQuery);
+    let palette = state.ui.command_palette.as_ref().unwrap();
+    assert_eq!(palette.query, "e");
+    assert_eq!(palette.selected, 0);
+
+    update(&mut state, Intent::ClearCommandPaletteQuery);
+    let palette = state.ui.command_palette.as_ref().unwrap();
+    assert!(palette.query.is_empty());
+    assert_eq!(palette.selected, 0);
 }
 
 #[test]

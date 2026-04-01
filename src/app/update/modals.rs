@@ -1,5 +1,5 @@
 use crate::app::interaction::{InteractionMode, SurfaceId};
-use crate::app::state::{AppState, ConfigModalState};
+use crate::app::state::{AppState, CommandPaletteState, ConfigModalState};
 use crate::i18n::UiText;
 
 use super::{navigation, tr};
@@ -50,6 +50,12 @@ pub(super) fn close_config_surface(state: &mut AppState) {
     }
 }
 
+pub(super) fn close_command_palette_surface(state: &mut AppState) {
+    if state.ui.command_palette.take().is_some() {
+        pop_modal_owner(state, SurfaceId::CommandPaletteDialog);
+    }
+}
+
 pub(super) fn close_shortcut_help_surface(state: &mut AppState) {
     if state.ui.shortcut_help_open {
         state.ui.shortcut_help_open = false;
@@ -59,6 +65,7 @@ pub(super) fn close_shortcut_help_surface(state: &mut AppState) {
 }
 
 pub(super) fn open_config_modal(state: &mut AppState) {
+    close_command_palette_surface(state);
     close_source_picker_surface(state);
     close_text_input_surface(state);
     close_shortcut_help_surface(state);
@@ -77,9 +84,27 @@ pub(super) fn close_config_modal(state: &mut AppState) {
     }
 }
 
+pub(super) fn open_command_palette_modal(state: &mut AppState) {
+    close_source_picker_surface(state);
+    close_text_input_surface(state);
+    close_config_surface(state);
+    close_shortcut_help_surface(state);
+    state.ui.command_palette = Some(CommandPaletteState {
+        query: String::new(),
+        selected: 0,
+    });
+    push_modal_owner(state, SurfaceId::CommandPaletteDialog);
+    navigation::focus_surface(state, SurfaceId::CommandPaletteDialog);
+}
+
+pub(super) fn close_command_palette_modal(state: &mut AppState) {
+    close_command_palette_surface(state);
+}
+
 pub(super) fn toggle_shortcut_help(state: &mut AppState) {
     let next = !state.ui.shortcut_help_open;
     if next {
+        close_command_palette_surface(state);
         close_source_picker_surface(state);
         close_text_input_surface(state);
         close_config_surface(state);

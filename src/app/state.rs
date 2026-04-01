@@ -8,17 +8,17 @@ use crate::app::interaction::SurfaceId;
 use crate::app::ui_meta::panel_workspace_tab;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::color::Color;
-use crate::domain::evaluator::{EvalError, ResolvedTheme, resolve_theme};
-use crate::domain::palette::{Palette, generate_palette};
+use crate::domain::evaluator::{resolve_theme, EvalError, ResolvedTheme};
+use crate::domain::palette::{generate_palette, Palette};
 use crate::domain::params::{ParamKey, ThemeParams};
 use crate::domain::preview::PreviewState;
 use crate::domain::rules::RuleSet;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
 use crate::enum_meta::define_key_enum;
-use crate::export::{ExportProfile, default_export_profiles};
+use crate::export::{default_export_profiles, ExportProfile};
 use crate::i18n::{self, UiText};
 use crate::persistence::editor_config::{
-    DEFAULT_PROJECT_PATH, EditorConfig, EditorKeymapPreset, EditorLocale, EditorStartupFocus,
+    EditorConfig, EditorKeymapPreset, EditorLocale, EditorStartupFocus, DEFAULT_PROJECT_PATH,
 };
 
 define_key_enum! {
@@ -99,6 +99,12 @@ pub struct ConfigModalState {
     pub selected_field: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandPaletteState {
+    pub query: String,
+    pub selected: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct DomainState {
     pub params: ThemeParams,
@@ -125,6 +131,7 @@ pub struct UiState {
     pub text_input: Option<TextInputState>,
     pub source_picker: Option<SourcePickerState>,
     pub config_modal: Option<ConfigModalState>,
+    pub command_palette: Option<CommandPaletteState>,
     pub shortcut_help_open: bool,
     pub shortcut_help_scroll: u16,
     pub interaction: InteractionState,
@@ -190,6 +197,7 @@ impl AppState {
                 text_input: None,
                 source_picker: None,
                 config_modal: None,
+                command_palette: None,
                 shortcut_help_open: false,
                 shortcut_help_scroll: 0,
                 interaction: InteractionState::new(PanelId::Tokens),
@@ -242,6 +250,7 @@ impl AppState {
         self.ui.text_input = None;
         self.ui.source_picker = None;
         self.ui.config_modal = None;
+        self.ui.command_palette = None;
         self.ui.shortcut_help_open = false;
         self.ui.fullscreen_surface = None;
         self.preview.capture_active = false;

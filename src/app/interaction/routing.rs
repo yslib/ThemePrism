@@ -1,10 +1,10 @@
-use crate::app::Intent;
-use crate::app::hint_nav::{HintTarget, main_window_hint_targets};
+use crate::app::hint_nav::{main_window_hint_targets, HintTarget};
 use crate::app::state::AppState;
+use crate::app::Intent;
 
 use super::{
-    BubblePolicy, ChildNavigation, DefaultAction, InteractionMode, InteractionTree, SurfaceId,
-    SurfaceNode, TabScope, UiAction, build_interaction_tree, effective_focus_path,
+    build_interaction_tree, effective_focus_path, BubblePolicy, ChildNavigation, DefaultAction,
+    InteractionMode, InteractionTree, SurfaceId, SurfaceNode, TabScope, UiAction,
 };
 
 pub fn route_ui_action(state: &AppState, action: UiAction) -> Vec<Intent> {
@@ -215,6 +215,7 @@ fn navigation_scope_for_surface(surface: SurfaceId) -> Option<SurfaceId> {
         SurfaceId::NumericEditorSurface
         | SurfaceId::SourcePicker
         | SurfaceId::ConfigDialog
+        | SurfaceId::CommandPaletteDialog
         | SurfaceId::ShortcutHelp => Some(surface),
     }
 }
@@ -323,6 +324,7 @@ fn route_surface_action(
         SurfaceId::NumericEditorSurface => route_text_input_action(state, action),
         SurfaceId::SourcePicker => route_source_picker_action(action),
         SurfaceId::ConfigDialog => route_config_dialog_action(action),
+        SurfaceId::CommandPaletteDialog => None,
         SurfaceId::ShortcutHelp => route_shortcut_help_action(action),
         SurfaceId::PreviewTabs
         | SurfaceId::PreviewBody
