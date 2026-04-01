@@ -84,20 +84,21 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
             ],
         )
         .map(bound_action_to_ui_action),
-        SurfaceId::CommandPalette => match_action(
-            preset,
-            key,
-            &[
-                BoundAction::Cancel,
-                BoundAction::Apply,
-                BoundAction::MoveUp,
-                BoundAction::MoveDown,
-                BoundAction::Backspace,
-                BoundAction::Clear,
-            ],
-        )
-        .map(bound_action_to_ui_action)
-        .or_else(|| free_text_action(key)),
+        SurfaceId::CommandPalette => free_text_action(key).or_else(|| {
+            match_action(
+                preset,
+                key,
+                &[
+                    BoundAction::Cancel,
+                    BoundAction::Apply,
+                    BoundAction::MoveUp,
+                    BoundAction::MoveDown,
+                    BoundAction::Backspace,
+                    BoundAction::Clear,
+                ],
+            )
+            .map(bound_action_to_ui_action)
+        }),
         surface if surface.is_workspace_surface() => {
             if matches!(
                 state.ui.interaction.current_mode(),
@@ -266,6 +267,20 @@ mod tests {
         assert!(matches!(
             intents.as_slice(),
             [Intent::AppendCommandPaletteQuery('e')]
+        ));
+    }
+
+    #[test]
+    fn palette_text_input_uses_printable_chars_under_vim_preset() {
+        let mut state = AppState::new().unwrap();
+        state.editor.keymap_preset = EditorKeymapPreset::Vim;
+        update(&mut state, Intent::OpenCommandPaletteRequested);
+
+        let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Char('j')));
+
+        assert!(matches!(
+            intents.as_slice(),
+            [Intent::AppendCommandPaletteQuery('j')]
         ));
     }
 
