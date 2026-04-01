@@ -1,4 +1,4 @@
-use super::{TuiRenderer, max_document_scroll};
+use super::{TuiRenderer, max_document_scroll, overlays::wrapped_line_height};
 use super::{panels::panel_title_line, style::tui};
 use crate::app::view::{
     DocumentView, MainWindowView, MenuBarView, OverlayView, PanelBody, PanelTabView, PanelView,
@@ -386,4 +386,93 @@ fn wrapped_highlighted_surface_row_keeps_rendering_continuation_text() {
         first_row[find_text_start(&first_row, "Output")].bg,
         tui(theme.selection)
     );
+}
+
+#[test]
+fn mixed_background_surface_line_does_not_get_full_row_highlight_fill() {
+    let theme = sample_theme();
+    let accent = Color::from_hex("#D97706").unwrap();
+    let view = overlay_view_with_surface(SurfaceView {
+        title: "Numeric".to_string(),
+        size: SurfaceSize::Absolute {
+            width: 28,
+            height: 8,
+        },
+        body: SurfaceBody::Lines {
+            lines: vec![StyledLine {
+                spans: vec![
+                    StyledSpan {
+                        text: " ".repeat(6),
+                        style: SpanStyle {
+                            fg: None,
+                            bg: Some(theme.selection),
+                            bold: false,
+                            italic: false,
+                        },
+                    },
+                    StyledSpan {
+                        text: " ".repeat(6),
+                        style: SpanStyle {
+                            fg: None,
+                            bg: Some(accent),
+                            bold: false,
+                            italic: false,
+                        },
+                    },
+                    StyledSpan {
+                        text: "value".to_string(),
+                        style: SpanStyle {
+                            fg: Some(theme.text),
+                            bg: None,
+                            bold: false,
+                            italic: false,
+                        },
+                    },
+                ],
+            }],
+            scroll: 0,
+        },
+        footer_lines: Vec::new(),
+    });
+    let backend = TestBackend::new(60, 20);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    terminal
+        .draw(|frame| TuiRenderer.present(frame, &view))
+        .unwrap();
+
+    let (_, row) = find_row_containing(&terminal, 60, "value");
+    let start = find_text_start(&row, "value");
+    let trailing = row[start + "value".len()].clone();
+
+    assert_eq!(trailing.bg, tui(theme.surface));
+}
+
+#[test]
+fn wrapped_highlighted_surface_row_uses_display_width_for_wide_text() {
+    let theme = sample_theme();
+    let line = StyledLine {
+        spans: vec![
+            StyledSpan {
+                text: "> ".to_string(),
+                style: SpanStyle {
+                    fg: Some(theme.background),
+                    bg: Some(theme.selection),
+                    bold: true,
+                    italic: false,
+                },
+            },
+            StyledSpan {
+                text: "导出主题路径".to_string(),
+                style: SpanStyle {
+                    fg: Some(theme.background),
+                    bg: Some(theme.selection),
+                    bold: true,
+                    italic: false,
+                },
+            },
+        ],
+    };
+
+    assert_eq!(wrapped_line_height(&line, 10), 2);
 }

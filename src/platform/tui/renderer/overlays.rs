@@ -1,4 +1,5 @@
 use super::*;
+use unicode_width::UnicodeWidthStr;
 
 impl TuiRenderer {
     pub(super) fn render_overlay(
@@ -170,8 +171,15 @@ impl TuiRenderer {
     }
 }
 
-fn line_background(line: &StyledLine) -> Option<Color> {
-    line.spans.iter().find_map(|span| span.style.bg)
+fn full_row_highlight_background(line: &StyledLine) -> Option<Color> {
+    let mut spans = line.spans.iter();
+    let first = spans.next()?.style.bg?;
+
+    if spans.all(|span| span.style.bg == Some(first)) {
+        Some(first)
+    } else {
+        None
+    }
 }
 
 fn render_highlighted_surface_backgrounds(
@@ -187,7 +195,7 @@ fn render_highlighted_surface_backgrounds(
     let mut visual_row = 0u16;
     for line in lines {
         let wrapped_height = wrapped_line_height(line, area.width);
-        if let Some(bg) = line_background(line) {
+        if let Some(bg) = full_row_highlight_background(line) {
             for row in 0..wrapped_height {
                 let absolute_row = visual_row + row;
                 if absolute_row < scroll {
@@ -208,11 +216,11 @@ fn render_highlighted_surface_backgrounds(
     }
 }
 
-fn wrapped_line_height(line: &StyledLine, width: u16) -> u16 {
+pub(super) fn wrapped_line_height(line: &StyledLine, width: u16) -> u16 {
     let display_width = line
         .spans
         .iter()
-        .map(|span| span.text.chars().count())
+        .map(|span| UnicodeWidthStr::width(span.text.as_str()))
         .sum::<usize>();
     let width = usize::from(width.max(1));
     let rows = display_width.max(1).div_ceil(width);
