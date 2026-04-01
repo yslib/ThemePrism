@@ -3,6 +3,7 @@ use crate::app::hint_nav::workspace_tab_hint_label;
 use crate::app::interaction::focus_breadcrumb;
 use crate::app::interaction::{InteractionMode, SurfaceId};
 use crate::app::state::AppState;
+use crate::app::ui_meta::workspace_tab_spec;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::tokens::TokenRole;
 use crate::i18n::{self, UiText};
@@ -85,10 +86,10 @@ fn build_panel_for_slot(state: &AppState, slot: PanelId, visible_panels: &[Panel
         PanelId::Preview => build_preview_panel(state),
         PanelId::Palette => build_palette_panel(state),
         PanelId::ResolvedPrimary => {
-            build_token_swatch_panel(state, "Resolved Tokens", &TokenRole::ALL[..10])
+            build_token_swatch_panel(state, PanelId::ResolvedPrimary, &TokenRole::ALL[..10])
         }
         PanelId::ResolvedSecondary => {
-            build_token_swatch_panel(state, "Resolved Tokens II", &TokenRole::ALL[10..])
+            build_token_swatch_panel(state, PanelId::ResolvedSecondary, &TokenRole::ALL[10..])
         }
         PanelId::Inspector => build_inspector_panel(state),
         PanelId::InteractionInspector => build_interaction_panel(state),
@@ -125,12 +126,17 @@ fn build_tab_bar_view(state: &AppState) -> TabBarView {
     TabBarView {
         tabs: WorkspaceTab::ALL
             .iter()
-            .map(|tab| TabItemView {
-                shortcut: show_navigation_shortcuts
-                    .then(|| workspace_tab_hint_label(state, *tab))
-                    .flatten(),
-                label: i18n::workspace_tab_label(state.locale(), *tab),
-                selected: *tab == state.ui.active_tab,
+            .map(|tab| {
+                let spec = workspace_tab_spec(*tab).expect("workspace tab spec should exist");
+                TabItemView {
+                    shortcut: if show_navigation_shortcuts && spec.hint_navigation {
+                        workspace_tab_hint_label(state, spec.id)
+                    } else {
+                        None
+                    },
+                    label: i18n::text(state.locale(), spec.ui_text),
+                    selected: spec.id == state.ui.active_tab,
+                }
             })
             .collect(),
     }

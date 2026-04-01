@@ -6,6 +6,7 @@ pub mod intent;
 pub mod interaction;
 pub mod snapshot;
 pub mod state;
+pub mod ui_meta;
 pub mod update;
 pub mod view;
 pub mod workspace;

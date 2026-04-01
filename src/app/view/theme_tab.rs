@@ -5,6 +5,7 @@ use crate::app::controls::{
 use crate::app::hint_nav::preview_tab_hint_label;
 use crate::app::interaction::{SurfaceId, has_active_capture};
 use crate::app::state::AppState;
+use crate::app::ui_meta::preview_mode_spec;
 use crate::app::workspace::PanelId;
 use crate::domain::preview::{PreviewFrame, PreviewMode, PreviewSpanStyle, sample_document};
 use crate::domain::rules::Rule;
@@ -38,7 +39,7 @@ pub(crate) fn build_token_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::Tokens,
-        title: i18n::text(state.locale(), UiText::PanelTokenList),
+        title: i18n::panel_label(state.locale(), PanelId::Tokens),
         active: false,
         hint_navigation_active: false,
         shortcut: None,
@@ -93,7 +94,7 @@ pub(crate) fn build_params_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::Params,
-        title: i18n::text(locale, UiText::PanelThemeParams),
+        title: i18n::panel_label(locale, PanelId::Params),
         active: false,
         hint_navigation_active: false,
         shortcut: None,
@@ -119,16 +120,23 @@ pub(crate) fn build_preview_panel(state: &AppState) -> PanelView {
         .collect::<Vec<_>>();
     PanelView {
         id: PanelId::Preview,
-        title: i18n::text(state.locale(), UiText::PanelPreviewSampleCode),
+        title: i18n::panel_label(state.locale(), PanelId::Preview),
         active: false,
         hint_navigation_active: false,
         shortcut: None,
         tabs: PreviewMode::ALL
             .iter()
-            .map(|mode| PanelTabView {
-                shortcut: preview_tab_hint_label(state, *mode),
-                label: preview_mode_label(state, *mode),
-                active: *mode == state.preview.active_mode,
+            .map(|mode| {
+                let spec = preview_mode_spec(*mode).expect("preview mode spec should exist");
+                PanelTabView {
+                    shortcut: if spec.hint_navigation {
+                        preview_tab_hint_label(state, spec.id)
+                    } else {
+                        None
+                    },
+                    label: i18n::text(state.locale(), spec.ui_text),
+                    active: spec.id == state.preview.active_mode,
+                }
             })
             .collect(),
         header_lines: preview_header_lines(state),
@@ -151,7 +159,7 @@ pub(crate) fn build_palette_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::Palette,
-        title: i18n::text(state.locale(), UiText::PanelPalette),
+        title: i18n::panel_label(state.locale(), PanelId::Palette),
         active: false,
         hint_navigation_active: false,
         shortcut: None,
@@ -163,7 +171,7 @@ pub(crate) fn build_palette_panel(state: &AppState) -> PanelView {
 
 pub(crate) fn build_token_swatch_panel(
     state: &AppState,
-    title: &str,
+    panel_id: PanelId,
     roles: &[TokenRole],
 ) -> PanelView {
     let items = roles
@@ -179,14 +187,8 @@ pub(crate) fn build_token_swatch_panel(
         .collect();
 
     PanelView {
-        id: PanelId::ResolvedPrimary,
-        title: match title {
-            "Resolved Tokens" => i18n::text(state.locale(), UiText::PanelResolvedTokens),
-            "Resolved Tokens II" => {
-                i18n::text(state.locale(), UiText::PanelResolvedTokensSecondary)
-            }
-            _ => title.to_string(),
-        },
+        id: panel_id,
+        title: i18n::panel_label(state.locale(), panel_id),
         active: false,
         hint_navigation_active: false,
         shortcut: None,
@@ -241,7 +243,7 @@ pub(crate) fn build_inspector_panel(state: &AppState) -> PanelView {
 
     PanelView {
         id: PanelId::Inspector,
-        title: i18n::text(locale, UiText::PanelInspector),
+        title: i18n::panel_label(locale, PanelId::Inspector),
         active: false,
         hint_navigation_active: false,
         shortcut: None,
@@ -253,10 +255,6 @@ pub(crate) fn build_inspector_panel(state: &AppState) -> PanelView {
             footer: Some(inspector_footer_text(state)),
         }),
     }
-}
-
-fn preview_mode_label(state: &AppState, mode: PreviewMode) -> String {
-    i18n::preview_mode_label(state.locale(), mode)
 }
 
 fn preview_header_lines(state: &AppState) -> Vec<StyledLine> {

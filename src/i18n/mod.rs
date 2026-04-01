@@ -6,6 +6,7 @@ use fluent_bundle::FluentValue;
 use fluent_templates::{Loader, static_loader};
 
 use crate::app::state::{ConfigFieldId, FocusPane};
+use crate::app::ui_meta::{panel_spec, preview_mode_spec, workspace_tab_spec};
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::preview::PreviewMode;
 use crate::persistence::editor_config::{EditorKeymapPreset, EditorLocale};
@@ -347,26 +348,13 @@ pub fn format2(
 }
 
 pub fn workspace_tab_label(locale: EditorLocale, tab: WorkspaceTab) -> String {
-    match tab {
-        WorkspaceTab::Theme => text(locale, UiText::TabTheme),
-        WorkspaceTab::Project => text(locale, UiText::TabProject),
-    }
+    let spec = workspace_tab_spec(tab).expect("workspace tab spec should exist");
+    text(locale, spec.ui_text)
 }
 
 pub fn panel_label(locale: EditorLocale, panel: PanelId) -> String {
-    match panel {
-        PanelId::Tokens => text(locale, UiText::PanelTokenList),
-        PanelId::Params => text(locale, UiText::PanelThemeParams),
-        PanelId::Preview => text(locale, UiText::PanelPreviewSampleCode),
-        PanelId::Palette => text(locale, UiText::PanelPalette),
-        PanelId::ResolvedPrimary => text(locale, UiText::PanelResolvedTokens),
-        PanelId::ResolvedSecondary => text(locale, UiText::PanelResolvedTokensSecondary),
-        PanelId::Inspector => text(locale, UiText::PanelInspector),
-        PanelId::InteractionInspector => text(locale, UiText::PanelInteractionInspector),
-        PanelId::ProjectConfig => text(locale, UiText::PanelProjectConfig),
-        PanelId::ExportTargets => text(locale, UiText::PanelExportTargets),
-        PanelId::EditorPreferences => text(locale, UiText::PanelEditorPreferences),
-    }
+    let spec = panel_spec(panel).expect("panel spec should exist");
+    text(locale, spec.ui_text)
 }
 
 pub fn focus_pane_label(locale: EditorLocale, focus: FocusPane) -> String {
@@ -392,11 +380,8 @@ pub fn locale_label(locale: EditorLocale, choice: EditorLocale) -> String {
 }
 
 pub fn preview_mode_label(locale: EditorLocale, mode: PreviewMode) -> String {
-    match mode {
-        PreviewMode::Code => text(locale, UiText::PreviewModeCode),
-        PreviewMode::Shell => text(locale, UiText::PreviewModeShell),
-        PreviewMode::Lazygit => text(locale, UiText::PreviewModeLazygit),
-    }
+    let spec = preview_mode_spec(mode).expect("preview mode spec should exist");
+    text(locale, spec.ui_text)
 }
 
 pub fn config_field_label(locale: EditorLocale, field: ConfigFieldId) -> String {

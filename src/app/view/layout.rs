@@ -1,3 +1,4 @@
+use crate::app::ui_meta::panel_spec;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 
 use super::{Axis, PanelView, Size, SplitView, StatusBarView, ViewNode};
@@ -49,10 +50,21 @@ pub fn status_bar() -> WorkspaceLayout {
 }
 
 pub fn workspace_layout_for_tab(tab: WorkspaceTab) -> WorkspaceLayout {
-    match tab {
+    let layout = match tab {
         WorkspaceTab::Theme => default_workspace_layout(),
         WorkspaceTab::Project => project_workspace_layout(),
-    }
+    };
+
+    debug_assert!(
+        panel_order(&layout).into_iter().all(|panel| {
+            panel_spec(panel)
+                .map(|spec| spec.workspace_tab == tab)
+                .unwrap_or(false)
+        }),
+        "workspace layout should only contain panels for its tab"
+    );
+
+    layout
 }
 
 pub fn default_workspace_layout() -> WorkspaceLayout {

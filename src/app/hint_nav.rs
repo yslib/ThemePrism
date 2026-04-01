@@ -1,5 +1,6 @@
 use crate::app::interaction::{InteractionMode, SurfaceId};
 use crate::app::state::AppState;
+use crate::app::ui_meta::{preview_mode_spec, workspace_tab_spec};
 use crate::app::view::{panel_order, workspace_layout_for_tab};
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::preview::PreviewMode;
@@ -42,18 +43,30 @@ pub fn main_window_hint_targets(state: &AppState) -> Vec<HintTarget> {
     let mut next_letter = b'a';
 
     for tab in WorkspaceTab::ALL.iter().copied() {
+        let Some(spec) = workspace_tab_spec(tab) else {
+            continue;
+        };
+        if !spec.hint_navigation {
+            continue;
+        }
         targets.push(HintTarget::WorkspaceTab {
             label: char::from(next_letter),
-            tab,
+            tab: spec.id,
         });
         next_letter = next_letter.saturating_add(1);
     }
 
     if panels.contains(&PanelId::Preview) {
         for mode in PreviewMode::ALL.iter().copied() {
+            let Some(spec) = preview_mode_spec(mode) else {
+                continue;
+            };
+            if !spec.hint_navigation {
+                continue;
+            }
             targets.push(HintTarget::PreviewTab {
                 label: char::from(next_letter),
-                mode,
+                mode: spec.id,
             });
             next_letter = next_letter.saturating_add(1);
         }
@@ -108,6 +121,7 @@ mod tests {
     };
     use crate::app::AppState;
     use crate::app::interaction::{InteractionMode, SurfaceId};
+    use crate::app::ui_meta::{preview_mode_spec, workspace_tab_spec};
     use crate::app::workspace::{PanelId, WorkspaceTab};
     use crate::preview::PreviewMode;
 
@@ -120,26 +134,46 @@ mod tests {
             label: '1',
             panel: PanelId::Tokens,
         }));
-        assert!(targets.contains(&HintTarget::WorkspaceTab {
-            label: 'a',
-            tab: WorkspaceTab::Theme,
-        }));
-        assert!(targets.contains(&HintTarget::WorkspaceTab {
-            label: 'b',
-            tab: WorkspaceTab::Project,
-        }));
-        assert!(targets.contains(&HintTarget::PreviewTab {
-            label: 'c',
-            mode: PreviewMode::Code,
-        }));
-        assert!(targets.contains(&HintTarget::PreviewTab {
-            label: 'd',
-            mode: PreviewMode::Shell,
-        }));
-        assert!(targets.contains(&HintTarget::PreviewTab {
-            label: 'e',
-            mode: PreviewMode::Lazygit,
-        }));
+        assert!(
+            targets.contains(&HintTarget::WorkspaceTab {
+                label: 'a',
+                tab: workspace_tab_spec(WorkspaceTab::Theme)
+                    .expect("theme workspace tab spec")
+                    .id,
+            })
+        );
+        assert!(
+            targets.contains(&HintTarget::WorkspaceTab {
+                label: 'b',
+                tab: workspace_tab_spec(WorkspaceTab::Project)
+                    .expect("project workspace tab spec")
+                    .id,
+            })
+        );
+        assert!(
+            targets.contains(&HintTarget::PreviewTab {
+                label: 'c',
+                mode: preview_mode_spec(PreviewMode::Code)
+                    .expect("code preview mode spec")
+                    .id,
+            })
+        );
+        assert!(
+            targets.contains(&HintTarget::PreviewTab {
+                label: 'd',
+                mode: preview_mode_spec(PreviewMode::Shell)
+                    .expect("shell preview mode spec")
+                    .id,
+            })
+        );
+        assert!(
+            targets.contains(&HintTarget::PreviewTab {
+                label: 'e',
+                mode: preview_mode_spec(PreviewMode::Lazygit)
+                    .expect("lazygit preview mode spec")
+                    .id,
+            })
+        );
     }
 
     #[test]
