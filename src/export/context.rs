@@ -14,6 +14,16 @@ pub enum ExportValue {
     Text(String),
 }
 
+impl ExportValue {
+    pub fn render_text(&self) -> String {
+        match self {
+            Self::Color(color) => color.to_hex(),
+            Self::Number(value) => value.to_string(),
+            Self::Text(value) => value.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExportMeta {
     pub project_name: String,

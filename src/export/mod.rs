@@ -88,13 +88,13 @@ pub fn default_export_profiles() -> Vec<ExportProfile> {
 
 pub fn export_with_profile(
     profile: &ExportProfile,
-    _context: &ExportContext,
+    context: &ExportContext,
     theme: &ResolvedTheme,
 ) -> Result<String, ExportError> {
     match &profile.format {
         ExportFormat::Alacritty => AlacrittyExporter.export(theme),
         ExportFormat::Template { template_path } => {
-            TemplateExporter::from_path(&profile.name, template_path)?.export(theme)
+            TemplateExporter::from_path(&profile.name, template_path)?.export_with_context(context)
         }
     }
 }
@@ -110,4 +110,56 @@ pub enum ExportError {
     Io(String),
     #[error("{0}")]
     InvalidTemplate(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use crate::domain::params::ThemeParams;
+    use crate::domain::palette::generate_palette;
+    use crate::domain::rules::RuleSet;
+    use crate::evaluator::resolve_theme;
+
+    use super::context::ExportContext;
+    use super::{ExportFormat, ExportProfile, export_with_profile};
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn export_with_profile_uses_export_context_for_template_profiles() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(
+            b"project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\nbackground={{token.background}}\npalette={{palette.bg_0}}\ncontrast={{param.contrast}}\n",
+        )
+        .unwrap();
+        file.flush().unwrap();
+
+        let params = ThemeParams::default();
+        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+        let context = ExportContext::builder(
+            "Demo Project",
+            &ExportProfile::template_default(),
+            &theme,
+            &params,
+        )
+        .build();
+        let profile = ExportProfile {
+            name: "Context Test".to_string(),
+            enabled: true,
+            output_path: std::path::PathBuf::from("exports/context-test.txt"),
+            format: ExportFormat::Template {
+                template_path: file.path().to_path_buf(),
+            },
+        };
+
+        let output = export_with_profile(&profile, &context, &theme).unwrap();
+
+        assert!(output.contains("project=Demo Project"));
+        assert!(output.contains("profile=Template"));
+        assert!(output.contains("format=template"));
+        assert!(output.contains("output=exports/theme-template.txt"));
+        assert!(output.contains("background=#"));
+        assert!(output.contains("palette=#"));
+        assert!(output.contains("contrast=0.85"));
+    }
 }
