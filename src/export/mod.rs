@@ -1,5 +1,6 @@
 pub mod alacritty;
 pub mod context;
+#[path = "template/mod.rs"]
 pub mod template;
 
 use std::path::PathBuf;
@@ -9,8 +10,8 @@ use thiserror::Error;
 
 use crate::domain::params::ThemeParams;
 use crate::evaluator::ResolvedTheme;
-use crate::export::context::ExportContext;
 use crate::export::alacritty::AlacrittyExporter;
+use crate::export::context::ExportContext;
 use crate::export::template::TemplateExporter;
 
 #[allow(dead_code)]
@@ -134,8 +135,8 @@ pub enum ExportError {
 mod tests {
     use std::io::Write;
 
-    use crate::domain::params::ThemeParams;
     use crate::domain::palette::generate_palette;
+    use crate::domain::params::ThemeParams;
     use crate::domain::rules::RuleSet;
     use crate::evaluator::resolve_theme;
 
