@@ -94,8 +94,7 @@ pub fn export_with_profile(
     match format {
         ExportFormat::Alacritty => AlacrittyExporter.export(theme),
         ExportFormat::Template { template_path } =>
-            TemplateExporter::from_path(&context.meta.profile_name, template_path)?
-                .export_with_context(context),
+            TemplateExporter::from_path(template_path)?.export_with_context(context),
     }
 }
 
