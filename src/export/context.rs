@@ -31,6 +31,7 @@ pub struct ExportMeta {
     pub profile_format: String,
     pub output_path: String,
     pub exporter: String,
+    pub exporter_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,7 +75,8 @@ impl<'a> ExportContextBuilder<'a> {
                 ExportFormat::Template { .. } => "template".to_string(),
             },
             output_path: self.profile.output_path.display().to_string(),
-            exporter: self.profile.format_key().to_string(),
+            exporter: self.profile.format_label().to_string(),
+            exporter_key: self.profile.format_key().to_string(),
         };
 
         let token = TokenRole::ALL
@@ -144,8 +146,14 @@ mod tests {
         assert_eq!(context.meta.project_name, "Demo Project");
         assert_eq!(context.meta.profile_name, "Template");
         assert_eq!(context.meta.profile_format, "template");
-        assert_eq!(context.meta.output_path, "exports/theme-template.txt");
-        assert_eq!(context.meta.exporter, "template");
+        assert_eq!(
+            context.meta.output_path,
+            std::path::Path::new("exports/theme-template.txt")
+                .display()
+                .to_string()
+        );
+        assert_eq!(context.meta.exporter, "Template");
+        assert_eq!(context.meta.exporter_key, "template");
     }
 
     #[test]

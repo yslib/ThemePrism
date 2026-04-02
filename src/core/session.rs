@@ -137,7 +137,7 @@ mod tests {
         let output_file = NamedTempFile::new().unwrap();
         fs::write(
             template_file.path(),
-            "project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\ncontrast={{param.contrast}}\nexporter={{meta.exporter}}\n",
+            "project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\ncontrast={{param.contrast}}\nexporter={{meta.exporter}}\nexporter_key={{meta.exporter_key}}\n",
         )
         .unwrap();
 
@@ -170,6 +170,7 @@ mod tests {
         assert!(output.contains("format=template"));
         assert!(output.contains(&format!("output={}", output_file.path().display())));
         assert!(output.contains("contrast=0.42"));
-        assert!(output.contains("exporter=template"));
+        assert!(output.contains("exporter=Template"));
+        assert!(output.contains("exporter_key=template"));
     }
 }

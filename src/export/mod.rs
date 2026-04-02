@@ -166,7 +166,7 @@ mod tests {
         assert!(output.contains("project=Demo Project"));
         assert!(output.contains("profile=Context Test"));
         assert!(output.contains("format=template"));
-        assert!(output.contains("output=exports/context-test.txt"));
+        assert!(output.contains(&format!("output={}", profile.output_path.display())));
         assert!(output.contains("background=#"));
         assert!(output.contains("palette=#"));
         assert!(output.contains("contrast=0.85"));

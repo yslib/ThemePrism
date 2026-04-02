@@ -32,19 +32,29 @@ fn render_template(template: &str, context: &ExportContext) -> Result<String, Ex
 
         let placeholder_start = start + 2;
         let Some(end) = template[placeholder_start..].find("}}") else {
-            return Err(ExportError::InvalidTemplate(format!(
-                "unknown template placeholder {}",
-                &template[start..]
-            )));
+            let tail = &template[placeholder_start..];
+            if has_known_namespace_prefix(tail.trim_start()) {
+                return Err(ExportError::InvalidTemplate(format!(
+                    "unknown template placeholder {}",
+                    &template[start..]
+                )));
+            }
+            rendered.push_str(&template[start..]);
+            return Ok(rendered);
         };
         let end = placeholder_start + end;
         let raw = template[placeholder_start..end].trim();
         let replacement = match resolve_placeholder(raw, context) {
             Some(value) => value,
             None => {
-                return Err(ExportError::InvalidTemplate(format!(
-                    "unknown template placeholder {{{{{raw}}}}}"
-                )));
+                if has_known_namespace_prefix(raw) {
+                    return Err(ExportError::InvalidTemplate(format!(
+                        "unknown template placeholder {{{{{raw}}}}}"
+                    )));
+                }
+                rendered.push_str(&template[start..end + 2]);
+                cursor = end + 2;
+                continue;
             }
         };
         rendered.push_str(&replacement);
@@ -55,6 +65,13 @@ fn render_template(template: &str, context: &ExportContext) -> Result<String, Ex
     Ok(rendered)
 }
 
+fn has_known_namespace_prefix(raw: &str) -> bool {
+    matches!(
+        raw.split_once('.'),
+        Some(("meta", _)) | Some(("token", _)) | Some(("palette", _)) | Some(("param", _))
+    )
+}
+
 fn resolve_placeholder(raw: &str, context: &ExportContext) -> Option<String> {
     match raw.split_once('.') {
         Some(("meta", key)) => match key {
@@ -63,6 +80,7 @@ fn resolve_placeholder(raw: &str, context: &ExportContext) -> Option<String> {
             "profile_format" => Some(context.meta.profile_format.clone()),
             "output_path" => Some(context.meta.output_path.clone()),
             "exporter" => Some(context.meta.exporter.clone()),
+            "exporter_key" => Some(context.meta.exporter_key.clone()),
             _ => None,
         },
         Some(("token", key)) => context.token.get(key).map(|value| value.render_text()),
@@ -88,7 +106,7 @@ mod tests {
     fn template_exporter_uses_export_context() {
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(
-            b"project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\nbackground={{token.background}}\npalette={{palette.bg_0}}\ncontrast={{param.contrast}}\n",
+            b"project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\nexporter={{meta.exporter}}\nexporter_key={{meta.exporter_key}}\nbackground={{token.background}}\npalette={{palette.bg_0}}\ncontrast={{param.contrast}}\n",
         )
         .unwrap();
         file.flush().unwrap();
@@ -109,7 +127,14 @@ mod tests {
         assert!(output.contains("project=Demo Project"));
         assert!(output.contains("profile=Template"));
         assert!(output.contains("format=template"));
-        assert!(output.contains("output=exports/theme-template.txt"));
+        assert!(output.contains(&format!(
+            "output={}",
+            crate::export::ExportProfile::template_default()
+                .output_path
+                .display()
+        )));
+        assert!(output.contains("exporter=Template"));
+        assert!(output.contains("exporter_key=template"));
         assert!(output.contains("background=#"));
         assert!(output.contains("palette=#"));
         assert!(output.contains("contrast=0.85"));
@@ -138,6 +163,30 @@ mod tests {
         let error = exporter.export_with_context(&context).unwrap_err();
 
         assert!(matches!(error, crate::export::ExportError::InvalidTemplate(_)));
+    }
+
+    #[test]
+    fn template_exporter_leaves_unknown_non_namespaced_braces_unchanged() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"note={{literal braces}}\nproject={{meta.project_name}}\n")
+            .unwrap();
+        file.flush().unwrap();
+
+        let params = ThemeParams::default();
+        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+        let exporter = TemplateExporter::from_path(file.path()).unwrap();
+        let context = ExportContext::builder(
+            "Demo Project",
+            &crate::export::ExportProfile::template_default(),
+            &theme,
+            &params,
+        )
+        .build()
+        .unwrap();
+        let output = exporter.export_with_context(&context).unwrap();
+
+        assert!(output.contains("note={{literal braces}}"));
+        assert!(output.contains("project=Demo Project"));
     }
 
     #[test]
