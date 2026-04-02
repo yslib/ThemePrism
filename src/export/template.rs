@@ -62,7 +62,7 @@ fn resolve_placeholder(raw: &str, context: &ExportContext) -> Option<String> {
             "profile_name" => Some(context.meta.profile_name.clone()),
             "profile_format" => Some(context.meta.profile_format.clone()),
             "output_path" => Some(context.meta.output_path.clone()),
-            "exporter" => Some("Template".to_string()),
+            "exporter" => Some(context.meta.exporter.clone()),
             _ => None,
         },
         Some(("token", key)) => context.token.get(key).map(|value| value.render_text()),

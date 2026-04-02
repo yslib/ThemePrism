@@ -124,3 +124,57 @@ fn write_export(path: &Path, content: &str) -> io::Result<()> {
     }
     fs::write(path, content)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::NamedTempFile;
+
+    use crate::app::{AppState, Intent};
+    use crate::export::ExportFormat;
+
+    use super::CoreSession;
+
+    #[test]
+    fn export_flow_threads_project_profile_path_and_param_data() {
+        let template_file = NamedTempFile::new().unwrap();
+        let output_file = NamedTempFile::new().unwrap();
+        fs::write(
+            template_file.path(),
+            "project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\ncontrast={{param.contrast}}\nexporter={{meta.exporter}}\n",
+        )
+        .unwrap();
+
+        let mut state = AppState::new().unwrap();
+        state.project.name = "Session Project".to_string();
+        state.domain.params.contrast = 0.42;
+        state.recompute().unwrap();
+        for profile in &mut state.project.export_profiles {
+            profile.enabled = false;
+        }
+        let profile = state
+            .project
+            .export_profiles
+            .iter_mut()
+            .find(|profile| matches!(profile.format, ExportFormat::Template { .. }))
+            .unwrap();
+        profile.name = "Session Template".to_string();
+        profile.output_path = output_file.path().to_path_buf();
+        if let ExportFormat::Template { template_path } = &mut profile.format {
+            *template_path = template_file.path().to_path_buf();
+        }
+        profile.enabled = true;
+
+        let mut session = CoreSession::new(state);
+        session.dispatch(Intent::ExportThemeRequested);
+
+        let output = fs::read_to_string(output_file.path()).unwrap();
+        assert!(output.contains("project=Session Project"));
+        assert!(output.contains("profile=Session Template"));
+        assert!(output.contains("format=template"));
+        assert!(output.contains(&format!("output={}", output_file.path().display())));
+        assert!(output.contains("contrast=0.42"));
+        assert!(output.contains("exporter=Template"));
+    }
+}
