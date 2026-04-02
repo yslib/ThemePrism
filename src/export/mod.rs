@@ -1,6 +1,5 @@
 pub mod alacritty;
 pub mod context;
-#[path = "template/mod.rs"]
 pub mod template;
 
 use std::path::PathBuf;
