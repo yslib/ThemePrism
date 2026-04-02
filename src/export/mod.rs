@@ -34,6 +34,15 @@ pub enum ExportFormat {
     Template { template_path: PathBuf },
 }
 
+impl ExportFormat {
+    pub const fn key(&self) -> &'static str {
+        match self {
+            Self::Alacritty => "alacritty",
+            Self::Template { .. } => "template",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExportArtifact {
     pub profile_name: String,
@@ -74,6 +83,10 @@ impl ExportProfile {
         }
     }
 
+    pub const fn format_key(&self) -> &'static str {
+        self.format.key()
+    }
+
     pub fn summary_label(&self) -> String {
         let marker = if self.enabled { "[x]" } else { "[ ]" };
         format!("{marker} {} ({})", self.name, self.format_label())
@@ -93,12 +106,12 @@ pub fn export_with_profile(
     theme: &ResolvedTheme,
     params: &ThemeParams,
 ) -> Result<String, ExportError> {
-    let context = ExportContext::builder(project_name, profile, theme, params).build()?;
-
     match &profile.format {
         ExportFormat::Alacritty => AlacrittyExporter.export(theme),
-        ExportFormat::Template { template_path } =>
-            TemplateExporter::from_path(template_path)?.export_with_context(&context),
+        ExportFormat::Template { template_path } => {
+            let context = ExportContext::builder(project_name, profile, theme, params).build()?;
+            TemplateExporter::from_path(template_path)?.export_with_context(&context)
+        }
     }
 }
 
@@ -157,5 +170,17 @@ mod tests {
         assert!(output.contains("background=#"));
         assert!(output.contains("palette=#"));
         assert!(output.contains("contrast=0.85"));
+    }
+
+    #[test]
+    fn export_with_profile_still_exports_alacritty_profiles() {
+        let params = ThemeParams::default();
+        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+        let profile = ExportProfile::alacritty_default();
+
+        let output = export_with_profile(&profile, "Ignored Project", &theme, &params).unwrap();
+
+        assert!(output.contains("[colors.primary]"));
+        assert!(output.contains("background = \""));
     }
 }

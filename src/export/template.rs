@@ -116,7 +116,7 @@ mod tests {
     }
 
     #[test]
-    fn template_exporter_rejects_unknown_placeholders_in_all_namespaces() {
+    fn template_exporter_rejects_unknown_placeholders() {
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(
             b"project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\nmissing={{meta.missing}}\n",

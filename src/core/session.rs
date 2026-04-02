@@ -170,6 +170,6 @@ mod tests {
         assert!(output.contains("format=template"));
         assert!(output.contains(&format!("output={}", output_file.path().display())));
         assert!(output.contains("contrast=0.42"));
-        assert!(output.contains("exporter=Template"));
+        assert!(output.contains("exporter=template"));
     }
 }
