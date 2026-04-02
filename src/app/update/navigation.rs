@@ -1,4 +1,4 @@
-use crate::app::interaction::{build_interaction_tree, surface_label, InteractionMode, SurfaceId};
+use crate::app::interaction::{InteractionMode, SurfaceId, build_interaction_tree, surface_label};
 use crate::app::state::{AppState, TextInputTarget};
 use crate::app::view::{panel_order, workspace_layout_for_tab};
 use crate::app::workspace::PanelId;

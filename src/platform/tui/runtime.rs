@@ -139,13 +139,13 @@ mod tests {
     #[test]
     fn sync_tui_view_state_clamps_inspector_scroll_to_current_viewport() {
         let mut session = CoreSession::new(AppState::new().expect("state"));
-        session.dispatch(Intent::FocusPanelByNumber(8));
+        session.dispatch(Intent::FocusPanelByNumber(6));
         for _ in 0..256 {
             session.dispatch(Intent::MoveSelection(1));
         }
 
         let before = session.state().ui.interaction_inspector_scroll;
-        sync_tui_view_state(&mut session, Rect::new(0, 0, 90, 28));
+        sync_tui_view_state(&mut session, Rect::new(0, 0, 72, 18));
 
         assert!(before > session.state().ui.interaction_inspector_scroll);
     }
@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn sync_tui_view_state_preserves_inspector_scroll_when_panel_is_hidden() {
         let mut session = CoreSession::new(AppState::new().expect("state"));
-        session.dispatch(Intent::FocusPanelByNumber(8));
+        session.dispatch(Intent::FocusPanelByNumber(6));
         for _ in 0..24 {
             session.dispatch(Intent::MoveSelection(1));
         }

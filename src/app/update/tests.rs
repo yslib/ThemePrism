@@ -235,10 +235,10 @@ fn workspace_tabs_restore_panel_focus() {
 fn digit_navigation_focuses_visible_panel_in_current_tab() {
     let mut state = AppState::new().expect("state should build");
 
-    update(&mut state, Intent::FocusPanelByNumber(6));
+    update(&mut state, Intent::FocusPanelByNumber(4));
     assert_eq!(state.active_panel(), PanelId::Preview);
 
-    update(&mut state, Intent::FocusPanelByNumber(8));
+    update(&mut state, Intent::FocusPanelByNumber(6));
     assert_eq!(state.active_panel(), PanelId::InteractionInspector);
     assert_eq!(
         state.ui.interaction.focused_surface(),

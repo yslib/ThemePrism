@@ -32,6 +32,7 @@ pub(crate) fn build_token_panel(state: &AppState) -> PanelView {
         rows.push(SelectionRowView::Item {
             label: role.label().to_string(),
             color: state.theme_color(role),
+            value_text: state.theme_color(role).to_hex(),
             selected: role == state.selected_role(),
         });
     }
@@ -351,10 +352,11 @@ fn preview_line_to_view_line(line: crate::domain::preview::PreviewLine) -> Style
 
 #[cfg(test)]
 mod tests {
-    use super::build_preview_panel;
+    use super::{build_preview_panel, build_token_panel};
     use crate::app::AppState;
     use crate::app::hint_nav::preview_tab_hint_label;
     use crate::app::interaction::{InteractionMode, SurfaceId};
+    use crate::app::view::SelectionRowView;
     use crate::i18n;
     use crate::preview::PreviewMode;
 
@@ -386,6 +388,27 @@ mod tests {
             assert_eq!(tab.shortcut, None);
             assert_eq!(tab.label, i18n::preview_mode_label(state.locale(), mode));
         }
+    }
+
+    #[test]
+    fn token_panel_rows_include_resolved_hex_values() {
+        let state = AppState::new().expect("state");
+
+        let panel = build_token_panel(&state);
+        let crate::app::view::PanelBody::SelectionList(list) = panel.body else {
+            panic!("expected selection list");
+        };
+
+        let first_item = list
+            .rows
+            .iter()
+            .find_map(|row| match row {
+                SelectionRowView::Item { value_text, .. } => Some(value_text.as_str()),
+                SelectionRowView::Header(_) => None,
+            })
+            .expect("token panel should contain token rows");
+
+        assert!(first_item.starts_with('#'));
     }
 }
 

@@ -344,7 +344,7 @@ fn interaction_inspector_lists_focus_path_and_modes() {
 }
 
 #[test]
-fn theme_workspace_view_includes_interaction_inspector_as_panel_8() {
+fn theme_workspace_view_includes_interaction_inspector_as_panel_6() {
     let state = AppState::new().expect("state");
     let view = build_view(&state);
     let mut panels = Vec::new();
@@ -357,8 +357,6 @@ fn theme_workspace_view_includes_interaction_inspector_as_panel_8() {
             PanelId::Tokens,
             PanelId::Params,
             PanelId::Palette,
-            PanelId::ResolvedPrimary,
-            PanelId::ResolvedSecondary,
             PanelId::Preview,
             PanelId::Inspector,
             PanelId::InteractionInspector,
@@ -369,7 +367,7 @@ fn theme_workspace_view_includes_interaction_inspector_as_panel_8() {
             .iter()
             .find(|(id, _)| *id == PanelId::InteractionInspector)
             .map(|(_, shortcut)| *shortcut),
-        Some(Some(8))
+        Some(Some(6))
     );
 }
 
@@ -515,8 +513,6 @@ fn interaction_tree_uses_visible_theme_tab_children() {
             SurfaceId::TokensPanel,
             SurfaceId::ParamsPanel,
             SurfaceId::PalettePanel,
-            SurfaceId::ResolvedPrimaryPanel,
-            SurfaceId::ResolvedSecondaryPanel,
             SurfaceId::PreviewPanel,
             SurfaceId::InspectorPanel,
             SurfaceId::InteractionInspectorPanel,
@@ -597,33 +593,14 @@ fn hidden_workspace_panels_do_not_report_an_active_parent() {
 }
 
 #[test]
-fn interaction_tree_keeps_resolved_theme_panels_distinct() {
-    assert_eq!(
-        SurfaceId::workspace_surface(PanelId::ResolvedPrimary),
-        SurfaceId::ResolvedPrimaryPanel
-    );
-    assert_eq!(
-        SurfaceId::workspace_surface(PanelId::ResolvedSecondary),
-        SurfaceId::ResolvedSecondaryPanel
-    );
-    assert_ne!(
-        SurfaceId::ResolvedPrimaryPanel,
-        SurfaceId::ResolvedSecondaryPanel
-    );
-
+fn resolved_theme_panels_are_hidden_from_theme_workspace() {
     let state = AppState::new().expect("state");
     let tree = build_interaction_tree(&state);
 
-    assert_eq!(
-        tree.parent_of(SurfaceId::ResolvedPrimaryPanel),
-        Some(SurfaceId::MainWindow)
-    );
-    assert_eq!(
-        tree.parent_of(SurfaceId::ResolvedSecondaryPanel),
-        Some(SurfaceId::MainWindow)
-    );
-    assert!(tree.is_visible(SurfaceId::ResolvedPrimaryPanel));
-    assert!(tree.is_visible(SurfaceId::ResolvedSecondaryPanel));
+    assert_eq!(tree.parent_of(SurfaceId::ResolvedPrimaryPanel), None);
+    assert_eq!(tree.parent_of(SurfaceId::ResolvedSecondaryPanel), None);
+    assert!(!tree.is_visible(SurfaceId::ResolvedPrimaryPanel));
+    assert!(!tree.is_visible(SurfaceId::ResolvedSecondaryPanel));
 }
 
 #[test]

@@ -93,8 +93,11 @@ impl TuiRenderer {
         }
 
         frame.render_widget(
-            Paragraph::new(Line::from(spans))
-                .style(Style::default().bg(style::tui(theme.surface)).fg(style::tui(theme.text))),
+            Paragraph::new(Line::from(spans)).style(
+                Style::default()
+                    .bg(style::tui(theme.surface))
+                    .fg(style::tui(theme.text)),
+            ),
             area,
         );
     }

@@ -22,6 +22,7 @@ impl TuiRenderer {
                 SelectionRowView::Item {
                     label,
                     color,
+                    value_text,
                     selected,
                 } => {
                     let style = if *selected {
@@ -35,8 +36,10 @@ impl TuiRenderer {
 
                     Line::from(vec![
                         Span::styled(if *selected { "> " } else { "  " }, style),
-                        Span::styled("■ ", Style::default().fg(style::tui(*color))),
-                        Span::styled(label.as_str(), style),
+                        Span::styled("    ", Style::default().bg(style::tui(*color))),
+                        Span::raw(" "),
+                        Span::styled(format!("{:<14}", label), style),
+                        Span::styled(value_text.clone(), style),
                     ])
                 }
             })

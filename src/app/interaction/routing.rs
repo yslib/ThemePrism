@@ -1,10 +1,10 @@
-use crate::app::hint_nav::{main_window_hint_targets, HintTarget};
-use crate::app::state::AppState;
 use crate::app::Intent;
+use crate::app::hint_nav::{HintTarget, main_window_hint_targets};
+use crate::app::state::AppState;
 
 use super::{
-    build_interaction_tree, effective_focus_path, BubblePolicy, ChildNavigation, DefaultAction,
-    InteractionMode, InteractionTree, SurfaceId, SurfaceNode, TabScope, UiAction,
+    BubblePolicy, ChildNavigation, DefaultAction, InteractionMode, InteractionTree, SurfaceId,
+    SurfaceNode, TabScope, UiAction, build_interaction_tree, effective_focus_path,
 };
 
 pub fn route_ui_action(state: &AppState, action: UiAction) -> Vec<Intent> {

@@ -1,4 +1,4 @@
-use crate::app::command_palette::{filter_commands, CommandId};
+use crate::app::command_palette::{CommandId, filter_commands};
 use crate::app::effect::Effect;
 use crate::app::intent::Intent;
 use crate::app::state::AppState;

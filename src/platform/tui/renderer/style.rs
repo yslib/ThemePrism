@@ -84,11 +84,7 @@ pub(super) fn hint_tab_label_style(selected: bool, theme: &ViewTheme, hinted: bo
     }
 }
 
-pub(super) fn hint_panel_tab_label_style(
-    active: bool,
-    theme: &ViewTheme,
-    hinted: bool,
-) -> Style {
+pub(super) fn hint_panel_tab_label_style(active: bool, theme: &ViewTheme, hinted: bool) -> Style {
     if active {
         Style::default()
             .bg(tui(theme.selection))

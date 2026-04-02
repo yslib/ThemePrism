@@ -113,6 +113,7 @@ pub enum SelectionRowView {
     Item {
         label: String,
         color: Color,
+        value_text: String,
         selected: bool,
     },
 }
