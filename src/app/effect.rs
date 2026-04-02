@@ -32,6 +32,8 @@ pub enum Effect {
         data: EditorConfigData,
     },
     ExportTheme {
+        project_name: String,
+        params: ThemeParams,
         profiles: Vec<ExportProfile>,
         theme: ResolvedTheme,
     },

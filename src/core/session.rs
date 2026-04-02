@@ -7,6 +7,7 @@ use crate::app::snapshot::{AppSnapshot, build_snapshot};
 use crate::app::view::{ViewTree, build_view};
 use crate::app::{AppState, Effect, Intent, update};
 use crate::export::{ExportArtifact, export_with_profile};
+use crate::export::context::ExportContext;
 use crate::persistence::editor_config::save_editor_config;
 use crate::persistence::project_file::{load_project, save_project};
 
@@ -77,7 +78,12 @@ impl CoreSession {
                 let result = save_editor_config(&data.config).map_err(|err| err.to_string());
                 Intent::EditorConfigSaved(result)
             }
-            Effect::ExportTheme { profiles, theme } => {
+            Effect::ExportTheme {
+                project_name,
+                params,
+                profiles,
+                theme,
+            } => {
                 let result = (|| -> Result<Vec<ExportArtifact>, String> {
                     let enabled = profiles
                         .into_iter()
@@ -90,8 +96,11 @@ impl CoreSession {
 
                     let mut artifacts = Vec::new();
                     for profile in enabled {
-                        let content =
-                            export_with_profile(&profile, &theme).map_err(|err| err.to_string())?;
+                        let context =
+                            ExportContext::builder(&project_name, &profile, &theme, &params)
+                                .build();
+                        let content = export_with_profile(&profile, &context, &theme)
+                            .map_err(|err| err.to_string())?;
                         write_export(&profile.output_path, &content)
                             .map_err(|err| err.to_string())?;
                         artifacts.push(ExportArtifact {

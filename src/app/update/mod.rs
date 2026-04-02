@@ -250,6 +250,8 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             path: state.editor.project_path.clone(),
         }],
         Intent::ExportThemeRequested => vec![Effect::ExportTheme {
+            project_name: state.project.name.clone(),
+            params: state.domain.params.clone(),
             profiles: state.project.export_profiles.clone(),
             theme: state.domain.resolved.clone(),
         }],

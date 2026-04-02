@@ -1,4 +1,5 @@
 pub mod alacritty;
+pub mod context;
 pub mod template;
 
 use std::path::PathBuf;
@@ -7,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::evaluator::ResolvedTheme;
+use crate::export::context::ExportContext;
 use crate::export::alacritty::AlacrittyExporter;
 use crate::export::template::TemplateExporter;
 
@@ -86,6 +88,7 @@ pub fn default_export_profiles() -> Vec<ExportProfile> {
 
 pub fn export_with_profile(
     profile: &ExportProfile,
+    _context: &ExportContext,
     theme: &ResolvedTheme,
 ) -> Result<String, ExportError> {
     match &profile.format {
