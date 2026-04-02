@@ -87,21 +87,23 @@ pub fn default_export_profiles() -> Vec<ExportProfile> {
 }
 
 pub fn export_with_profile(
-    profile: &ExportProfile,
+    format: &ExportFormat,
     context: &ExportContext,
     theme: &ResolvedTheme,
 ) -> Result<String, ExportError> {
-    match &profile.format {
+    match format {
         ExportFormat::Alacritty => AlacrittyExporter.export(theme),
-        ExportFormat::Template { template_path } => {
-            TemplateExporter::from_path(&profile.name, template_path)?.export_with_context(context)
-        }
+        ExportFormat::Template { template_path } =>
+            TemplateExporter::from_path(&context.meta.profile_name, template_path)?
+                .export_with_context(context),
     }
 }
 
 #[derive(Debug, Error)]
 #[allow(dead_code)]
 pub enum ExportError {
+    #[error("missing export context value {0}")]
+    MissingExportContextValue(String),
     #[error("missing token {0}")]
     MissingToken(String),
     #[error("{0}")]
@@ -142,17 +144,13 @@ mod tests {
             &theme,
             &params,
         )
-        .build();
-        let profile = ExportProfile {
-            name: "Context Test".to_string(),
-            enabled: true,
-            output_path: std::path::PathBuf::from("exports/context-test.txt"),
-            format: ExportFormat::Template {
-                template_path: file.path().to_path_buf(),
-            },
+        .build()
+        .unwrap();
+        let format = ExportFormat::Template {
+            template_path: file.path().to_path_buf(),
         };
 
-        let output = export_with_profile(&profile, &context, &theme).unwrap();
+        let output = export_with_profile(&format, &context, &theme).unwrap();
 
         assert!(output.contains("project=Demo Project"));
         assert!(output.contains("profile=Template"));

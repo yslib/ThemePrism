@@ -98,8 +98,9 @@ impl CoreSession {
                     for profile in enabled {
                         let context =
                             ExportContext::builder(&project_name, &profile, &theme, &params)
-                                .build();
-                        let content = export_with_profile(&profile, &context, &theme)
+                                .build()
+                                .map_err(|err| err.to_string())?;
+                        let content = export_with_profile(&profile.format, &context, &theme)
                             .map_err(|err| err.to_string())?;
                         write_export(&profile.output_path, &content)
                             .map_err(|err| err.to_string())?;

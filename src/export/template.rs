@@ -24,38 +24,8 @@ impl TemplateExporter {
     }
 
     pub fn export_with_context(&self, context: &ExportContext) -> Result<String, ExportError> {
-        let mut rendered = self.template.clone();
-        rendered = rendered.replace("{{meta.project_name}}", &context.meta.project_name);
-        rendered = rendered.replace("{{meta.profile_name}}", &context.meta.profile_name);
-        rendered = rendered.replace("{{meta.profile_format}}", &context.meta.profile_format);
-        rendered = rendered.replace("{{meta.output_path}}", &context.meta.output_path);
-        rendered = rendered.replace("{{meta.exporter}}", self.name());
-
-        for (key, value) in &context.token {
-            rendered = rendered.replace(&format!("{{{{token.{key}}}}}"), &value.render_text());
-        }
-
-        for (key, value) in &context.palette {
-            rendered = rendered.replace(&format!("{{{{palette.{key}}}}}"), &value.render_text());
-        }
-
-        for (key, value) in &context.param {
-            rendered = rendered.replace(&format!("{{{{param.{key}}}}}"), &value.render_text());
-        }
-
-        if let Some(start) = rendered.find("{{token.") {
-            let tail = &rendered[start..];
-            let end = tail
-                .find("}}")
-                .map(|index| start + index + 2)
-                .unwrap_or(rendered.len());
-            let unknown = &rendered[start..end];
-            return Err(ExportError::InvalidTemplate(format!(
-                "unknown template placeholder {unknown}"
-            )));
-        }
-
-        Ok(rendered)
+        let rendered = render_template(self, context);
+        validate_no_placeholders(&rendered)
     }
 }
 
@@ -78,20 +48,47 @@ impl Exporter for TemplateExporter {
             rendered = rendered.replace(&key, &color);
         }
 
-        if let Some(start) = rendered.find("{{token.") {
-            let tail = &rendered[start..];
-            let end = tail
-                .find("}}")
-                .map(|index| start + index + 2)
-                .unwrap_or(rendered.len());
-            let unknown = &rendered[start..end];
-            return Err(ExportError::InvalidTemplate(format!(
-                "unknown template placeholder {unknown}"
-            )));
-        }
-
-        Ok(rendered)
+        validate_no_placeholders(&rendered)
     }
+}
+
+fn render_template(exporter: &TemplateExporter, context: &ExportContext) -> String {
+    let mut rendered = exporter.template.clone();
+    rendered = rendered.replace("{{meta.project_name}}", &context.meta.project_name);
+    rendered = rendered.replace("{{meta.profile_name}}", &context.meta.profile_name);
+    rendered = rendered.replace("{{meta.profile_format}}", &context.meta.profile_format);
+    rendered = rendered.replace("{{meta.output_path}}", &context.meta.output_path);
+    rendered = rendered.replace("{{meta.exporter}}", exporter.name());
+
+    for (key, value) in &context.token {
+        rendered = rendered.replace(&format!("{{{{token.{key}}}}}"), &value.render_text());
+    }
+
+    for (key, value) in &context.palette {
+        rendered = rendered.replace(&format!("{{{{palette.{key}}}}}"), &value.render_text());
+    }
+
+    for (key, value) in &context.param {
+        rendered = rendered.replace(&format!("{{{{param.{key}}}}}"), &value.render_text());
+    }
+
+    rendered
+}
+
+fn validate_no_placeholders(rendered: &str) -> Result<String, ExportError> {
+    if let Some(start) = rendered.find("{{") {
+        let tail = &rendered[start..];
+        let end = tail
+            .find("}}")
+            .map(|index| start + index + 2)
+            .unwrap_or(rendered.len());
+        let unknown = &rendered[start..end];
+        return Err(ExportError::InvalidTemplate(format!(
+            "unknown template placeholder {unknown}"
+        )));
+    }
+
+    Ok(rendered.to_string())
 }
 
 #[cfg(test)]
@@ -124,7 +121,8 @@ mod tests {
             &theme,
             &params,
         )
-        .build();
+        .build()
+        .unwrap();
         let output = exporter.export_with_context(&context).unwrap();
 
         assert!(output.contains("project=Demo Project"));
@@ -134,5 +132,30 @@ mod tests {
         assert!(output.contains("background=#"));
         assert!(output.contains("palette=#"));
         assert!(output.contains("contrast=0.85"));
+    }
+
+    #[test]
+    fn template_exporter_rejects_unknown_placeholders_in_all_namespaces() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(
+            b"project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\nmissing={{meta.missing}}\n",
+        )
+        .unwrap();
+        file.flush().unwrap();
+
+        let params = ThemeParams::default();
+        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+        let exporter = TemplateExporter::from_path("Test Profile", file.path()).unwrap();
+        let context = ExportContext::builder(
+            "Demo Project",
+            &crate::export::ExportProfile::template_default(),
+            &theme,
+            &params,
+        )
+        .build()
+        .unwrap();
+        let error = exporter.export_with_context(&context).unwrap_err();
+
+        assert!(matches!(error, crate::export::ExportError::InvalidTemplate(_)));
     }
 }

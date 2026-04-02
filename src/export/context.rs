@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::color::Color;
 use crate::domain::params::{ParamKey, ThemeParams};
 use crate::evaluator::ResolvedTheme;
-use crate::export::{ExportFormat, ExportProfile};
+use crate::export::{ExportError, ExportFormat, ExportProfile};
 use crate::tokens::{PaletteSlot, TokenRole};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,7 +64,7 @@ impl ExportContext {
 }
 
 impl<'a> ExportContextBuilder<'a> {
-    pub fn build(self) -> ExportContext {
+    pub fn build(self) -> Result<ExportContext, ExportError> {
         let meta = ExportMeta {
             project_name: self.project_name.to_string(),
             profile_name: self.profile.name.clone(),
@@ -78,67 +78,61 @@ impl<'a> ExportContextBuilder<'a> {
         let token = TokenRole::ALL
             .into_iter()
             .map(|role| {
-                (
-                    role.key().to_string(),
-                    ExportValue::Color(
-                        self.theme
-                            .token(role)
-                            .expect("resolved theme must include all token roles"),
-                    ),
-                )
+                let color = self.theme.token(role).ok_or_else(|| {
+                    ExportError::MissingExportContextValue(format!("token.{}", role.key()))
+                })?;
+                Ok((role.key().to_string(), ExportValue::Color(color)))
             })
-            .collect();
+            .collect::<Result<BTreeMap<_, _>, ExportError>>()?;
 
         let palette = PaletteSlot::ALL
             .into_iter()
             .map(|slot| {
-                (
-                    slot.key().to_string(),
-                    ExportValue::Color(
-                        self.theme
-                            .palette
-                            .get(slot)
-                            .expect("resolved palette must include all palette slots"),
-                    ),
-                )
+                let color = self.theme.palette.get(slot).ok_or_else(|| {
+                    ExportError::MissingExportContextValue(format!("palette.{}", slot.key()))
+                })?;
+                Ok((slot.key().to_string(), ExportValue::Color(color)))
             })
-            .collect();
+            .collect::<Result<BTreeMap<_, _>, ExportError>>()?;
 
         let param = ParamKey::ALL
             .into_iter()
             .map(|key| {
-                (
-                    key.key().to_string(),
-                    ExportValue::Number(key.get(self.params)),
-                )
+                Ok((key.key().to_string(), ExportValue::Number(key.get(self.params))))
             })
-            .collect();
+            .collect::<Result<BTreeMap<_, _>, ExportError>>()?;
 
-        ExportContext {
+        Ok(ExportContext {
             meta,
             token,
             palette,
             param,
-        }
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::{ExportContext, ExportValue};
     use crate::domain::params::{ParamKey, ThemeParams};
+    use crate::domain::palette::Palette;
     use crate::domain::palette::generate_palette;
     use crate::domain::rules::RuleSet;
     use crate::domain::tokens::{PaletteSlot, TokenRole};
     use crate::evaluator::resolve_theme;
-    use crate::export::ExportProfile;
+    use crate::export::{ExportError, ExportProfile};
+    use crate::evaluator::ResolvedTheme;
 
     fn build_context() -> ExportContext {
         let params = ThemeParams::default();
         let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
         let profile = ExportProfile::template_default();
 
-        ExportContext::builder("Demo Project", &profile, &theme, &params).build()
+        ExportContext::builder("Demo Project", &profile, &theme, &params)
+            .build()
+            .unwrap()
     }
 
     #[test]
@@ -175,5 +169,26 @@ mod tests {
                 Some(ExportValue::Number(_))
             ));
         }
+    }
+
+    #[test]
+    fn context_builder_returns_error_when_theme_data_is_missing() {
+        let params = ThemeParams::default();
+        let profile = ExportProfile::template_default();
+        let theme = ResolvedTheme {
+            palette: Palette {
+                slots: BTreeMap::new(),
+            },
+            tokens: BTreeMap::new(),
+        };
+
+        let error = ExportContext::builder("Demo Project", &profile, &theme, &params)
+            .build()
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ExportError::MissingExportContextValue(value) if value == "token.background"
+        ));
     }
 }
