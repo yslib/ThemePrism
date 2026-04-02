@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 use crate::app::controls::{ControlId, ReferenceField};
-use crate::app::state::{AppState, FocusPane};
+use crate::app::state::AppState;
 use crate::app::update::current_source_for_control;
 use crate::domain::preview::{PreviewFrame, sample_document};
 use crate::domain::rules::{AdjustOp, Rule, RuleKind, SourceRef, available_source_options};
@@ -114,7 +114,6 @@ pub struct EditorConfigSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ConfigFieldSnapshot {
     Text(TextFieldSnapshot),
-    Toggle(ToggleFieldSnapshot),
     Choice(ChoiceFieldSnapshot),
 }
 
@@ -123,14 +122,6 @@ pub struct TextFieldSnapshot {
     pub id: String,
     pub label: String,
     pub value_text: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ToggleFieldSnapshot {
-    pub id: String,
-    pub label: String,
-    pub value_text: String,
-    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -449,31 +440,6 @@ fn editor_config_fields(state: &AppState) -> Vec<ConfigFieldSnapshot> {
             label: i18n::text(locale, UiText::ConfigLabelProjectFile),
             value_text: state.editor.project_path.display().to_string(),
         }),
-        ConfigFieldSnapshot::Toggle(ToggleFieldSnapshot {
-            id: "auto_load_project_on_startup".to_string(),
-            label: i18n::text(locale, UiText::ConfigLabelAutoLoad),
-            value_text: i18n::text(locale, UiText::ConfigValueLoadProjectOnStartup),
-            enabled: state.editor.auto_load_project_on_startup,
-        }),
-        ConfigFieldSnapshot::Toggle(ToggleFieldSnapshot {
-            id: "auto_save_project_on_export".to_string(),
-            label: i18n::text(locale, UiText::ConfigLabelAutoSave),
-            value_text: i18n::text(locale, UiText::ConfigValueSaveProjectBeforeExport),
-            enabled: state.editor.auto_save_project_on_export,
-        }),
-        ConfigFieldSnapshot::Choice(ChoiceFieldSnapshot {
-            id: "startup_focus".to_string(),
-            label: i18n::text(locale, UiText::ConfigLabelStartupFocus),
-            value_text: i18n::focus_pane_label(locale, state.editor.startup_focus),
-            selected_key: encode_focus_pane(state.editor.startup_focus),
-            options: [FocusPane::Tokens, FocusPane::Params, FocusPane::Inspector]
-                .into_iter()
-                .map(|focus| ChoiceOptionSnapshot {
-                    key: encode_focus_pane(focus),
-                    label: i18n::focus_pane_label(locale, focus),
-                })
-                .collect(),
-        }),
         ConfigFieldSnapshot::Choice(ChoiceFieldSnapshot {
             id: "keymap_preset".to_string(),
             label: i18n::text(locale, UiText::ConfigLabelKeymap),
@@ -655,10 +621,6 @@ pub fn encode_rule_kind(kind: RuleKind) -> String {
 
 pub fn encode_adjust_op(op: AdjustOp) -> String {
     op.key().to_string()
-}
-
-pub fn encode_focus_pane(focus: FocusPane) -> String {
-    focus.key().to_string()
 }
 
 pub fn encode_locale(locale: EditorLocale) -> String {

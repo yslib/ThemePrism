@@ -129,21 +129,6 @@ pub(crate) fn build_config_overlay(state: &AppState) -> Option<OverlayView> {
     ));
     lines.push(config_field_line(
         state,
-        ConfigFieldId::EditorAutoLoadProject,
-        selected,
-    ));
-    lines.push(config_field_line(
-        state,
-        ConfigFieldId::EditorAutoSaveOnExport,
-        selected,
-    ));
-    lines.push(config_field_line(
-        state,
-        ConfigFieldId::EditorStartupFocus,
-        selected,
-    ));
-    lines.push(config_field_line(
-        state,
         ConfigFieldId::EditorKeymapPreset,
         selected,
     ));

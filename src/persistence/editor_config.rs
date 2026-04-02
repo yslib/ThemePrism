@@ -56,24 +56,9 @@ impl EditorLocale {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum EditorStartupFocus {
-    #[default]
-    Tokens,
-    Params,
-    Inspector,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EditorConfig {
     pub project_path: PathBuf,
-    #[serde(default)]
-    pub auto_load_project_on_startup: bool,
-    #[serde(default)]
-    pub auto_save_project_on_export: bool,
-    #[serde(default)]
-    pub startup_focus: EditorStartupFocus,
     #[serde(default)]
     pub keymap_preset: EditorKeymapPreset,
     #[serde(default)]
@@ -84,9 +69,6 @@ impl Default for EditorConfig {
     fn default() -> Self {
         Self {
             project_path: PathBuf::from(DEFAULT_PROJECT_PATH),
-            auto_load_project_on_startup: false,
-            auto_save_project_on_export: false,
-            startup_focus: EditorStartupFocus::Tokens,
             keymap_preset: EditorKeymapPreset::Standard,
             locale: EditorLocale::EnUs,
         }
@@ -151,8 +133,8 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use super::{
-        EditorConfig, EditorKeymapPreset, EditorLocale, EditorStartupFocus,
-        load_editor_config_from_path, save_editor_config_to_path,
+        EditorConfig, EditorKeymapPreset, EditorLocale, load_editor_config_from_path,
+        save_editor_config_to_path,
     };
 
     #[test]
@@ -160,9 +142,6 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         let config = EditorConfig {
             project_path: "projects/custom.toml".into(),
-            auto_load_project_on_startup: true,
-            auto_save_project_on_export: true,
-            startup_focus: EditorStartupFocus::Inspector,
             keymap_preset: EditorKeymapPreset::Vim,
             locale: EditorLocale::ZhCn,
         };

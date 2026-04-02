@@ -1,6 +1,5 @@
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::snapshot::AppSnapshot;
-use crate::app::state::FocusPane;
 #[cfg(test)]
 use crate::core::AppState;
 use crate::core::{CoreSession, Intent};
@@ -175,22 +174,6 @@ fn parse_command(command: &str) -> Result<Intent, String> {
                 _ => Err(format!("unknown editor text field: {field}")),
             }
         }
-        "set-editor-toggle" => {
-            let field = parts
-                .next()
-                .ok_or_else(|| "missing editor field id".to_string())?;
-            let enabled = parse_bool(
-                parts
-                    .next()
-                    .ok_or_else(|| "missing toggle value".to_string())?,
-            )?;
-
-            match field {
-                "auto_load_project_on_startup" => Ok(Intent::SetEditorAutoLoadProject(enabled)),
-                "auto_save_project_on_export" => Ok(Intent::SetEditorAutoSaveOnExport(enabled)),
-                _ => Err(format!("unknown editor toggle field: {field}")),
-            }
-        }
         "set-editor-choice" => {
             let field = parts
                 .next()
@@ -200,7 +183,6 @@ fn parse_command(command: &str) -> Result<Intent, String> {
                 .ok_or_else(|| "missing editor choice value".to_string())?;
 
             match field {
-                "startup_focus" => Ok(Intent::SetEditorStartupFocus(parse_focus_pane(selected)?)),
                 "keymap_preset" => Ok(Intent::SetEditorKeymapPreset(parse_keymap_preset(
                     selected,
                 )?)),
@@ -278,10 +260,6 @@ fn parse_adjust_op(raw: &str) -> Result<AdjustOp, String> {
     AdjustOp::from_key(raw).ok_or_else(|| format!("unknown adjust op: {raw}"))
 }
 
-fn parse_focus_pane(raw: &str) -> Result<FocusPane, String> {
-    FocusPane::from_key(raw).ok_or_else(|| format!("unknown focus pane: {raw}"))
-}
-
 fn parse_keymap_preset(raw: &str) -> Result<EditorKeymapPreset, String> {
     EditorKeymapPreset::from_key(raw).ok_or_else(|| format!("unknown keymap preset: {raw}"))
 }
@@ -325,7 +303,6 @@ mod tests {
     use super::{GuiBridgeSession, parse_command};
     use crate::app::AppState;
     use crate::app::Intent;
-    use crate::app::state::FocusPane;
     use crate::domain::color::Color;
     use crate::domain::params::ParamKey;
     use crate::domain::rules::Rule;
@@ -401,16 +378,16 @@ mod tests {
         assert_eq!(project_path.display().to_string(), "projects/demo.toml");
 
         assert!(matches!(
-            parse_command("set-editor-toggle|auto_load_project_on_startup|true"),
-            Ok(Intent::SetEditorAutoLoadProject(true))
+            parse_command("set-editor-choice|keymap_preset|vim"),
+            Ok(Intent::SetEditorKeymapPreset(
+                crate::persistence::editor_config::EditorKeymapPreset::Vim
+            ))
         ));
         assert!(matches!(
-            parse_command("set-editor-toggle|auto_save_project_on_export|false"),
-            Ok(Intent::SetEditorAutoSaveOnExport(false))
-        ));
-        assert!(matches!(
-            parse_command("set-editor-choice|startup_focus|inspector"),
-            Ok(Intent::SetEditorStartupFocus(FocusPane::Inspector))
+            parse_command("set-editor-choice|locale|zh_cn"),
+            Ok(Intent::SetEditorLocale(
+                crate::persistence::editor_config::EditorLocale::ZhCn
+            ))
         ));
     }
 }

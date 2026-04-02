@@ -6,7 +6,7 @@ use fluent_bundle::FluentValue;
 use fluent_templates::{Loader, static_loader};
 
 use crate::app::command_palette::CommandId;
-use crate::app::state::{ConfigFieldId, FocusPane};
+use crate::app::state::ConfigFieldId;
 use crate::app::ui_meta::{panel_spec, preview_mode_spec, workspace_tab_spec};
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::preview::PreviewMode;
@@ -176,13 +176,8 @@ define_ui_texts! {
     ConfigLabelOutput => "config-label-output",
     ConfigLabelTemplate => "config-label-template",
     ConfigLabelProjectFile => "config-label-project-file",
-    ConfigLabelAutoLoad => "config-label-auto-load",
-    ConfigLabelAutoSave => "config-label-auto-save",
-    ConfigLabelStartupFocus => "config-label-startup-focus",
     ConfigLabelKeymap => "config-label-keymap",
     ConfigLabelLanguage => "config-label-language",
-    ConfigValueLoadProjectOnStartup => "config-value-load-project-on-startup",
-    ConfigValueSaveProjectBeforeExport => "config-value-save-project-before-export",
     ConfigValueMissingExportTarget => "config-value-missing-export-target",
     SummaryNoneEnabled => "summary-none-enabled",
     SummaryOneEnabledNamed => "summary-one-enabled-named",
@@ -196,9 +191,6 @@ define_ui_texts! {
     ExportStatusNamed => "export-status-named",
     ExportStatusCount => "export-status-count",
     StatusBarExports => "status-bar-exports",
-    FocusTokens => "focus-tokens",
-    FocusParams => "focus-params",
-    FocusInspector => "focus-inspector",
     LocaleEnglish => "locale-english",
     LocaleChineseSimplified => "locale-chinese-simplified",
     SurfaceMainWindow => "surface-main-window",
@@ -294,11 +286,6 @@ define_ui_texts! {
     StatusExportTemplateUpdated => "status-export-template-updated",
     ErrorExportNoTemplatePath => "error-export-no-template-path",
     StatusProjectFilePathUpdated => "status-project-file-path-updated",
-    StatusAutoLoadEnabled => "status-auto-load-enabled",
-    StatusAutoLoadDisabled => "status-auto-load-disabled",
-    StatusAutoSaveEnabled => "status-auto-save-enabled",
-    StatusAutoSaveDisabled => "status-auto-save-disabled",
-    StatusStartupFocusUpdated => "status-startup-focus-updated",
     StatusKeymapUpdated => "status-keymap-updated",
     StatusLanguageUpdated => "status-language-updated",
     ErrorInputEmpty => "error-input-empty",
@@ -306,18 +293,12 @@ define_ui_texts! {
     ErrorToggleExportTarget => "error-toggle-export-target",
     ErrorInvalidHexColor => "error-invalid-hex-color",
     ErrorInvalidNumber => "error-invalid-number",
-    StatusAutoLoadRecomputeFailed => "status-auto-load-recompute-failed",
-    StatusAutoLoadedProject => "status-auto-loaded-project",
-    StatusAutoLoadFailed => "status-auto-load-failed",
     StatusEditorConfigLoadFailed => "status-editor-config-load-failed",
     FieldProjectNameLower => "field-project-name-lower",
     FieldExportTarget => "field-export-target",
     FieldExportOutputPath => "field-export-output-path",
     FieldExportTemplatePath => "field-export-template-path",
     FieldProjectFilePath => "field-project-file-path",
-    FieldAutoLoadProject => "field-auto-load-project",
-    FieldAutoSaveProject => "field-auto-save-project",
-    FieldStartupFocusLower => "field-startup-focus-lower",
     FieldKeymapPresetLower => "field-keymap-preset-lower",
     FieldLanguageLower => "field-language-lower",
     FooterFilterSources => "footer-filter-sources",
@@ -399,14 +380,6 @@ pub fn command_text(locale: EditorLocale, command: CommandId) -> CommandText {
     }
 }
 
-pub fn focus_pane_label(locale: EditorLocale, focus: FocusPane) -> String {
-    match focus {
-        FocusPane::Tokens => text(locale, UiText::FocusTokens),
-        FocusPane::Params => text(locale, UiText::FocusParams),
-        FocusPane::Inspector => text(locale, UiText::FocusInspector),
-    }
-}
-
 pub fn keymap_preset_label(locale: EditorLocale, preset: EditorKeymapPreset) -> String {
     match preset {
         EditorKeymapPreset::Standard => text(locale, UiText::KeymapStandardLabel),
@@ -439,9 +412,6 @@ pub fn config_field_label(locale: EditorLocale, field: ConfigFieldId) -> String 
             format1(locale, UiText::ConfigLabelTemplate, "index", index + 1)
         }
         ConfigFieldId::EditorProjectPath => text(locale, UiText::ConfigLabelProjectFile),
-        ConfigFieldId::EditorAutoLoadProject => text(locale, UiText::ConfigLabelAutoLoad),
-        ConfigFieldId::EditorAutoSaveOnExport => text(locale, UiText::ConfigLabelAutoSave),
-        ConfigFieldId::EditorStartupFocus => text(locale, UiText::ConfigLabelStartupFocus),
         ConfigFieldId::EditorKeymapPreset => text(locale, UiText::ConfigLabelKeymap),
         ConfigFieldId::EditorLocale => text(locale, UiText::ConfigLabelLanguage),
     }

@@ -43,9 +43,6 @@ pub enum Intent {
     SetExportOutputPath(usize, PathBuf),
     SetExportTemplatePath(usize, PathBuf),
     SetEditorProjectPath(PathBuf),
-    SetEditorAutoLoadProject(bool),
-    SetEditorAutoSaveOnExport(bool),
-    SetEditorStartupFocus(crate::app::state::FocusPane),
     SetEditorKeymapPreset(EditorKeymapPreset),
     SetEditorLocale(EditorLocale),
 

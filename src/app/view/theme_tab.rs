@@ -1,5 +1,5 @@
 use crate::app::controls::{
-    ChoiceControlSpec, ColorControlSpec, ControlId, ControlSpec, DisplayFieldSpec, ReferenceField,
+    ChoiceControlSpec, ColorControlSpec, ControlId, ControlSpec, ReferenceField,
     ReferencePickerControlSpec, ScalarControlSpec,
 };
 use crate::app::hint_nav::preview_tab_hint_label;
@@ -11,7 +11,7 @@ use crate::domain::rules::Rule;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
 use crate::i18n::{self, UiText};
 
-use super::helpers::{display_text_for_control, export_outputs_summary, export_targets_summary};
+use super::helpers::display_text_for_control;
 use super::styled::{colored_span, line_pair, plain_span, swatch_span};
 use super::{
     DocumentView, FormFieldView, FormView, PanelBody, PanelTabView, PanelView, SelectionListView,
@@ -51,7 +51,7 @@ pub(crate) fn build_token_panel(state: &AppState) -> PanelView {
 
 pub(crate) fn build_params_panel(state: &AppState) -> PanelView {
     let locale = state.locale();
-    let mut fields = crate::domain::params::ParamKey::ALL
+    let fields = crate::domain::params::ParamKey::ALL
         .into_iter()
         .map(|key| FormFieldView {
             control: ControlSpec::Scalar(ScalarControlSpec {
@@ -66,31 +66,6 @@ pub(crate) fn build_params_panel(state: &AppState) -> PanelView {
             selected: state.active_panel() == PanelId::Params && key == state.selected_param_key(),
         })
         .collect::<Vec<_>>();
-
-    fields.push(FormFieldView {
-        control: ControlSpec::Display(DisplayFieldSpec {
-            label: i18n::text(locale, UiText::FieldProject),
-            value_text: state.project.name.clone(),
-            swatch: None,
-        }),
-        selected: false,
-    });
-    fields.push(FormFieldView {
-        control: ControlSpec::Display(DisplayFieldSpec {
-            label: i18n::text(locale, UiText::FieldExports),
-            value_text: export_targets_summary(state),
-            swatch: None,
-        }),
-        selected: false,
-    });
-    fields.push(FormFieldView {
-        control: ControlSpec::Display(DisplayFieldSpec {
-            label: i18n::text(locale, UiText::FieldOutputs),
-            value_text: export_outputs_summary(state),
-            swatch: None,
-        }),
-        selected: false,
-    });
 
     PanelView {
         id: PanelId::Params,
@@ -352,11 +327,13 @@ fn preview_line_to_view_line(line: crate::domain::preview::PreviewLine) -> Style
 
 #[cfg(test)]
 mod tests {
-    use super::{build_preview_panel, build_token_panel};
+    use super::{build_params_panel, build_preview_panel, build_token_panel};
     use crate::app::AppState;
+    use crate::app::controls::ControlSpec;
     use crate::app::hint_nav::preview_tab_hint_label;
     use crate::app::interaction::{InteractionMode, SurfaceId};
-    use crate::app::view::SelectionRowView;
+    use crate::app::view::{PanelBody, SelectionRowView};
+    use crate::domain::params::ParamKey;
     use crate::i18n;
     use crate::preview::PreviewMode;
 
@@ -395,7 +372,7 @@ mod tests {
         let state = AppState::new().expect("state");
 
         let panel = build_token_panel(&state);
-        let crate::app::view::PanelBody::SelectionList(list) = panel.body else {
+        let PanelBody::SelectionList(list) = panel.body else {
             panic!("expected selection list");
         };
 
@@ -409,6 +386,23 @@ mod tests {
             .expect("token panel should contain token rows");
 
         assert!(first_item.starts_with('#'));
+    }
+
+    #[test]
+    fn params_panel_only_contains_param_controls() {
+        let state = AppState::new().expect("state");
+
+        let panel = build_params_panel(&state);
+        let PanelBody::Form(form) = panel.body else {
+            panic!("expected form body");
+        };
+
+        assert_eq!(form.fields.len(), ParamKey::ALL.len());
+        assert!(
+            form.fields
+                .iter()
+                .all(|field| matches!(field.control, ControlSpec::Scalar(_)))
+        );
     }
 }
 

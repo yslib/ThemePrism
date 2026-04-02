@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
 use crate::app::effect::{EditorConfigData, Effect};
-use crate::app::state::{AppState, ConfigFieldId, FocusPane, TextInputTarget};
-use crate::app::workspace::WorkspaceTab;
+use crate::app::state::{AppState, ConfigFieldId, TextInputTarget};
 use crate::export::ExportFormat;
 use crate::i18n::{self, UiText};
 use crate::persistence::editor_config::{EditorKeymapPreset, EditorLocale};
@@ -19,9 +18,6 @@ pub fn config_fields(state: &AppState) -> Vec<ConfigFieldId> {
         }
     }
     fields.push(ConfigFieldId::EditorProjectPath);
-    fields.push(ConfigFieldId::EditorAutoLoadProject);
-    fields.push(ConfigFieldId::EditorAutoSaveOnExport);
-    fields.push(ConfigFieldId::EditorStartupFocus);
     fields.push(ConfigFieldId::EditorKeymapPreset);
     fields.push(ConfigFieldId::EditorLocale);
     fields
@@ -42,41 +38,6 @@ pub(super) fn set_editor_project_path(state: &mut AppState, path: PathBuf) -> Ve
         UiText::StatusProjectFilePathUpdated,
         "path",
         state.editor.project_path.display(),
-    );
-    save_editor_config_effects(state)
-}
-
-pub(super) fn set_editor_auto_load_project(state: &mut AppState, enabled: bool) -> Vec<Effect> {
-    state.editor.auto_load_project_on_startup = enabled;
-    state.ui.status = if enabled {
-        tr(state, UiText::StatusAutoLoadEnabled)
-    } else {
-        tr(state, UiText::StatusAutoLoadDisabled)
-    };
-    save_editor_config_effects(state)
-}
-
-pub(super) fn set_editor_auto_save_on_export(state: &mut AppState, enabled: bool) -> Vec<Effect> {
-    state.editor.auto_save_project_on_export = enabled;
-    state.ui.status = if enabled {
-        tr(state, UiText::StatusAutoSaveEnabled)
-    } else {
-        tr(state, UiText::StatusAutoSaveDisabled)
-    };
-    save_editor_config_effects(state)
-}
-
-pub(super) fn set_editor_startup_focus(state: &mut AppState, focus: FocusPane) -> Vec<Effect> {
-    state.editor.startup_focus = focus;
-    state.ui.theme_panel = focus.into();
-    if state.ui.active_tab == WorkspaceTab::Theme {
-        state.ui.interaction.focus_panel(state.ui.theme_panel);
-    }
-    state.ui.status = tr1(
-        state,
-        UiText::StatusStartupFocusUpdated,
-        "focus",
-        i18n::focus_pane_label(state.locale(), focus),
     );
     save_editor_config_effects(state)
 }
@@ -167,11 +128,9 @@ pub(super) fn apply_config_input(
                 state.editor.project_path.display(),
             ))
         }
-        ConfigFieldId::EditorAutoLoadProject
-        | ConfigFieldId::EditorAutoSaveOnExport
-        | ConfigFieldId::EditorStartupFocus
-        | ConfigFieldId::EditorKeymapPreset
-        | ConfigFieldId::EditorLocale => Err(tr(state, UiText::ErrorUseToggleChoicePreference)),
+        ConfigFieldId::EditorKeymapPreset | ConfigFieldId::EditorLocale => {
+            Err(tr(state, UiText::ErrorUseToggleChoicePreference))
+        }
         ConfigFieldId::ExportOutputPath(index) => {
             let profile = state
                 .project
@@ -241,9 +200,6 @@ pub(super) fn effects_for_text_target(state: &AppState, target: TextInputTarget)
     match target {
         TextInputTarget::Config(
             ConfigFieldId::EditorProjectPath
-            | ConfigFieldId::EditorAutoLoadProject
-            | ConfigFieldId::EditorAutoSaveOnExport
-            | ConfigFieldId::EditorStartupFocus
             | ConfigFieldId::EditorKeymapPreset
             | ConfigFieldId::EditorLocale,
         ) => save_editor_config_effects(state),
@@ -285,18 +241,6 @@ fn activate_config_field_by_id(state: &mut AppState, field: ConfigFieldId) -> Ve
                     index + 1,
                 );
             }
-        }
-        ConfigFieldId::EditorAutoLoadProject => {
-            return set_editor_auto_load_project(state, !state.editor.auto_load_project_on_startup);
-        }
-        ConfigFieldId::EditorAutoSaveOnExport => {
-            return set_editor_auto_save_on_export(
-                state,
-                !state.editor.auto_save_project_on_export,
-            );
-        }
-        ConfigFieldId::EditorStartupFocus => {
-            return set_editor_startup_focus(state, state.editor.startup_focus.next());
         }
         ConfigFieldId::EditorKeymapPreset => {
             return set_editor_keymap_preset(state, state.editor.keymap_preset.next());

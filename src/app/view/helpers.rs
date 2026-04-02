@@ -53,35 +53,6 @@ pub(crate) fn config_field_value(state: &AppState, field: ConfigFieldId) -> Stri
     match field {
         ConfigFieldId::ProjectName => state.project.name.clone(),
         ConfigFieldId::EditorProjectPath => state.editor.project_path.display().to_string(),
-        ConfigFieldId::EditorAutoLoadProject => {
-            if state.editor.auto_load_project_on_startup {
-                format!(
-                    "[x] {}",
-                    i18n::text(locale, UiText::ConfigValueLoadProjectOnStartup)
-                )
-            } else {
-                format!(
-                    "[ ] {}",
-                    i18n::text(locale, UiText::ConfigValueLoadProjectOnStartup)
-                )
-            }
-        }
-        ConfigFieldId::EditorAutoSaveOnExport => {
-            if state.editor.auto_save_project_on_export {
-                format!(
-                    "[x] {}",
-                    i18n::text(locale, UiText::ConfigValueSaveProjectBeforeExport)
-                )
-            } else {
-                format!(
-                    "[ ] {}",
-                    i18n::text(locale, UiText::ConfigValueSaveProjectBeforeExport)
-                )
-            }
-        }
-        ConfigFieldId::EditorStartupFocus => {
-            i18n::focus_pane_label(locale, state.editor.startup_focus)
-        }
         ConfigFieldId::EditorKeymapPreset => {
             i18n::keymap_preset_label(locale, state.editor.keymap_preset)
         }
@@ -109,57 +80,6 @@ pub(crate) fn config_field_value(state: &AppState, field: ConfigFieldId) -> Stri
                 crate::export::ExportFormat::Alacritty => None,
             })
             .unwrap_or_else(|| "-".to_string()),
-    }
-}
-
-pub(crate) fn export_targets_summary(state: &AppState) -> String {
-    let locale = state.locale();
-    let enabled = state
-        .project
-        .export_profiles
-        .iter()
-        .filter(|profile| profile.enabled)
-        .map(|profile| profile.name.as_str())
-        .collect::<Vec<_>>();
-
-    match enabled.as_slice() {
-        [] => i18n::text(locale, UiText::SummaryNoneEnabled),
-        [name] => i18n::format1(locale, UiText::SummaryOneEnabledNamed, "name", name),
-        names if names.len() <= 3 => i18n::format2(
-            locale,
-            UiText::SummaryManyEnabledNamed,
-            "count",
-            names.len(),
-            "names",
-            names.join(", "),
-        ),
-        names => i18n::format1(
-            locale,
-            UiText::SummaryManyEnabledCount,
-            "count",
-            names.len(),
-        ),
-    }
-}
-
-pub(crate) fn export_outputs_summary(state: &AppState) -> String {
-    let locale = state.locale();
-    let enabled = state
-        .project
-        .export_profiles
-        .iter()
-        .filter(|profile| profile.enabled)
-        .collect::<Vec<_>>();
-
-    match enabled.as_slice() {
-        [] => i18n::text(locale, UiText::OutputsNoneEnabled),
-        [profile] => i18n::format1(
-            locale,
-            UiText::OutputsOnePath,
-            "path",
-            profile.output_path.display(),
-        ),
-        profiles => i18n::format1(locale, UiText::OutputsManyPaths, "count", profiles.len()),
     }
 }
 

@@ -141,13 +141,6 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
             project::set_export_template_path(state, index, path)
         }
         Intent::SetEditorProjectPath(path) => config::set_editor_project_path(state, path),
-        Intent::SetEditorAutoLoadProject(enabled) => {
-            config::set_editor_auto_load_project(state, enabled)
-        }
-        Intent::SetEditorAutoSaveOnExport(enabled) => {
-            config::set_editor_auto_save_on_export(state, enabled)
-        }
-        Intent::SetEditorStartupFocus(focus) => config::set_editor_startup_focus(state, focus),
         Intent::SetEditorKeymapPreset(preset) => config::set_editor_keymap_preset(state, preset),
         Intent::SetEditorLocale(locale) => config::set_editor_locale(state, locale),
         Intent::AppendTextInput(ch) => {
@@ -256,17 +249,10 @@ pub fn update(state: &mut AppState, intent: Intent) -> Vec<Effect> {
         Intent::LoadProjectRequested => vec![Effect::LoadProject {
             path: state.editor.project_path.clone(),
         }],
-        Intent::ExportThemeRequested => {
-            let mut effects = Vec::new();
-            if state.editor.auto_save_project_on_export {
-                effects.push(project::save_project_effect(state));
-            }
-            effects.push(Effect::ExportTheme {
-                profiles: state.project.export_profiles.clone(),
-                theme: state.domain.resolved.clone(),
-            });
-            effects
-        }
+        Intent::ExportThemeRequested => vec![Effect::ExportTheme {
+            profiles: state.project.export_profiles.clone(),
+            theme: state.domain.resolved.clone(),
+        }],
         Intent::ResetRequested => {
             project::reset_state(state);
             Vec::new()

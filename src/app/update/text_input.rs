@@ -258,10 +258,7 @@ pub fn default_input_buffer(state: &AppState, target: TextInputTarget) -> String
             crate::app::state::ConfigFieldId::EditorProjectPath => {
                 state.editor.project_path.display().to_string()
             }
-            crate::app::state::ConfigFieldId::EditorAutoLoadProject
-            | crate::app::state::ConfigFieldId::EditorAutoSaveOnExport
-            | crate::app::state::ConfigFieldId::EditorStartupFocus
-            | crate::app::state::ConfigFieldId::EditorKeymapPreset
+            crate::app::state::ConfigFieldId::EditorKeymapPreset
             | crate::app::state::ConfigFieldId::EditorLocale => String::new(),
             crate::app::state::ConfigFieldId::ExportOutputPath(index) => state
                 .project
@@ -303,15 +300,6 @@ pub(super) fn input_target_label(state: &AppState, target: TextInputTarget) -> S
             }
             crate::app::state::ConfigFieldId::EditorProjectPath => {
                 tr(state, UiText::FieldProjectFilePath)
-            }
-            crate::app::state::ConfigFieldId::EditorAutoLoadProject => {
-                tr(state, UiText::FieldAutoLoadProject)
-            }
-            crate::app::state::ConfigFieldId::EditorAutoSaveOnExport => {
-                tr(state, UiText::FieldAutoSaveProject)
-            }
-            crate::app::state::ConfigFieldId::EditorStartupFocus => {
-                tr(state, UiText::FieldStartupFocusLower)
             }
             crate::app::state::ConfigFieldId::EditorKeymapPreset => {
                 tr(state, UiText::FieldKeymapPresetLower)

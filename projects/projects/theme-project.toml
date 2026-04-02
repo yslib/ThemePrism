@@ -1,18 +1,18 @@
 version = 1
 
 [project]
-name = "888aaa"
+name = "Untitled Theme"
 
 [params]
-background_hue = 160.0
-background_lightness = 0.12
-background_saturation = 0.44000006
+background_hue = 220.0
+background_lightness = 0.060000326
+background_saturation = 0.08
 contrast = 0.85
 accent_hue = 205.0
 accent_saturation = 0.65
 accent_lightness = 0.62
 selection_mix = 0.35
-vibrancy = 0.813838
+vibrancy = 0.5
 
 [rules.Background]
 type = "alias"
@@ -108,7 +108,7 @@ type = "alacritty"
 
 [[exports]]
 name = "Template"
-enabled = true
+enabled = false
 output_path = "exports/theme-template.txt"
 
 [exports.format]

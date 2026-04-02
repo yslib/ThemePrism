@@ -14,40 +14,11 @@ use crate::domain::params::{ParamKey, ThemeParams};
 use crate::domain::preview::PreviewState;
 use crate::domain::rules::RuleSet;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
-use crate::enum_meta::define_key_enum;
 use crate::export::{ExportProfile, default_export_profiles};
 use crate::i18n::{self, UiText};
 use crate::persistence::editor_config::{
-    DEFAULT_PROJECT_PATH, EditorConfig, EditorKeymapPreset, EditorLocale, EditorStartupFocus,
+    DEFAULT_PROJECT_PATH, EditorConfig, EditorKeymapPreset, EditorLocale,
 };
-
-define_key_enum! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum FocusPane {
-        Tokens => "tokens",
-        Params => "params",
-        Inspector => "inspector",
-    }
-}
-
-impl FocusPane {
-    pub const fn next(self) -> Self {
-        match self {
-            Self::Tokens => Self::Params,
-            Self::Params => Self::Inspector,
-            Self::Inspector => Self::Tokens,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub const fn previous(self) -> Self {
-        match self {
-            Self::Tokens => Self::Inspector,
-            Self::Params => Self::Tokens,
-            Self::Inspector => Self::Params,
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextInputState {
@@ -75,9 +46,6 @@ pub enum ConfigFieldId {
     ExportOutputPath(usize),
     ExportTemplatePath(usize),
     EditorProjectPath,
-    EditorAutoLoadProject,
-    EditorAutoSaveOnExport,
-    EditorStartupFocus,
     EditorKeymapPreset,
     EditorLocale,
 }
@@ -146,9 +114,6 @@ pub struct ProjectState {
 #[derive(Debug, Clone)]
 pub struct EditorState {
     pub project_path: PathBuf,
-    pub auto_load_project_on_startup: bool,
-    pub auto_save_project_on_export: bool,
-    pub startup_focus: FocusPane,
     pub keymap_preset: EditorKeymapPreset,
     pub locale: EditorLocale,
 }
@@ -208,9 +173,6 @@ impl AppState {
             },
             editor: EditorState {
                 project_path: PathBuf::from(DEFAULT_PROJECT_PATH),
-                auto_load_project_on_startup: false,
-                auto_save_project_on_export: false,
-                startup_focus: FocusPane::Tokens,
                 keymap_preset: EditorKeymapPreset::Standard,
                 locale: EditorLocale::EnUs,
             },
@@ -227,9 +189,6 @@ impl AppState {
     pub fn editor_config(&self) -> EditorConfig {
         EditorConfig {
             project_path: self.editor.project_path.clone(),
-            auto_load_project_on_startup: self.editor.auto_load_project_on_startup,
-            auto_save_project_on_export: self.editor.auto_save_project_on_export,
-            startup_focus: self.editor.startup_focus.into(),
             keymap_preset: self.editor.keymap_preset,
             locale: self.editor.locale,
         }
@@ -348,12 +307,9 @@ impl AppState {
         fields
     }
 
-    pub fn editor_fields(&self) -> [ConfigFieldId; 6] {
+    pub fn editor_fields(&self) -> [ConfigFieldId; 3] {
         [
             ConfigFieldId::EditorProjectPath,
-            ConfigFieldId::EditorAutoLoadProject,
-            ConfigFieldId::EditorAutoSaveOnExport,
-            ConfigFieldId::EditorStartupFocus,
             ConfigFieldId::EditorKeymapPreset,
             ConfigFieldId::EditorLocale,
         ]
@@ -455,35 +411,5 @@ impl AppState {
             Color::from_hex("#C77DFF").expect("valid color"),
         ]);
         options
-    }
-}
-
-impl From<EditorStartupFocus> for FocusPane {
-    fn from(value: EditorStartupFocus) -> Self {
-        match value {
-            EditorStartupFocus::Tokens => Self::Tokens,
-            EditorStartupFocus::Params => Self::Params,
-            EditorStartupFocus::Inspector => Self::Inspector,
-        }
-    }
-}
-
-impl From<FocusPane> for EditorStartupFocus {
-    fn from(value: FocusPane) -> Self {
-        match value {
-            FocusPane::Tokens => Self::Tokens,
-            FocusPane::Params => Self::Params,
-            FocusPane::Inspector => Self::Inspector,
-        }
-    }
-}
-
-impl From<FocusPane> for PanelId {
-    fn from(value: FocusPane) -> Self {
-        match value {
-            FocusPane::Tokens => Self::Tokens,
-            FocusPane::Params => Self::Params,
-            FocusPane::Inspector => Self::Inspector,
-        }
     }
 }
