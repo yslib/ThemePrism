@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), allow(dead_code))]
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TemplateDocument {
     pub segments: Vec<TemplateSegment>,
@@ -185,6 +187,28 @@ mod tests {
                     },
                     filters: vec!["hex".to_string(), "upper".to_string()],
                 })],
+            }
+        );
+    }
+
+    #[test]
+    fn parses_mixed_content_segments() {
+        let ast = parse_template("prefix {{token.comment}} suffix").unwrap();
+
+        assert_eq!(
+            ast,
+            TemplateDocument {
+                segments: vec![
+                    TemplateSegment::Text("prefix ".to_string()),
+                    TemplateSegment::Placeholder(TemplatePlaceholder {
+                        path: TemplatePath {
+                            namespace: "token".to_string(),
+                            key: "comment".to_string(),
+                        },
+                        filters: vec![],
+                    }),
+                    TemplateSegment::Text(" suffix".to_string()),
+                ],
             }
         );
     }
