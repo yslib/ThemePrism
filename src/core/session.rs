@@ -7,7 +7,6 @@ use crate::app::snapshot::{AppSnapshot, build_snapshot};
 use crate::app::view::{ViewTree, build_view};
 use crate::app::{AppState, Effect, Intent, update};
 use crate::export::{ExportArtifact, export_with_profile};
-use crate::export::context::ExportContext;
 use crate::persistence::editor_config::save_editor_config;
 use crate::persistence::project_file::{load_project, save_project};
 
@@ -96,11 +95,7 @@ impl CoreSession {
 
                     let mut artifacts = Vec::new();
                     for profile in enabled {
-                        let context =
-                            ExportContext::builder(&project_name, &profile, &theme, &params)
-                                .build()
-                                .map_err(|err| err.to_string())?;
-                        let content = export_with_profile(&profile.format, &context, &theme)
+                        let content = export_with_profile(&profile, &project_name, &theme, &params)
                             .map_err(|err| err.to_string())?;
                         write_export(&profile.output_path, &content)
                             .map_err(|err| err.to_string())?;
