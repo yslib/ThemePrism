@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::export::context::ExportContext;
 use crate::export::ExportError;
+use parser::{TemplateSegment, parse_template};
 
 #[derive(Debug, Clone)]
 pub struct TemplateExporter {
@@ -25,58 +26,50 @@ impl TemplateExporter {
 }
 
 fn render_template(template: &str, context: &ExportContext) -> Result<String, ExportError> {
-    let mut rendered = String::with_capacity(template.len());
-    let mut cursor = 0;
-
-    while let Some(start) = template[cursor..].find("{{") {
-        let start = cursor + start;
-        rendered.push_str(&template[cursor..start]);
-
-        let placeholder_start = start + 2;
-        let Some(end) = template[placeholder_start..].find("}}") else {
-            let tail = &template[placeholder_start..];
-            if has_known_namespace_prefix(tail.trim_start()) {
-                return Err(ExportError::InvalidTemplate(format!(
-                    "unknown template placeholder {}",
-                    &template[start..]
-                )));
+    let document = parse_template(template).map_err(|error| {
+        ExportError::InvalidTemplate(match error {
+            parser::TemplateParseError::MalformedPlaceholder(raw) => {
+                format!("malformed template placeholder {raw}")
             }
-            rendered.push_str(&template[start..]);
-            return Ok(rendered);
-        };
-        let end = placeholder_start + end;
-        let raw = template[placeholder_start..end].trim();
-        let replacement = match resolve_placeholder(raw, context) {
-            Some(value) => value,
-            None => {
-                if has_known_namespace_prefix(raw) {
+            parser::TemplateParseError::UnclosedPlaceholder { start } => {
+                format!("unclosed template placeholder at byte {start}")
+            }
+        })
+    })?;
+
+    let mut rendered = String::with_capacity(template.len());
+    for segment in document.segments {
+        match segment {
+            TemplateSegment::Text(text) => rendered.push_str(&text),
+            TemplateSegment::Placeholder(placeholder) => {
+                if !placeholder.filters.is_empty() {
                     return Err(ExportError::InvalidTemplate(format!(
-                        "unknown template placeholder {{{{{raw}}}}}"
+                        "template filters are not yet supported for {}.{}",
+                        placeholder.path.namespace, placeholder.path.key
                     )));
                 }
-                rendered.push_str(&template[start..end + 2]);
-                cursor = end + 2;
-                continue;
+                let replacement = resolve_placeholder(
+                    &placeholder.path.namespace,
+                    &placeholder.path.key,
+                    context,
+                )
+                .ok_or_else(|| {
+                    ExportError::InvalidTemplate(format!(
+                        "unknown template placeholder {}.{}",
+                        placeholder.path.namespace, placeholder.path.key
+                    ))
+                })?;
+                rendered.push_str(&replacement);
             }
-        };
-        rendered.push_str(&replacement);
-        cursor = end + 2;
+        }
     }
 
-    rendered.push_str(&template[cursor..]);
     Ok(rendered)
 }
 
-fn has_known_namespace_prefix(raw: &str) -> bool {
-    matches!(
-        raw.split_once('.'),
-        Some(("meta", _)) | Some(("token", _)) | Some(("palette", _)) | Some(("param", _))
-    )
-}
-
-fn resolve_placeholder(raw: &str, context: &ExportContext) -> Option<String> {
-    match raw.split_once('.') {
-        Some(("meta", key)) => match key {
+fn resolve_placeholder(namespace: &str, key: &str, context: &ExportContext) -> Option<String> {
+    match namespace {
+        "meta" => match key {
             "project_name" => Some(context.meta.project_name.clone()),
             "profile_name" => Some(context.meta.profile_name.clone()),
             "profile_format" => Some(context.meta.profile_format.clone()),
@@ -85,9 +78,9 @@ fn resolve_placeholder(raw: &str, context: &ExportContext) -> Option<String> {
             "exporter_key" => Some(context.meta.exporter_key.clone()),
             _ => None,
         },
-        Some(("token", key)) => context.token.get(key).map(|value| value.render_text()),
-        Some(("palette", key)) => context.palette.get(key).map(|value| value.render_text()),
-        Some(("param", key)) => context.param.get(key).map(|value| value.render_text()),
+        "token" => context.token.get(key).map(|value| value.render_text()),
+        "palette" => context.palette.get(key).map(|value| value.render_text()),
+        "param" => context.param.get(key).map(|value| value.render_text()),
         _ => None,
     }
 }
@@ -171,10 +164,9 @@ mod tests {
     }
 
     #[test]
-    fn template_exporter_leaves_unknown_non_namespaced_braces_unchanged() {
+    fn template_exporter_rejects_malformed_non_namespaced_placeholder() {
         let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"note={{literal braces}}\nproject={{meta.project_name}}\n")
-            .unwrap();
+        file.write_all(b"note={{literal braces}}\nproject={{meta.project_name}}\n").unwrap();
         file.flush().unwrap();
 
         let params = ThemeParams::default();
@@ -188,16 +180,15 @@ mod tests {
         )
         .build()
         .unwrap();
-        let output = exporter.export_with_context(&context).unwrap();
+        let error = exporter.export_with_context(&context).unwrap_err();
 
-        assert!(output.contains("note={{literal braces}}"));
-        assert!(output.contains("project=Demo Project"));
+        assert!(matches!(error, crate::export::ExportError::InvalidTemplate(_)));
     }
 
     #[test]
-    fn template_exporter_preserves_braces_inside_metadata_values() {
+    fn template_exporter_rejects_malformed_placeholders_like_parser() {
         let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"project={{meta.project_name}}\n").unwrap();
+        file.write_all(b"project={{token}}\n").unwrap();
         file.flush().unwrap();
 
         let params = ThemeParams::default();
@@ -211,8 +202,8 @@ mod tests {
         )
         .build()
         .unwrap();
-        let output = exporter.export_with_context(&context).unwrap();
+        let error = exporter.export_with_context(&context).unwrap_err();
 
-        assert!(output.contains("project=Project with {{braces}}"));
+        assert!(matches!(error, crate::export::ExportError::InvalidTemplate(_)));
     }
 }

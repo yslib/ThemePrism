@@ -1,5 +1,3 @@
-#![cfg_attr(not(test), allow(dead_code))]
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TemplateDocument {
     pub segments: Vec<TemplateSegment>,
