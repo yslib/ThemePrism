@@ -57,6 +57,14 @@ pub(crate) fn apply_filter(value: ExportValue, filter: &str) -> Result<ExportVal
     }
 }
 
+pub(crate) fn render_value(value: &ExportValue) -> String {
+    match value {
+        ExportValue::Color(color) => color.to_hex(),
+        ExportValue::Number(number) => format_float(*number),
+        ExportValue::Text(text) => text.clone(),
+    }
+}
+
 fn invalid_filter_type(filter: &str, value: &ExportValue) -> ExportError {
     ExportError::InvalidTemplate(format!(
         "filter {filter} does not support {}",
@@ -98,32 +106,34 @@ mod tests {
         ));
 
         assert_eq!(
-            super::apply_filter(value.clone(), "hex")
-                .unwrap()
-                .render_text(),
+            super::render_value(&super::apply_filter(value.clone(), "hex").unwrap()),
             "#12345680"
         );
         assert_eq!(
-            super::apply_filter(value.clone(), "opaque_hex")
-                .unwrap()
-                .render_text(),
+            super::render_value(&super::apply_filter(value.clone(), "opaque_hex").unwrap()),
             "#123456"
         );
         assert_eq!(
-            super::apply_filter(value.clone(), "rgb")
-                .unwrap()
-                .render_text(),
+            super::render_value(&super::apply_filter(value.clone(), "rgb").unwrap()),
             "rgb(18, 52, 86)"
         );
         assert_eq!(
-            super::apply_filter(value.clone(), "rgba")
-                .unwrap()
-                .render_text(),
+            super::render_value(&super::apply_filter(value.clone(), "rgba").unwrap()),
             "rgba(18, 52, 86, 0.5)"
         );
         assert_eq!(
-            super::apply_filter(value, "alpha").unwrap().render_text(),
+            super::render_value(&super::apply_filter(value, "alpha").unwrap()),
             "0.5"
+        );
+    }
+
+    #[test]
+    fn alpha_filter_uses_canonical_rounded_formatting() {
+        let value = ExportValue::Color(Color::from_rgba_u8(0x12, 0x34, 0x56, 0x80));
+
+        assert_eq!(
+            super::render_value(&super::apply_filter(value, "alpha").unwrap()),
+            "0.502"
         );
     }
 
@@ -132,13 +142,11 @@ mod tests {
         let value = ExportValue::Number(0.85);
 
         assert_eq!(
-            super::apply_filter(value.clone(), "float")
-                .unwrap()
-                .render_text(),
+            super::render_value(&super::apply_filter(value.clone(), "float").unwrap()),
             "0.85"
         );
         assert_eq!(
-            super::apply_filter(value, "percent").unwrap().render_text(),
+            super::render_value(&super::apply_filter(value, "percent").unwrap()),
             "85%"
         );
     }
@@ -148,13 +156,11 @@ mod tests {
         let value = ExportValue::Text("Template".to_string());
 
         assert_eq!(
-            super::apply_filter(value.clone(), "lower")
-                .unwrap()
-                .render_text(),
+            super::render_value(&super::apply_filter(value.clone(), "lower").unwrap()),
             "template"
         );
         assert_eq!(
-            super::apply_filter(value, "upper").unwrap().render_text(),
+            super::render_value(&super::apply_filter(value, "upper").unwrap()),
             "TEMPLATE"
         );
     }

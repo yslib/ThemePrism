@@ -1,6 +1,6 @@
 use crate::export::ExportError;
 use crate::export::context::{ExportContext, ExportValue};
-use crate::export::template::filters::apply_filter;
+use crate::export::template::filters::{apply_filter, render_value};
 use crate::export::template::parser::{TemplateDocument, TemplateSegment};
 
 pub(crate) fn render_document(
@@ -18,7 +18,7 @@ pub(crate) fn render_document(
                 for filter in &placeholder.filters {
                     value = apply_filter(value, filter)?;
                 }
-                rendered.push_str(&value.render_text());
+                rendered.push_str(&render_value(&value));
             }
         }
     }
@@ -81,6 +81,10 @@ mod tests {
                 0.5,
             )),
         );
+        context.token.insert(
+            "warning".to_string(),
+            ExportValue::Color(Color::from_rgba_u8(0x12, 0x34, 0x56, 0x80)),
+        );
         context
     }
 
@@ -117,6 +121,24 @@ mod tests {
         let rendered = render("{{token.comment | rgba}}", &context).unwrap();
 
         assert_eq!(rendered, "rgba(18, 52, 86, 0.5)");
+    }
+
+    #[test]
+    fn renders_alpha_filter_with_canonical_formatting() {
+        let context = build_context();
+
+        let rendered = render("{{token.warning | alpha}}", &context).unwrap();
+
+        assert_eq!(rendered, "0.502");
+    }
+
+    #[test]
+    fn renders_chained_alpha_and_percent_filters_with_canonical_formatting() {
+        let context = build_context();
+
+        let rendered = render("{{token.warning | alpha | percent}}", &context).unwrap();
+
+        assert_eq!(rendered, "50.196%");
     }
 
     #[test]
