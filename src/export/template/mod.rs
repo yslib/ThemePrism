@@ -1,11 +1,13 @@
+pub mod eval;
+pub mod filters;
 pub mod parser;
 
 use std::fs;
 use std::path::Path;
 
-use crate::export::context::ExportContext;
 use crate::export::ExportError;
-use parser::{TemplateSegment, parse_template};
+use crate::export::context::ExportContext;
+use parser::parse_template;
 
 #[derive(Debug, Clone)]
 pub struct TemplateExporter {
@@ -37,60 +39,15 @@ fn render_template(template: &str, context: &ExportContext) -> Result<String, Ex
         })
     })?;
 
-    let mut rendered = String::with_capacity(template.len());
-    for segment in document.segments {
-        match segment {
-            TemplateSegment::Text(text) => rendered.push_str(&text),
-            TemplateSegment::Placeholder(placeholder) => {
-                if !placeholder.filters.is_empty() {
-                    return Err(ExportError::InvalidTemplate(format!(
-                        "template filters are not yet supported for {}.{}",
-                        placeholder.path.namespace, placeholder.path.key
-                    )));
-                }
-                let replacement = resolve_placeholder(
-                    &placeholder.path.namespace,
-                    &placeholder.path.key,
-                    context,
-                )
-                .ok_or_else(|| {
-                    ExportError::InvalidTemplate(format!(
-                        "unknown template placeholder {}.{}",
-                        placeholder.path.namespace, placeholder.path.key
-                    ))
-                })?;
-                rendered.push_str(&replacement);
-            }
-        }
-    }
-
-    Ok(rendered)
-}
-
-fn resolve_placeholder(namespace: &str, key: &str, context: &ExportContext) -> Option<String> {
-    match namespace {
-        "meta" => match key {
-            "project_name" => Some(context.meta.project_name.clone()),
-            "profile_name" => Some(context.meta.profile_name.clone()),
-            "profile_format" => Some(context.meta.profile_format.clone()),
-            "output_path" => Some(context.meta.output_path.clone()),
-            "exporter" => Some(context.meta.exporter.clone()),
-            "exporter_key" => Some(context.meta.exporter_key.clone()),
-            _ => None,
-        },
-        "token" => context.token.get(key).map(|value| value.render_text()),
-        "palette" => context.palette.get(key).map(|value| value.render_text()),
-        "param" => context.param.get(key).map(|value| value.render_text()),
-        _ => None,
-    }
+    eval::render_document(&document, context)
 }
 
 #[cfg(test)]
 mod tests {
     use std::io::Write;
 
-    use crate::domain::params::ThemeParams;
     use crate::domain::palette::generate_palette;
+    use crate::domain::params::ThemeParams;
     use crate::domain::rules::RuleSet;
     use crate::evaluator::resolve_theme;
     use crate::export::context::ExportContext;
@@ -166,7 +123,8 @@ mod tests {
     #[test]
     fn template_exporter_rejects_malformed_non_namespaced_placeholder() {
         let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"note={{literal braces}}\nproject={{meta.project_name}}\n").unwrap();
+        file.write_all(b"note={{literal braces}}\nproject={{meta.project_name}}\n")
+            .unwrap();
         file.flush().unwrap();
 
         let params = ThemeParams::default();
@@ -182,7 +140,10 @@ mod tests {
         .unwrap();
         let error = exporter.export_with_context(&context).unwrap_err();
 
-        assert!(matches!(error, crate::export::ExportError::InvalidTemplate(_)));
+        assert!(matches!(
+            error,
+            crate::export::ExportError::InvalidTemplate(_)
+        ));
     }
 
     #[test]
@@ -204,6 +165,9 @@ mod tests {
         .unwrap();
         let error = exporter.export_with_context(&context).unwrap_err();
 
-        assert!(matches!(error, crate::export::ExportError::InvalidTemplate(_)));
+        assert!(matches!(
+            error,
+            crate::export::ExportError::InvalidTemplate(_)
+        ));
     }
 }
