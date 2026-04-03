@@ -1,7 +1,48 @@
 use crate::export::ExportError;
 use crate::export::context::{ExportContext, ExportValue};
-use crate::export::template::filters::{apply_filter, render_value};
+use crate::export::template::filters::{apply_filter, format_number};
 use crate::export::template::parser::{TemplateDocument, TemplateSegment};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NumberRenderStyle {
+    Default,
+    Canonical,
+}
+
+#[derive(Debug, Clone)]
+struct EvaluatedValue {
+    value: ExportValue,
+    number_render_style: NumberRenderStyle,
+}
+
+impl EvaluatedValue {
+    fn new(value: ExportValue) -> Self {
+        Self {
+            value,
+            number_render_style: NumberRenderStyle::Default,
+        }
+    }
+
+    fn apply_filter(self, filter: &str) -> Result<Self, ExportError> {
+        let value = apply_filter(self.value, filter)?;
+        let number_render_style = match (filter, &value) {
+            ("alpha", ExportValue::Number(_)) => NumberRenderStyle::Canonical,
+            _ => NumberRenderStyle::Default,
+        };
+
+        Ok(Self {
+            value,
+            number_render_style,
+        })
+    }
+
+    fn render(&self) -> String {
+        match (&self.value, self.number_render_style) {
+            (ExportValue::Number(number), NumberRenderStyle::Canonical) => format_number(*number),
+            _ => self.value.render_text(),
+        }
+    }
+}
 
 pub(crate) fn render_document(
     document: &TemplateDocument,
@@ -16,9 +57,9 @@ pub(crate) fn render_document(
                 let mut value =
                     resolve_path(&placeholder.path.namespace, &placeholder.path.key, context)?;
                 for filter in &placeholder.filters {
-                    value = apply_filter(value, filter)?;
+                    value = value.apply_filter(filter)?;
                 }
-                rendered.push_str(&render_value(&value));
+                rendered.push_str(&value.render());
             }
         }
     }
@@ -30,7 +71,7 @@ fn resolve_path(
     namespace: &str,
     key: &str,
     context: &ExportContext,
-) -> Result<ExportValue, ExportError> {
+) -> Result<EvaluatedValue, ExportError> {
     match namespace {
         "meta" => resolve_meta(key, context),
         "token" => context.token.get(key).cloned(),
@@ -41,6 +82,7 @@ fn resolve_path(
     .ok_or_else(|| {
         ExportError::InvalidTemplate(format!("unknown template placeholder {namespace}.{key}"))
     })
+    .map(EvaluatedValue::new)
 }
 
 fn resolve_meta(key: &str, context: &ExportContext) -> Option<ExportValue> {
@@ -85,6 +127,9 @@ mod tests {
             "warning".to_string(),
             ExportValue::Color(Color::from_rgba_u8(0x12, 0x34, 0x56, 0x80)),
         );
+        context
+            .param
+            .insert("contrast".to_string(), ExportValue::Number(0.123_456));
         context
     }
 
@@ -147,7 +192,16 @@ mod tests {
 
         let rendered = render("{{param.contrast | percent}}", &context).unwrap();
 
-        assert_eq!(rendered, "85%");
+        assert_eq!(rendered, "12.346%");
+    }
+
+    #[test]
+    fn preserves_default_numeric_rendering_for_raw_param_placeholders() {
+        let context = build_context();
+
+        let rendered = render("{{param.contrast}}", &context).unwrap();
+
+        assert_eq!(rendered, "0.123456");
     }
 
     #[test]
