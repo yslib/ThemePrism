@@ -171,4 +171,19 @@ mod tests {
                 if message.contains("unknown template filter mystery")
         ));
     }
+
+    #[test]
+    fn template_exporter_propagates_parse_errors_from_the_file_backed_boundary() {
+        let file = write_template("project={{token.background\n");
+        let exporter = TemplateExporter::from_path(file.path()).unwrap();
+        let context = build_context();
+
+        let error = exporter.export_with_context(&context).unwrap_err();
+
+        assert!(matches!(
+            error,
+            crate::export::ExportError::InvalidTemplate(message)
+                if message.contains("unclosed template placeholder")
+        ));
+    }
 }
