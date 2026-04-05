@@ -104,7 +104,8 @@ enabled = true
 output_path = "exports/alacritty-theme.toml"
 
 [exports.format]
-type = "alacritty"
+type = "template"
+template_path = "templates/alacritty.toml"
 
 [[exports]]
 name = "Template"
