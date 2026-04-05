@@ -2,22 +2,16 @@ pub mod alacritty;
 pub mod context;
 pub mod template;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::domain::params::ThemeParams;
 use crate::evaluator::ResolvedTheme;
-use crate::export::alacritty::AlacrittyExporter;
+use crate::export::alacritty::{bundled_template_path, BUNDLED_TEMPLATE_PATH};
 use crate::export::context::ExportContext;
 use crate::export::template::TemplateExporter;
-
-#[allow(dead_code)]
-pub trait Exporter {
-    fn name(&self) -> &'static str;
-    fn export(&self, theme: &ResolvedTheme) -> Result<String, ExportError>;
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExportProfile {
@@ -35,6 +29,15 @@ pub enum ExportFormat {
 }
 
 impl ExportFormat {
+    pub fn normalize(self) -> Self {
+        match self {
+            Self::Alacritty => Self::Template {
+                template_path: bundled_template_path(),
+            },
+            template => template,
+        }
+    }
+
     pub const fn key(&self) -> &'static str {
         match self {
             Self::Alacritty => "alacritty",
@@ -61,7 +64,9 @@ impl ExportProfile {
             name: "Alacritty".to_string(),
             enabled: true,
             output_path: PathBuf::from("exports/alacritty-theme.toml"),
-            format: ExportFormat::Alacritty,
+            format: ExportFormat::Template {
+                template_path: bundled_template_path(),
+            },
         }
     }
 
@@ -87,6 +92,22 @@ impl ExportProfile {
         self.format.key()
     }
 
+    pub fn normalize(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            enabled: self.enabled,
+            output_path: self.output_path.clone(),
+            format: self.format.clone().normalize(),
+        }
+    }
+
+    pub fn template_path(&self) -> &Path {
+        match &self.format {
+            ExportFormat::Alacritty => Path::new(BUNDLED_TEMPLATE_PATH),
+            ExportFormat::Template { template_path } => template_path.as_path(),
+        }
+    }
+
     pub fn summary_label(&self) -> String {
         let marker = if self.enabled { "[x]" } else { "[ ]" };
         format!("{marker} {} ({})", self.name, self.format_label())
@@ -106,13 +127,9 @@ pub fn export_with_profile(
     theme: &ResolvedTheme,
     params: &ThemeParams,
 ) -> Result<String, ExportError> {
-    match &profile.format {
-        ExportFormat::Alacritty => AlacrittyExporter.export(theme),
-        ExportFormat::Template { template_path } => {
-            let context = ExportContext::builder(project_name, profile, theme, params).build()?;
-            TemplateExporter::from_path(template_path)?.export_with_context(&context)
-        }
-    }
+    let profile = profile.normalize();
+    let context = ExportContext::builder(project_name, &profile, theme, params).build()?;
+    TemplateExporter::from_path(profile.template_path())?.export_with_context(&context)
 }
 
 #[derive(Debug, Error)]
@@ -139,7 +156,7 @@ mod tests {
     use crate::domain::rules::RuleSet;
     use crate::evaluator::resolve_theme;
 
-    use super::{ExportFormat, ExportProfile, export_with_profile};
+    use super::{export_with_profile, ExportFormat, ExportProfile};
     use tempfile::NamedTempFile;
 
     #[test]
@@ -173,10 +190,15 @@ mod tests {
     }
 
     #[test]
-    fn export_with_profile_still_exports_alacritty_profiles() {
+    fn export_with_profile_still_exports_legacy_alacritty_profiles() {
         let params = ThemeParams::default();
         let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
-        let profile = ExportProfile::alacritty_default();
+        let profile = ExportProfile {
+            name: "Alacritty".to_string(),
+            enabled: true,
+            output_path: std::path::PathBuf::from("exports/alacritty-theme.toml"),
+            format: ExportFormat::Alacritty,
+        };
 
         let output = export_with_profile(&profile, "Ignored Project", &theme, &params).unwrap();
 

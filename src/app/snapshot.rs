@@ -3,8 +3,8 @@ use serde::Serialize;
 use crate::app::controls::{ControlId, ReferenceField};
 use crate::app::state::AppState;
 use crate::app::update::current_source_for_control;
-use crate::domain::preview::{PreviewFrame, sample_document};
-use crate::domain::rules::{AdjustOp, Rule, RuleKind, SourceRef, available_source_options};
+use crate::domain::preview::{sample_document, PreviewFrame};
+use crate::domain::rules::{available_source_options, AdjustOp, Rule, RuleKind, SourceRef};
 use crate::domain::tokens::{PaletteSlot, TokenRole};
 use crate::i18n::{self, UiText};
 use crate::persistence::editor_config::{EditorKeymapPreset, EditorLocale};
@@ -231,12 +231,7 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
                 label: format!("{} ({})", profile.name, profile.format_label()),
                 enabled: profile.enabled,
                 output_path: profile.output_path.display().to_string(),
-                template_path: match &profile.format {
-                    crate::export::ExportFormat::Template { template_path } => {
-                        Some(template_path.display().to_string())
-                    }
-                    crate::export::ExportFormat::Alacritty => None,
-                },
+                template_path: Some(profile.template_path().display().to_string()),
             })
             .collect(),
         editor_fields: editor_config_fields(state),

@@ -1,0 +1,31 @@
+[colors.primary]
+background = "{{token.background | opaque_hex}}"
+foreground = "{{token.text | opaque_hex}}"
+
+[colors.cursor]
+text = "{{token.background | opaque_hex}}"
+cursor = "{{token.cursor | opaque_hex}}"
+
+[colors.selection]
+text = "{{token.text | opaque_hex}}"
+background = "{{token.selection | opaque_hex}}"
+
+[colors.normal]
+black = "{{token.background | opaque_hex}}"
+red = "{{token.error | opaque_hex}}"
+green = "{{token.success | opaque_hex}}"
+yellow = "{{token.warning | opaque_hex}}"
+blue = "{{token.info | opaque_hex}}"
+magenta = "{{token.keyword | opaque_hex}}"
+cyan = "{{token.hint | opaque_hex}}"
+white = "{{token.text_muted | opaque_hex}}"
+
+[colors.bright]
+black = "{{token.surface_alt | opaque_hex}}"
+red = "{{token.error | opaque_hex}}"
+green = "{{token.success | opaque_hex}}"
+yellow = "{{token.warning | opaque_hex}}"
+blue = "{{token.function | opaque_hex}}"
+magenta = "{{token.keyword | opaque_hex}}"
+cyan = "{{token.hint | opaque_hex}}"
+white = "{{token.cursor | opaque_hex}}"

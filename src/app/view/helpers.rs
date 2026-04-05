@@ -73,12 +73,7 @@ pub(crate) fn config_field_value(state: &AppState, field: ConfigFieldId) -> Stri
             .project
             .export_profiles
             .get(index)
-            .and_then(|profile| match &profile.format {
-                crate::export::ExportFormat::Template { template_path } => {
-                    Some(template_path.display().to_string())
-                }
-                crate::export::ExportFormat::Alacritty => None,
-            })
+            .map(|profile| profile.template_path().display().to_string())
             .unwrap_or_else(|| "-".to_string()),
     }
 }

@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::app::effect::ProjectData;
 use crate::color::Color;
-use crate::export::{ExportProfile, default_export_profiles};
+use crate::export::{default_export_profiles, ExportProfile};
 use crate::params::ThemeParams;
 use crate::rules::{AdjustOp, Rule, RuleSet, SourceRef};
 use crate::tokens::{PaletteSlot, TokenRole};
@@ -88,7 +88,11 @@ pub fn save_project(path: &Path, project: &ProjectData) -> Result<(), ProjectErr
             .iter()
             .map(|(role, rule)| (role.label().to_string(), RuleFile::from(rule)))
             .collect(),
-        exports: project.export_profiles.clone(),
+        exports: project
+            .export_profiles
+            .iter()
+            .map(ExportProfile::normalize)
+            .collect(),
         export: None,
     };
 
@@ -126,8 +130,11 @@ pub fn load_project(path: &Path) -> Result<ProjectData, ProjectError> {
 
     let export_profiles = if !file.exports.is_empty() {
         file.exports
+            .into_iter()
+            .map(|profile| profile.normalize())
+            .collect()
     } else if let Some(profile) = file.export {
-        vec![profile]
+        vec![profile.normalize()]
     } else {
         default_export_profiles()
     };
@@ -281,37 +288,91 @@ fn decode_palette_slot(value: &str) -> Option<PaletteSlot> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use crate::app::effect::ProjectData;
-    use crate::export::{ExportFormat, ExportProfile};
+    use crate::export::{default_export_profiles, ExportFormat, ExportProfile};
     use crate::params::ThemeParams;
     use crate::persistence::project_file::{load_project, save_project};
     use crate::rules::RuleSet;
     use tempfile::NamedTempFile;
 
-    #[test]
-    fn project_file_round_trips_export_profiles() {
-        let file = NamedTempFile::new().unwrap();
-        let project = ProjectData {
+    fn project_with_exports(export_profiles: Vec<ExportProfile>) -> ProjectData {
+        ProjectData {
             name: "Integration Theme".to_string(),
             params: ThemeParams::default(),
             rules: RuleSet::default(),
-            export_profiles: vec![
-                ExportProfile::alacritty_default(),
-                ExportProfile {
-                    name: "Custom Template".to_string(),
-                    enabled: true,
-                    output_path: "exports/custom.conf".into(),
-                    format: ExportFormat::Template {
-                        template_path: "templates/custom.txt".into(),
-                    },
-                },
-            ],
-        };
+            export_profiles,
+        }
+    }
+
+    fn bundled_alacritty_profile() -> ExportProfile {
+        ExportProfile {
+            name: "Alacritty".to_string(),
+            enabled: true,
+            output_path: "exports/alacritty-theme.toml".into(),
+            format: ExportFormat::Template {
+                template_path: "templates/alacritty.toml".into(),
+            },
+        }
+    }
+
+    #[test]
+    fn load_project_normalizes_legacy_alacritty_export_profiles_to_template_profiles() {
+        let file = NamedTempFile::new().unwrap();
+        let project = project_with_exports(vec![bundled_alacritty_profile()]);
+
+        save_project(file.path(), &project).unwrap();
+        let saved = fs::read_to_string(file.path()).unwrap();
+        let legacy = saved.replace(
+            "type = \"template\"\ntemplate_path = \"templates/alacritty.toml\"\n",
+            "type = \"alacritty\"\n",
+        );
+        fs::write(file.path(), legacy).unwrap();
+
+        let loaded = load_project(file.path()).unwrap();
+
+        assert_eq!(loaded.name, project.name);
+        assert_eq!(loaded.export_profiles, vec![bundled_alacritty_profile()]);
+    }
+
+    #[test]
+    fn load_project_uses_template_backed_default_export_profiles_when_exports_are_missing() {
+        let file = NamedTempFile::new().unwrap();
+        let project = project_with_exports(Vec::new());
 
         save_project(file.path(), &project).unwrap();
         let loaded = load_project(file.path()).unwrap();
 
         assert_eq!(loaded.name, project.name);
+        assert_eq!(loaded.export_profiles, default_export_profiles());
+        assert!(loaded
+            .export_profiles
+            .iter()
+            .all(|profile| matches!(profile.format, ExportFormat::Template { .. })));
+    }
+
+    #[test]
+    fn project_file_round_trips_template_export_profiles() {
+        let file = NamedTempFile::new().unwrap();
+        let project = project_with_exports(vec![
+            bundled_alacritty_profile(),
+            ExportProfile {
+                name: "Custom Template".to_string(),
+                enabled: true,
+                output_path: "exports/custom.conf".into(),
+                format: ExportFormat::Template {
+                    template_path: "templates/custom.txt".into(),
+                },
+            },
+        ]);
+
+        save_project(file.path(), &project).unwrap();
+        let saved = fs::read_to_string(file.path()).unwrap();
+        let loaded = load_project(file.path()).unwrap();
+
+        assert_eq!(loaded.name, project.name);
         assert_eq!(loaded.export_profiles, project.export_profiles);
+        assert!(!saved.contains("type = \"alacritty\""));
     }
 }
