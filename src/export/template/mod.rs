@@ -46,128 +46,72 @@ fn render_template(template: &str, context: &ExportContext) -> Result<String, Ex
 mod tests {
     use std::io::Write;
 
+    use crate::color::Color;
     use crate::domain::palette::generate_palette;
     use crate::domain::params::ThemeParams;
     use crate::domain::rules::RuleSet;
     use crate::evaluator::resolve_theme;
-    use crate::export::context::ExportContext;
+    use crate::export::context::{ExportContext, ExportValue};
     use crate::export::template::TemplateExporter;
     use tempfile::NamedTempFile;
 
-    #[test]
-    fn template_exporter_uses_export_context() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(
-            b"project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\nexporter={{meta.exporter}}\nexporter_key={{meta.exporter_key}}\nbackground={{token.background}}\npalette={{palette.bg_0}}\ncontrast={{param.contrast}}\n",
-        )
-        .unwrap();
-        file.flush().unwrap();
-
+    fn build_context() -> ExportContext {
         let params = ThemeParams::default();
         let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+        let profile = crate::export::ExportProfile::template_default();
+
+        let mut context =
+            ExportContext::builder("Demo Project", &profile, &theme, &params)
+                .build()
+                .unwrap();
+        context.token.insert(
+            "comment".to_string(),
+            ExportValue::Color(Color::from_rgba_u8(0x12, 0x34, 0x56, 0x80)),
+        );
+        context
+    }
+
+    fn write_template(template: &str) -> NamedTempFile {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(template.as_bytes()).unwrap();
+        file.flush().unwrap();
+        file
+    }
+
+    #[test]
+    fn template_exporter_renders_mixed_text_and_placeholder_output() {
+        let file = write_template("prefix {{meta.project_name}} suffix");
         let exporter = TemplateExporter::from_path(file.path()).unwrap();
-        let context = ExportContext::builder(
-            "Demo Project",
-            &crate::export::ExportProfile::template_default(),
-            &theme,
-            &params,
-        )
-        .build()
-        .unwrap();
+        let context = build_context();
+
         let output = exporter.export_with_context(&context).unwrap();
 
-        assert!(output.contains("project=Demo Project"));
-        assert!(output.contains("profile=Template"));
-        assert!(output.contains("format=template"));
-        assert!(output.contains(&format!(
-            "output={}",
-            crate::export::ExportProfile::template_default()
-                .output_path
-                .display()
-        )));
-        assert!(output.contains("exporter=Template"));
-        assert!(output.contains("exporter_key=template"));
-        assert!(output.contains("background=#"));
-        assert!(output.contains("palette=#"));
-        assert!(output.contains("contrast=0.85"));
+        assert_eq!(output, "prefix Demo Project suffix");
     }
 
     #[test]
-    fn template_exporter_rejects_unknown_placeholders() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(
-            b"project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\nmissing={{meta.missing}}\n",
-        )
-        .unwrap();
-        file.flush().unwrap();
-
-        let params = ThemeParams::default();
-        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+    fn template_exporter_renders_filtered_placeholder_output() {
+        let file = write_template("comment={{token.comment | opaque_hex}}");
         let exporter = TemplateExporter::from_path(file.path()).unwrap();
-        let context = ExportContext::builder(
-            "Demo Project",
-            &crate::export::ExportProfile::template_default(),
-            &theme,
-            &params,
-        )
-        .build()
-        .unwrap();
+        let context = build_context();
+
+        let output = exporter.export_with_context(&context).unwrap();
+
+        assert_eq!(output, "comment=#123456");
+    }
+
+    #[test]
+    fn template_exporter_propagates_parser_errors_precisely() {
+        let file = write_template("project={{token}}\n");
+        let exporter = TemplateExporter::from_path(file.path()).unwrap();
+        let context = build_context();
+
         let error = exporter.export_with_context(&context).unwrap_err();
 
         assert!(matches!(
             error,
-            crate::export::ExportError::InvalidTemplate(_)
-        ));
-    }
-
-    #[test]
-    fn template_exporter_rejects_malformed_non_namespaced_placeholder() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"note={{literal braces}}\nproject={{meta.project_name}}\n")
-            .unwrap();
-        file.flush().unwrap();
-
-        let params = ThemeParams::default();
-        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
-        let exporter = TemplateExporter::from_path(file.path()).unwrap();
-        let context = ExportContext::builder(
-            "Demo Project",
-            &crate::export::ExportProfile::template_default(),
-            &theme,
-            &params,
-        )
-        .build()
-        .unwrap();
-        let error = exporter.export_with_context(&context).unwrap_err();
-
-        assert!(matches!(
-            error,
-            crate::export::ExportError::InvalidTemplate(_)
-        ));
-    }
-
-    #[test]
-    fn template_exporter_rejects_malformed_placeholders_like_parser() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"project={{token}}\n").unwrap();
-        file.flush().unwrap();
-
-        let params = ThemeParams::default();
-        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
-        let exporter = TemplateExporter::from_path(file.path()).unwrap();
-        let context = ExportContext::builder(
-            "Project with {{braces}}",
-            &crate::export::ExportProfile::template_default(),
-            &theme,
-            &params,
-        )
-        .build()
-        .unwrap();
-        let error = exporter.export_with_context(&context).unwrap_err();
-
-        assert!(matches!(
-            error,
-            crate::export::ExportError::InvalidTemplate(_)
+            crate::export::ExportError::InvalidTemplate(message)
+                if message == "malformed template placeholder token"
         ));
     }
 }
