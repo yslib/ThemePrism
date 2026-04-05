@@ -46,12 +46,11 @@ fn render_template(template: &str, context: &ExportContext) -> Result<String, Ex
 mod tests {
     use std::io::Write;
 
-    use crate::color::Color;
     use crate::domain::palette::generate_palette;
     use crate::domain::params::ThemeParams;
     use crate::domain::rules::RuleSet;
     use crate::evaluator::resolve_theme;
-    use crate::export::context::{ExportContext, ExportValue};
+    use crate::export::context::ExportContext;
     use crate::export::template::TemplateExporter;
     use tempfile::NamedTempFile;
 
@@ -60,15 +59,9 @@ mod tests {
         let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
         let profile = crate::export::ExportProfile::template_default();
 
-        let mut context =
-            ExportContext::builder("Demo Project", &profile, &theme, &params)
-                .build()
-                .unwrap();
-        context.token.insert(
-            "comment".to_string(),
-            ExportValue::Color(Color::from_rgba_u8(0x12, 0x34, 0x56, 0x80)),
-        );
-        context
+        ExportContext::builder("Demo Project", &profile, &theme, &params)
+            .build()
+            .unwrap()
     }
 
     fn write_template(template: &str) -> NamedTempFile {
@@ -76,6 +69,65 @@ mod tests {
         file.write_all(template.as_bytes()).unwrap();
         file.flush().unwrap();
         file
+    }
+
+    #[test]
+    fn template_exporter_renders_profile_metadata() {
+        let file = write_template(
+            "project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\nexporter={{meta.exporter}}\nexporter_key={{meta.exporter_key}}\n",
+        );
+        let exporter = TemplateExporter::from_path(file.path()).unwrap();
+        let context = build_context();
+
+        let output = exporter.export_with_context(&context).unwrap();
+
+        assert_eq!(
+            output,
+            "project=Demo Project\nprofile=Template\nformat=template\noutput=exports/theme-template.txt\nexporter=Template\nexporter_key=template\n"
+        );
+    }
+
+    #[test]
+    fn template_exporter_renders_token_placeholder_output() {
+        let file = write_template("token={{token.background}}\n");
+        let exporter = TemplateExporter::from_path(file.path()).unwrap();
+        let context = build_context();
+
+        let output = exporter.export_with_context(&context).unwrap();
+
+        let expected = match context.token.get("background").unwrap() {
+            crate::export::context::ExportValue::Color(color) => color.to_hex(),
+            other => other.render_text(),
+        };
+
+        assert_eq!(output, format!("token={expected}\n"));
+    }
+
+    #[test]
+    fn template_exporter_renders_palette_and_param_placeholder_output() {
+        let file = write_template("palette={{palette.bg_0}}\ncontrast={{param.contrast}}\n");
+        let exporter = TemplateExporter::from_path(file.path()).unwrap();
+        let context = build_context();
+
+        let output = exporter.export_with_context(&context).unwrap();
+
+        let expected_palette = context
+            .palette
+            .get("bg_0")
+            .expect("expected bg_0 palette slot");
+        let expected_contrast = context
+            .param
+            .get("contrast")
+            .expect("expected contrast param");
+
+        assert_eq!(
+            output,
+            format!(
+                "palette={}\ncontrast={}\n",
+                expected_palette.render_text(),
+                expected_contrast.render_text()
+            )
+        );
     }
 
     #[test]
@@ -91,18 +143,23 @@ mod tests {
 
     #[test]
     fn template_exporter_renders_filtered_placeholder_output() {
-        let file = write_template("comment={{token.comment | opaque_hex}}");
+        let file = write_template("background={{token.background | opaque_hex}}");
         let exporter = TemplateExporter::from_path(file.path()).unwrap();
         let context = build_context();
 
         let output = exporter.export_with_context(&context).unwrap();
 
-        assert_eq!(output, "comment=#123456");
+        let expected = match context.token.get("background").unwrap() {
+            crate::export::context::ExportValue::Color(color) => color.to_opaque_hex(),
+            other => other.render_text(),
+        };
+
+        assert_eq!(output, format!("background={expected}"));
     }
 
     #[test]
-    fn template_exporter_propagates_parser_errors_precisely() {
-        let file = write_template("project={{token}}\n");
+    fn template_exporter_propagates_evaluator_errors_from_the_file_backed_boundary() {
+        let file = write_template("project={{token.background | mystery}}\n");
         let exporter = TemplateExporter::from_path(file.path()).unwrap();
         let context = build_context();
 
@@ -111,7 +168,7 @@ mod tests {
         assert!(matches!(
             error,
             crate::export::ExportError::InvalidTemplate(message)
-                if message == "malformed template placeholder token"
+                if message.contains("unknown template filter mystery")
         ));
     }
 }
