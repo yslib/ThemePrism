@@ -1,9 +1,11 @@
+use std::path::Path;
 use std::path::PathBuf;
 
 use crate::app::effect::{EditorConfigData, Effect};
 use crate::app::state::{AppState, ConfigFieldId, TextInputTarget};
 use crate::i18n::{self, UiText};
 use crate::persistence::editor_config::{EditorKeymapPreset, EditorLocale};
+use crate::persistence::project_file::resolve_template_path_for_project_file;
 
 use super::{cycle_index, text_input, tr, tr1};
 
@@ -164,7 +166,11 @@ pub(super) fn apply_config_input(
                         index + 1,
                     )
                 })?;
-            profile.set_template_path(value.into());
+            let template_path = resolve_template_path_for_project_file(
+                &state.editor.project_path,
+                Path::new(value),
+            );
+            profile.set_template_path(template_path);
             Ok(i18n::format2(
                 locale,
                 UiText::StatusExportTemplateUpdated,

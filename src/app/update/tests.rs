@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use super::{navigation, text_input, update};
 use crate::app::controls::ControlId;
 use crate::app::intent::Intent;
@@ -157,6 +159,43 @@ fn project_intent_updates_project_name() {
     );
 
     assert_eq!(state.project.name, "Aurora Theme");
+}
+
+#[test]
+fn setting_export_template_path_resolves_relative_paths_against_project_file_directory() {
+    let mut state = AppState::new().expect("state should build");
+    state.editor.project_path = PathBuf::from("/tmp/theme/projects/demo.toml");
+
+    update(
+        &mut state,
+        Intent::SetExportTemplatePath(1, PathBuf::from("templates/custom.txt")),
+    );
+
+    let profile = &state.project.export_profiles[1];
+    assert_eq!(
+        profile.configured_template_path(),
+        PathBuf::from("/tmp/theme/projects/templates/custom.txt").as_path()
+    );
+}
+
+#[test]
+fn committing_export_template_text_input_resolves_relative_paths_against_project_file_directory() {
+    let mut state = AppState::new().expect("state should build");
+    state.editor.project_path = PathBuf::from("/tmp/theme/projects/demo.toml");
+    text_input::open_text_input(
+        &mut state,
+        TextInputTarget::Config(ConfigFieldId::ExportTemplatePath(1)),
+    );
+    state.ui.text_input.as_mut().unwrap().buffer = "templates/dialog.txt".to_string();
+
+    let effects = update(&mut state, Intent::CommitTextInput);
+
+    assert!(effects.is_empty());
+    let profile = &state.project.export_profiles[1];
+    assert_eq!(
+        profile.configured_template_path(),
+        PathBuf::from("/tmp/theme/projects/templates/dialog.txt").as_path()
+    );
 }
 
 #[test]

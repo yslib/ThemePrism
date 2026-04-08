@@ -7,6 +7,7 @@ use crate::domain::params::ThemeParams;
 use crate::domain::rules::RuleSet;
 use crate::export::default_export_profiles;
 use crate::i18n::{self, UiText};
+use crate::persistence::project_file::resolve_template_path_for_project_file;
 
 use super::{modals, tr, tr1};
 
@@ -131,6 +132,7 @@ pub(super) fn set_export_template_path(
     let locale = state.locale();
     match state.project.export_profiles.get_mut(index) {
         Some(profile) => {
+            let path = resolve_template_path_for_project_file(&state.editor.project_path, &path);
             profile.set_template_path(path);
             state.ui.status = i18n::format2(
                 locale,

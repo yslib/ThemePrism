@@ -6,6 +6,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::export::ExportError;
+use crate::export::alacritty::bundled_template_contents;
 use crate::export::context::ExportContext;
 use parser::parse_template;
 
@@ -16,6 +17,12 @@ pub struct TemplateExporter {
 
 impl TemplateExporter {
     pub fn from_path(path: &Path) -> Result<Self, ExportError> {
+        if let Some(template) = bundled_template_contents(path) {
+            return Ok(Self {
+                template: template.to_string(),
+            });
+        }
+
         let template = fs::read_to_string(path).map_err(|err| {
             ExportError::Io(format!("failed to read template {}: {err}", path.display()))
         })?;
@@ -45,11 +52,13 @@ fn render_template(template: &str, context: &ExportContext) -> Result<String, Ex
 #[cfg(test)]
 mod tests {
     use std::io::Write;
+    use std::path::Path;
 
     use crate::domain::palette::generate_palette;
     use crate::domain::params::ThemeParams;
     use crate::domain::rules::RuleSet;
     use crate::evaluator::resolve_theme;
+    use crate::export::alacritty::{BUNDLED_TEMPLATE_PATH, GENERIC_TEMPLATE_PATH};
     use crate::export::context::ExportContext;
     use crate::export::template::TemplateExporter;
     use tempfile::NamedTempFile;
@@ -211,5 +220,27 @@ mod tests {
             crate::export::ExportError::InvalidTemplate(message)
                 if message.contains("unclosed template placeholder")
         ));
+    }
+
+    #[test]
+    fn template_exporter_loads_bundled_alacritty_templates_from_markers() {
+        let exporter = TemplateExporter::from_path(Path::new(BUNDLED_TEMPLATE_PATH)).unwrap();
+        let context = build_context();
+
+        let output = exporter.export_with_context(&context).unwrap();
+
+        assert!(output.contains("[colors.primary]"));
+        assert!(output.contains("background = \""));
+    }
+
+    #[test]
+    fn template_exporter_loads_bundled_generic_templates_from_markers() {
+        let exporter = TemplateExporter::from_path(Path::new(GENERIC_TEMPLATE_PATH)).unwrap();
+        let context = build_context();
+
+        let output = exporter.export_with_context(&context).unwrap();
+
+        assert!(output.contains("profile=Template"));
+        assert!(output.contains("background=#"));
     }
 }
