@@ -3,10 +3,10 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use crate::app::snapshot::{build_snapshot, AppSnapshot};
-use crate::app::view::{build_view, ViewTree};
-use crate::app::{update, AppState, Effect, Intent};
-use crate::export::{export_with_profile, ExportArtifact};
+use crate::app::snapshot::{AppSnapshot, build_snapshot};
+use crate::app::view::{ViewTree, build_view};
+use crate::app::{AppState, Effect, Intent, update};
+use crate::export::{ExportArtifact, export_with_profile};
 use crate::persistence::editor_config::save_editor_config;
 use crate::persistence::project_file::{load_project, save_project};
 
@@ -124,7 +124,7 @@ fn write_export(path: &Path, content: &str) -> io::Result<()> {
 mod tests {
     use std::fs;
 
-    use tempfile::NamedTempFile;
+    use tempfile::tempdir;
 
     use crate::app::{AppState, Intent};
     use crate::export::ExportFormat;
@@ -132,12 +132,14 @@ mod tests {
     use super::CoreSession;
 
     #[test]
-    fn export_flow_threads_project_profile_path_and_param_data() {
-        let template_file = NamedTempFile::new().unwrap();
-        let output_file = NamedTempFile::new().unwrap();
+    fn export_flow_writes_enabled_profile_and_renders_all_context_values() {
+        let temp_dir = tempdir().unwrap();
+        let template_path = temp_dir.path().join("templates/session-template.txt");
+        let output_path = temp_dir.path().join("exports/session-output.txt");
+        fs::create_dir_all(template_path.parent().unwrap()).unwrap();
         fs::write(
-            template_file.path(),
-            "project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\ncontrast={{param.contrast}}\nexporter={{meta.exporter}}\nexporter_key={{meta.exporter_key}}\n",
+            &template_path,
+            "project={{meta.project_name}}\nprofile={{meta.profile_name}}\nformat={{meta.profile_format}}\noutput={{meta.output_path}}\nbackground={{token.background}}\npalette={{palette.bg_0}}\ncontrast={{param.contrast}}\nexporter={{meta.exporter}}\nexporter_key={{meta.exporter_key}}\n",
         )
         .unwrap();
 
@@ -155,20 +157,29 @@ mod tests {
             .find(|profile| matches!(profile.format, ExportFormat::Template { .. }))
             .unwrap();
         profile.name = "Session Template".to_string();
-        profile.output_path = output_file.path().to_path_buf();
-        profile.set_template_path(template_file.path().to_path_buf());
+        profile.output_path = output_path.clone();
+        profile.set_template_path(template_path.clone());
         profile.enabled = true;
 
         let mut session = CoreSession::new(state);
         session.dispatch(Intent::ExportThemeRequested);
 
-        let output = fs::read_to_string(output_file.path()).unwrap();
+        let output = fs::read_to_string(&output_path).unwrap();
         assert!(output.contains("project=Session Project"));
         assert!(output.contains("profile=Session Template"));
         assert!(output.contains("format=template"));
-        assert!(output.contains(&format!("output={}", output_file.path().display())));
+        assert!(output.contains(&format!("output={}", output_path.display())));
+        assert!(output.contains("background=#"));
+        assert!(output.contains("palette=#"));
         assert!(output.contains("contrast=0.42"));
         assert!(output.contains("exporter=Template"));
         assert!(output.contains("exporter_key=template"));
+        assert!(
+            session
+                .state()
+                .ui
+                .status
+                .contains(&format!("{}", output_path.display()))
+        );
     }
 }

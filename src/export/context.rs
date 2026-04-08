@@ -102,7 +102,10 @@ impl<'a> ExportContextBuilder<'a> {
         let param = ParamKey::ALL
             .into_iter()
             .map(|key| {
-                Ok((key.key().to_string(), ExportValue::Number(key.get(self.params))))
+                Ok((
+                    key.key().to_string(),
+                    ExportValue::Number(key.get(self.params)),
+                ))
             })
             .collect::<Result<BTreeMap<_, _>, ExportError>>()?;
 
@@ -120,14 +123,14 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::{ExportContext, ExportValue};
-    use crate::domain::params::{ParamKey, ThemeParams};
     use crate::domain::palette::Palette;
     use crate::domain::palette::generate_palette;
+    use crate::domain::params::{ParamKey, ThemeParams};
     use crate::domain::rules::RuleSet;
     use crate::domain::tokens::{PaletteSlot, TokenRole};
+    use crate::evaluator::ResolvedTheme;
     use crate::evaluator::resolve_theme;
     use crate::export::{ExportError, ExportProfile};
-    use crate::evaluator::ResolvedTheme;
 
     fn build_context() -> ExportContext {
         let params = ThemeParams::default();

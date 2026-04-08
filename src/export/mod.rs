@@ -10,7 +10,7 @@ use thiserror::Error;
 use crate::domain::params::ThemeParams;
 use crate::evaluator::ResolvedTheme;
 use crate::export::alacritty::{
-    bundled_template_path, resolve_bundled_template_path, BUNDLED_TEMPLATE_PATH,
+    BUNDLED_TEMPLATE_PATH, bundled_template_path, resolve_bundled_template_path,
 };
 use crate::export::context::ExportContext;
 use crate::export::template::TemplateExporter;
@@ -184,8 +184,8 @@ mod tests {
     use crate::domain::rules::RuleSet;
     use crate::evaluator::resolve_theme;
 
-    use super::{export_with_profile, ExportFormat, ExportProfile};
-    use tempfile::{tempdir, NamedTempFile};
+    use super::{ExportFormat, ExportProfile, export_with_profile};
+    use tempfile::{NamedTempFile, tempdir};
 
     static CURRENT_DIR_LOCK: Mutex<()> = Mutex::new(());
 
@@ -273,8 +273,8 @@ mod tests {
     }
 
     #[test]
-    fn export_with_profile_resolves_dot_prefixed_bundled_alacritty_templates_without_using_current_dir(
-    ) {
+    fn export_with_profile_resolves_dot_prefixed_bundled_alacritty_templates_without_using_current_dir()
+     {
         let _guard = current_dir_test_guard();
         let _restore = CurrentDirRestore(std::env::current_dir().unwrap());
         let temp_dir = tempdir().unwrap();
@@ -303,8 +303,8 @@ mod tests {
     }
 
     #[test]
-    fn export_with_profile_resolves_dot_prefixed_bundled_generic_templates_without_using_current_dir(
-    ) {
+    fn export_with_profile_resolves_dot_prefixed_bundled_generic_templates_without_using_current_dir()
+     {
         let _guard = current_dir_test_guard();
         let _restore = CurrentDirRestore(std::env::current_dir().unwrap());
         let temp_dir = tempdir().unwrap();

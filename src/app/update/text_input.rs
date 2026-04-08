@@ -3,7 +3,7 @@ use crate::app::effect::Effect;
 use crate::app::state::{AppState, SourcePickerState, TextInputState, TextInputTarget};
 use crate::domain::color::Color;
 use crate::domain::params::ParamKey;
-use crate::domain::rules::{available_source_options, Rule, SourceOption};
+use crate::domain::rules::{Rule, SourceOption, available_source_options};
 use crate::domain::tokens::TokenRole;
 use crate::i18n::UiText;
 

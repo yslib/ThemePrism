@@ -8,16 +8,16 @@ use crate::app::interaction::SurfaceId;
 use crate::app::ui_meta::panel_workspace_tab;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::color::Color;
-use crate::domain::evaluator::{resolve_theme, EvalError, ResolvedTheme};
-use crate::domain::palette::{generate_palette, Palette};
+use crate::domain::evaluator::{EvalError, ResolvedTheme, resolve_theme};
+use crate::domain::palette::{Palette, generate_palette};
 use crate::domain::params::{ParamKey, ThemeParams};
 use crate::domain::preview::PreviewState;
 use crate::domain::rules::RuleSet;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
-use crate::export::{default_export_profiles, ExportProfile};
+use crate::export::{ExportProfile, default_export_profiles};
 use crate::i18n::{self, UiText};
 use crate::persistence::editor_config::{
-    EditorConfig, EditorKeymapPreset, EditorLocale, DEFAULT_PROJECT_PATH,
+    DEFAULT_PROJECT_PATH, EditorConfig, EditorKeymapPreset, EditorLocale,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

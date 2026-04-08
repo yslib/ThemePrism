@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::app::effect::ProjectData;
 use crate::color::Color;
-use crate::export::{default_export_profiles, ExportProfile};
+use crate::export::{ExportProfile, default_export_profiles};
 use crate::params::ThemeParams;
 use crate::rules::{AdjustOp, Rule, RuleSet, SourceRef};
 use crate::tokens::{PaletteSlot, TokenRole};
@@ -291,7 +291,7 @@ mod tests {
     use std::fs;
 
     use crate::app::effect::ProjectData;
-    use crate::export::{default_export_profiles, ExportFormat, ExportProfile};
+    use crate::export::{ExportFormat, ExportProfile, default_export_profiles};
     use crate::params::ThemeParams;
     use crate::persistence::project_file::{load_project, save_project};
     use crate::rules::RuleSet;
@@ -346,10 +346,12 @@ mod tests {
 
         assert_eq!(loaded.name, project.name);
         assert_eq!(loaded.export_profiles, default_export_profiles());
-        assert!(loaded
-            .export_profiles
-            .iter()
-            .all(|profile| matches!(profile.format, ExportFormat::Template { .. })));
+        assert!(
+            loaded
+                .export_profiles
+                .iter()
+                .all(|profile| matches!(profile.format, ExportFormat::Template { .. }))
+        );
     }
 
     #[test]
