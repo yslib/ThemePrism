@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::app::effect::ProjectData;
 use crate::color::Color;
-use crate::export::{ExportProfile, default_export_profiles};
+use crate::export::alacritty::resolve_bundled_template_path;
+use crate::export::{ExportFormat, ExportProfile, default_export_profiles};
 use crate::params::ThemeParams;
 use crate::rules::{AdjustOp, Rule, RuleSet, SourceRef};
 use crate::tokens::{PaletteSlot, TokenRole};
@@ -76,6 +77,7 @@ enum RuleFile {
 }
 
 pub fn save_project(path: &Path, project: &ProjectData) -> Result<(), ProjectError> {
+    let project_dir = project_directory(path);
     let file = ProjectFile {
         version: CURRENT_PROJECT_VERSION,
         project: ProjectMeta {
@@ -91,7 +93,7 @@ pub fn save_project(path: &Path, project: &ProjectData) -> Result<(), ProjectErr
         exports: project
             .export_profiles
             .iter()
-            .map(ExportProfile::normalize)
+            .map(|profile| profile_for_save(project_dir, profile))
             .collect(),
         export: None,
     };
@@ -106,6 +108,7 @@ pub fn save_project(path: &Path, project: &ProjectData) -> Result<(), ProjectErr
 }
 
 pub fn load_project(path: &Path) -> Result<ProjectData, ProjectError> {
+    let project_dir = project_directory(path);
     let content = fs::read_to_string(path).map_err(|err| ProjectError::Io(err.to_string()))?;
     let file: ProjectFile =
         toml::from_str(&content).map_err(|err| ProjectError::Parse(err.to_string()))?;
@@ -131,10 +134,10 @@ pub fn load_project(path: &Path) -> Result<ProjectData, ProjectError> {
     let export_profiles = if !file.exports.is_empty() {
         file.exports
             .into_iter()
-            .map(|profile| profile.normalize())
+            .map(|profile| profile_from_file(project_dir, profile))
             .collect()
     } else if let Some(profile) = file.export {
-        vec![profile.normalize()]
+        vec![profile_from_file(project_dir, profile)]
     } else {
         default_export_profiles()
     };
@@ -145,6 +148,59 @@ pub fn load_project(path: &Path) -> Result<ProjectData, ProjectError> {
         rules: RuleSet { rules },
         export_profiles,
     })
+}
+
+fn project_directory(path: &Path) -> &Path {
+    path.parent().unwrap_or_else(|| Path::new("."))
+}
+
+fn profile_from_file(project_dir: &Path, profile: ExportProfile) -> ExportProfile {
+    let profile = profile.normalize();
+
+    match profile.format {
+        ExportFormat::Template { template_path } => {
+            let template_path = resolve_loaded_template_path(project_dir, &template_path);
+            ExportProfile {
+                format: ExportFormat::Template { template_path },
+                ..profile
+            }
+        }
+        ExportFormat::Alacritty => unreachable!("legacy export formats are normalized"),
+    }
+}
+
+fn profile_for_save(project_dir: &Path, profile: &ExportProfile) -> ExportProfile {
+    let profile = profile.normalize();
+
+    match profile.format {
+        ExportFormat::Template { template_path } => {
+            let template_path = serialize_template_path(project_dir, &template_path);
+            ExportProfile {
+                format: ExportFormat::Template { template_path },
+                ..profile
+            }
+        }
+        ExportFormat::Alacritty => unreachable!("legacy export formats are normalized"),
+    }
+}
+
+fn resolve_loaded_template_path(project_dir: &Path, template_path: &Path) -> PathBuf {
+    if resolve_bundled_template_path(template_path).is_some() || template_path.is_absolute() {
+        template_path.to_path_buf()
+    } else {
+        project_dir.join(template_path)
+    }
+}
+
+fn serialize_template_path(project_dir: &Path, template_path: &Path) -> PathBuf {
+    if resolve_bundled_template_path(template_path).is_some() || template_path.is_relative() {
+        template_path.to_path_buf()
+    } else {
+        template_path
+            .strip_prefix(project_dir)
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|_| template_path.to_path_buf())
+    }
 }
 
 impl From<&ThemeParams> for ProjectParams {
@@ -291,6 +347,7 @@ mod tests {
     use std::fs;
 
     use crate::app::effect::ProjectData;
+    use crate::export::alacritty::bundled_template_path;
     use crate::export::{ExportFormat, ExportProfile, default_export_profiles};
     use crate::params::ThemeParams;
     use crate::persistence::project_file::{load_project, save_project};
@@ -312,7 +369,7 @@ mod tests {
             enabled: true,
             output_path: "exports/alacritty-theme.toml".into(),
             format: ExportFormat::Template {
-                template_path: "templates/alacritty.toml".into(),
+                template_path: bundled_template_path(),
             },
         }
     }
@@ -325,7 +382,10 @@ mod tests {
         save_project(file.path(), &project).unwrap();
         let saved = fs::read_to_string(file.path()).unwrap();
         let legacy = saved.replace(
-            "type = \"template\"\ntemplate_path = \"templates/alacritty.toml\"\n",
+            &format!(
+                "type = \"template\"\ntemplate_path = \"{}\"\n",
+                bundled_template_path().display()
+            ),
             "type = \"alacritty\"\n",
         );
         fs::write(file.path(), legacy).unwrap();
@@ -356,7 +416,8 @@ mod tests {
 
     #[test]
     fn project_file_round_trips_template_export_profiles() {
-        let file = NamedTempFile::new().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("project/theme.toml");
         let project = project_with_exports(vec![
             bundled_alacritty_profile(),
             ExportProfile {
@@ -364,17 +425,43 @@ mod tests {
                 enabled: true,
                 output_path: "exports/custom.conf".into(),
                 format: ExportFormat::Template {
-                    template_path: "templates/custom.txt".into(),
+                    template_path: temp_dir.path().join("project/templates/custom.txt"),
                 },
             },
         ]);
 
-        save_project(file.path(), &project).unwrap();
-        let saved = fs::read_to_string(file.path()).unwrap();
-        let loaded = load_project(file.path()).unwrap();
+        save_project(&file_path, &project).unwrap();
+        let saved = fs::read_to_string(&file_path).unwrap();
+        let loaded = load_project(&file_path).unwrap();
 
         assert_eq!(loaded.name, project.name);
         assert_eq!(loaded.export_profiles, project.export_profiles);
         assert!(!saved.contains("type = \"alacritty\""));
+        assert!(saved.contains("template_path = \"templates/custom.txt\""));
+    }
+
+    #[test]
+    fn load_project_resolves_relative_template_paths_against_project_file_directory() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let project_path = temp_dir.path().join("nested/theme.toml");
+        let project = project_with_exports(vec![ExportProfile {
+            name: "Project Template".to_string(),
+            enabled: true,
+            output_path: "exports/project-template.txt".into(),
+            format: ExportFormat::Template {
+                template_path: "templates/custom.txt".into(),
+            },
+        }]);
+
+        save_project(&project_path, &project).unwrap();
+        let loaded = load_project(&project_path).unwrap();
+
+        let ExportFormat::Template { template_path } = &loaded.export_profiles[0].format else {
+            panic!("expected template export profile");
+        };
+        assert_eq!(
+            template_path,
+            &project_path.parent().unwrap().join("templates/custom.txt")
+        );
     }
 }

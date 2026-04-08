@@ -158,6 +158,32 @@ mod tests {
     }
 
     #[test]
+    fn template_exporter_preserves_literal_double_braces_text() {
+        let file = write_template("literal={{literal braces}}\nproject={{meta.project_name}}\n");
+        let exporter = TemplateExporter::from_path(file.path()).unwrap();
+        let context = build_context();
+
+        let output = exporter.export_with_context(&context).unwrap();
+
+        assert_eq!(output, "literal={{literal braces}}\nproject=Demo Project\n");
+    }
+
+    #[test]
+    fn template_exporter_still_rejects_malformed_known_namespace_placeholders() {
+        let file = write_template("broken={{token}}\n");
+        let exporter = TemplateExporter::from_path(file.path()).unwrap();
+        let context = build_context();
+
+        let error = exporter.export_with_context(&context).unwrap_err();
+
+        assert!(matches!(
+            error,
+            crate::export::ExportError::InvalidTemplate(message)
+                if message.contains("malformed template placeholder token")
+        ));
+    }
+
+    #[test]
     fn template_exporter_propagates_evaluator_errors_from_the_file_backed_boundary() {
         let file = write_template("project={{token.background | mystery}}\n");
         let exporter = TemplateExporter::from_path(file.path()).unwrap();

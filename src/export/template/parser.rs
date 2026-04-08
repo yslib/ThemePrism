@@ -27,6 +27,8 @@ pub enum TemplateParseError {
     UnclosedPlaceholder { start: usize },
 }
 
+const KNOWN_NAMESPACES: [&str; 4] = ["meta", "token", "palette", "param"];
+
 pub fn parse_template(input: &str) -> Result<TemplateDocument, TemplateParseError> {
     let mut segments = Vec::new();
     let mut cursor = 0;
@@ -34,22 +36,31 @@ pub fn parse_template(input: &str) -> Result<TemplateDocument, TemplateParseErro
     while let Some(open_offset) = input[cursor..].find("{{") {
         let open = cursor + open_offset;
         if open > cursor {
-            segments.push(TemplateSegment::Text(input[cursor..open].to_string()));
+            push_text_segment(&mut segments, &input[cursor..open]);
         }
 
         let inner_start = open + 2;
         let Some(close_offset) = input[inner_start..].find("}}") else {
-            return Err(TemplateParseError::UnclosedPlaceholder { start: open });
+            let raw = &input[inner_start..];
+            if looks_like_template_syntax(raw) {
+                return Err(TemplateParseError::UnclosedPlaceholder { start: open });
+            }
+            push_text_segment(&mut segments, &input[open..]);
+            cursor = input.len();
+            break;
         };
         let close = inner_start + close_offset;
-        let raw = input[inner_start..close].trim();
-        let placeholder = parse_placeholder(raw)?;
-        segments.push(TemplateSegment::Placeholder(placeholder));
+        let raw = &input[inner_start..close];
+        match parse_placeholder(raw.trim()) {
+            Ok(placeholder) => segments.push(TemplateSegment::Placeholder(placeholder)),
+            Err(error) if looks_like_template_syntax(raw) => return Err(error),
+            Err(_) => push_text_segment(&mut segments, &input[open..close + 2]),
+        }
         cursor = close + 2;
     }
 
     if cursor < input.len() {
-        segments.push(TemplateSegment::Text(input[cursor..].to_string()));
+        push_text_segment(&mut segments, &input[cursor..]);
     }
 
     if segments.is_empty() {
@@ -96,6 +107,32 @@ fn parse_path(raw: &str) -> Result<TemplatePath, TemplateParseError> {
         namespace: namespace.trim().to_string(),
         key: key.trim().to_string(),
     })
+}
+
+fn looks_like_template_syntax(raw: &str) -> bool {
+    let raw = raw.trim();
+    if raw.is_empty() || raw.contains('.') || raw.contains('|') {
+        return true;
+    }
+
+    KNOWN_NAMESPACES.iter().any(|namespace| {
+        raw == *namespace
+            || raw
+                .strip_prefix(namespace)
+                .and_then(|rest| rest.chars().next())
+                .is_some_and(char::is_whitespace)
+    })
+}
+
+fn push_text_segment(segments: &mut Vec<TemplateSegment>, text: &str) {
+    if text.is_empty() {
+        return;
+    }
+
+    match segments.last_mut() {
+        Some(TemplateSegment::Text(existing)) => existing.push_str(text),
+        _ => segments.push(TemplateSegment::Text(text.to_string())),
+    }
 }
 
 #[cfg(test)]
@@ -207,6 +244,20 @@ mod tests {
                     }),
                     TemplateSegment::Text(" suffix".to_string()),
                 ],
+            }
+        );
+    }
+
+    #[test]
+    fn treats_non_engine_double_braces_as_literal_text() {
+        let ast = parse_template("prefix {{literal braces}} suffix").unwrap();
+
+        assert_eq!(
+            ast,
+            TemplateDocument {
+                segments: vec![TemplateSegment::Text(
+                    "prefix {{literal braces}} suffix".to_string()
+                )],
             }
         );
     }

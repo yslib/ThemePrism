@@ -10,7 +10,8 @@ use thiserror::Error;
 use crate::domain::params::ThemeParams;
 use crate::evaluator::ResolvedTheme;
 use crate::export::alacritty::{
-    BUNDLED_TEMPLATE_PATH, bundled_template_path, resolve_bundled_template_path,
+    BUNDLED_TEMPLATE_PATH, bundled_template_path, generic_template_path,
+    resolve_bundled_template_path,
 };
 use crate::export::context::ExportContext;
 use crate::export::template::TemplateExporter;
@@ -98,7 +99,7 @@ impl ExportProfile {
             enabled: false,
             output_path: PathBuf::from("exports/theme-template.txt"),
             format: ExportFormat::Template {
-                template_path: PathBuf::from("templates/generic-theme.txt"),
+                template_path: generic_template_path(),
             },
         }
     }
@@ -176,6 +177,7 @@ pub enum ExportError {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::io::Write;
     use std::sync::Mutex;
 
@@ -273,8 +275,8 @@ mod tests {
     }
 
     #[test]
-    fn export_with_profile_resolves_dot_prefixed_bundled_alacritty_templates_without_using_current_dir()
-     {
+    fn export_with_profile_resolves_explicit_bundled_alacritty_templates_without_using_current_dir()
+    {
         let _guard = current_dir_test_guard();
         let _restore = CurrentDirRestore(std::env::current_dir().unwrap());
         let temp_dir = tempdir().unwrap();
@@ -289,7 +291,7 @@ mod tests {
                 enabled: true,
                 output_path: std::path::PathBuf::from("exports/alacritty-theme.toml"),
                 format: ExportFormat::Template {
-                    template_path: std::path::PathBuf::from("./templates/alacritty.toml"),
+                    template_path: crate::export::alacritty::bundled_template_path(),
                 },
             },
             "Ignored Project",
@@ -303,8 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn export_with_profile_resolves_dot_prefixed_bundled_generic_templates_without_using_current_dir()
-     {
+    fn export_with_profile_resolves_explicit_bundled_generic_templates_without_using_current_dir() {
         let _guard = current_dir_test_guard();
         let _restore = CurrentDirRestore(std::env::current_dir().unwrap());
         let temp_dir = tempdir().unwrap();
@@ -319,7 +320,7 @@ mod tests {
                 enabled: true,
                 output_path: std::path::PathBuf::from("exports/theme-template.txt"),
                 format: ExportFormat::Template {
-                    template_path: std::path::PathBuf::from("./templates/generic-theme.txt"),
+                    template_path: crate::export::alacritty::generic_template_path(),
                 },
             },
             "Ignored Project",
@@ -330,5 +331,40 @@ mod tests {
         let output = output.unwrap();
         assert!(output.contains("profile=Template"));
         assert!(output.contains("background=#"));
+    }
+
+    #[test]
+    fn export_with_profile_does_not_rewrite_relative_paths_matching_bundled_templates() {
+        let _guard = current_dir_test_guard();
+        let _restore = CurrentDirRestore(std::env::current_dir().unwrap());
+        let temp_dir = tempdir().unwrap();
+        let template_dir = temp_dir.path().join("templates");
+
+        fs::create_dir_all(&template_dir).unwrap();
+        fs::write(
+            template_dir.join("generic-theme.txt"),
+            "project-local={{meta.project_name}}\n",
+        )
+        .unwrap();
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let params = ThemeParams::default();
+        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+        let output = export_with_profile(
+            &ExportProfile {
+                name: "Template".to_string(),
+                enabled: true,
+                output_path: std::path::PathBuf::from("exports/theme-template.txt"),
+                format: ExportFormat::Template {
+                    template_path: std::path::PathBuf::from("templates/generic-theme.txt"),
+                },
+            },
+            "Project Local",
+            &theme,
+            &params,
+        )
+        .unwrap();
+
+        assert_eq!(output, "project-local=Project Local\n");
     }
 }
