@@ -128,6 +128,7 @@ mod tests {
 
     use crate::app::{AppState, Intent};
     use crate::export::ExportFormat;
+    use crate::tokens::{PaletteSlot, TokenRole};
 
     use super::CoreSession;
 
@@ -164,13 +165,28 @@ mod tests {
         let mut session = CoreSession::new(state);
         session.dispatch(Intent::ExportThemeRequested);
 
+        let expected_background = session
+            .state()
+            .domain
+            .resolved
+            .token(TokenRole::Background)
+            .unwrap()
+            .to_hex();
+        let expected_palette_bg0 = session
+            .state()
+            .domain
+            .resolved
+            .palette
+            .get(PaletteSlot::Bg0)
+            .unwrap()
+            .to_hex();
         let output = fs::read_to_string(&output_path).unwrap();
         assert!(output.contains("project=Session Project"));
         assert!(output.contains("profile=Session Template"));
         assert!(output.contains("format=template"));
         assert!(output.contains(&format!("output={}", output_path.display())));
-        assert!(output.contains("background=#"));
-        assert!(output.contains("palette=#"));
+        assert!(output.contains(&format!("background={expected_background}")));
+        assert!(output.contains(&format!("palette={expected_palette_bg0}")));
         assert!(output.contains("contrast=0.42"));
         assert!(output.contains("exporter=Template"));
         assert!(output.contains("exporter_key=template"));
