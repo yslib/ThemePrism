@@ -334,6 +334,28 @@ mod tests {
     }
 
     #[test]
+    fn export_with_profile_resolves_default_generic_template_without_using_current_dir() {
+        let _guard = current_dir_test_guard();
+        let _restore = CurrentDirRestore(std::env::current_dir().unwrap());
+        let temp_dir = tempdir().unwrap();
+
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let params = ThemeParams::default();
+        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+        let output = export_with_profile(
+            &ExportProfile::template_default(),
+            "Ignored Project",
+            &theme,
+            &params,
+        )
+        .unwrap();
+
+        assert!(output.contains("profile=Template"));
+        assert!(output.contains("background=#"));
+    }
+
+    #[test]
     fn export_with_profile_does_not_rewrite_relative_paths_matching_bundled_templates() {
         let _guard = current_dir_test_guard();
         let _restore = CurrentDirRestore(std::env::current_dir().unwrap());
