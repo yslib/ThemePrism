@@ -5,7 +5,7 @@ use crate::app::interaction::SurfaceId;
 use crate::app::state::AppState;
 use crate::domain::params::ThemeParams;
 use crate::domain::rules::RuleSet;
-use crate::export::{default_export_profiles, ExportFormat};
+use crate::export::default_export_profiles;
 use crate::i18n::{self, UiText};
 
 use super::{modals, tr, tr1};
@@ -131,16 +131,14 @@ pub(super) fn set_export_template_path(
     let locale = state.locale();
     match state.project.export_profiles.get_mut(index) {
         Some(profile) => {
-            profile.format = ExportFormat::Template {
-                template_path: path,
-            };
+            profile.set_template_path(path);
             state.ui.status = i18n::format2(
                 locale,
                 UiText::StatusExportTemplateUpdated,
                 "name",
                 &profile.name,
                 "path",
-                profile.template_path().display(),
+                profile.configured_template_path().display(),
             );
         }
         None => {

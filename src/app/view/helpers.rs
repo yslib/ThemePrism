@@ -73,7 +73,7 @@ pub(crate) fn config_field_value(state: &AppState, field: ConfigFieldId) -> Stri
             .project
             .export_profiles
             .get(index)
-            .map(|profile| profile.template_path().display().to_string())
+            .map(|profile| profile.configured_template_path().display().to_string())
             .unwrap_or_else(|| "-".to_string()),
     }
 }

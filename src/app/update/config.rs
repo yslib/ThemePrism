@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use crate::app::effect::{EditorConfigData, Effect};
 use crate::app::state::{AppState, ConfigFieldId, TextInputTarget};
-use crate::export::ExportFormat;
 use crate::i18n::{self, UiText};
 use crate::persistence::editor_config::{EditorKeymapPreset, EditorLocale};
 
@@ -10,12 +9,10 @@ use super::{cycle_index, text_input, tr, tr1};
 
 pub fn config_fields(state: &AppState) -> Vec<ConfigFieldId> {
     let mut fields = vec![ConfigFieldId::ProjectName];
-    for (index, profile) in state.project.export_profiles.iter().enumerate() {
+    for (index, _) in state.project.export_profiles.iter().enumerate() {
         fields.push(ConfigFieldId::ExportEnabled(index));
         fields.push(ConfigFieldId::ExportOutputPath(index));
-        if matches!(&profile.format, ExportFormat::Template { .. }) {
-            fields.push(ConfigFieldId::ExportTemplatePath(index));
-        }
+        fields.push(ConfigFieldId::ExportTemplatePath(index));
     }
     fields.push(ConfigFieldId::EditorProjectPath);
     fields.push(ConfigFieldId::EditorKeymapPreset);
@@ -167,25 +164,15 @@ pub(super) fn apply_config_input(
                         index + 1,
                     )
                 })?;
-            match &mut profile.format {
-                ExportFormat::Template { template_path } => {
-                    *template_path = value.into();
-                    Ok(i18n::format2(
-                        locale,
-                        UiText::StatusExportTemplateUpdated,
-                        "name",
-                        &profile.name,
-                        "path",
-                        template_path.display(),
-                    ))
-                }
-                ExportFormat::Alacritty => Err(i18n::format1(
-                    locale,
-                    UiText::ErrorExportNoTemplatePath,
-                    "name",
-                    &profile.name,
-                )),
-            }
+            profile.set_template_path(value.into());
+            Ok(i18n::format2(
+                locale,
+                UiText::StatusExportTemplateUpdated,
+                "name",
+                &profile.name,
+                "path",
+                profile.configured_template_path().display(),
+            ))
         }
         ConfigFieldId::ExportEnabled(index) => Err(tr1(
             state,

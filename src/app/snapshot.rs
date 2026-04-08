@@ -231,7 +231,7 @@ pub fn build_snapshot(state: &AppState) -> AppSnapshot {
                 label: format!("{} ({})", profile.name, profile.format_label()),
                 enabled: profile.enabled,
                 output_path: profile.output_path.display().to_string(),
-                template_path: Some(profile.template_path().display().to_string()),
+                template_path: Some(profile.configured_template_path().display().to_string()),
             })
             .collect(),
         editor_fields: editor_config_fields(state),

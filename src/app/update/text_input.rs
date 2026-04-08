@@ -3,9 +3,8 @@ use crate::app::effect::Effect;
 use crate::app::state::{AppState, SourcePickerState, TextInputState, TextInputTarget};
 use crate::domain::color::Color;
 use crate::domain::params::ParamKey;
-use crate::domain::rules::{Rule, SourceOption, available_source_options};
+use crate::domain::rules::{available_source_options, Rule, SourceOption};
 use crate::domain::tokens::TokenRole;
-use crate::export::ExportFormat;
 use crate::i18n::UiText;
 
 use super::{config, cycle_index, inspector, modals, navigation, tr, tr1, tr2};
@@ -270,12 +269,7 @@ pub fn default_input_buffer(state: &AppState, target: TextInputTarget) -> String
                 .project
                 .export_profiles
                 .get(index)
-                .and_then(|profile| match &profile.format {
-                    ExportFormat::Template { template_path } => {
-                        Some(template_path.display().to_string())
-                    }
-                    ExportFormat::Alacritty => None,
-                })
+                .map(|profile| profile.configured_template_path().display().to_string())
                 .unwrap_or_default(),
             crate::app::state::ConfigFieldId::ExportEnabled(_) => String::new(),
         },

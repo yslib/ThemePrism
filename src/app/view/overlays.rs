@@ -95,7 +95,7 @@ pub(crate) fn build_config_overlay(state: &AppState) -> Option<OverlayView> {
         ),
     ];
 
-    for (index, profile) in state.project.export_profiles.iter().enumerate() {
+    for (index, _) in state.project.export_profiles.iter().enumerate() {
         lines.push(config_field_line(
             state,
             ConfigFieldId::ExportEnabled(index),
@@ -106,16 +106,11 @@ pub(crate) fn build_config_overlay(state: &AppState) -> Option<OverlayView> {
             ConfigFieldId::ExportOutputPath(index),
             selected,
         ));
-        if matches!(
-            &profile.format,
-            crate::export::ExportFormat::Template { .. }
-        ) {
-            lines.push(config_field_line(
-                state,
-                ConfigFieldId::ExportTemplatePath(index),
-                selected,
-            ));
-        }
+        lines.push(config_field_line(
+            state,
+            ConfigFieldId::ExportTemplatePath(index),
+            selected,
+        ));
     }
 
     lines.push(section_header_line(

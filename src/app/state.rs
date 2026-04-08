@@ -8,16 +8,16 @@ use crate::app::interaction::SurfaceId;
 use crate::app::ui_meta::panel_workspace_tab;
 use crate::app::workspace::{PanelId, WorkspaceTab};
 use crate::domain::color::Color;
-use crate::domain::evaluator::{EvalError, ResolvedTheme, resolve_theme};
-use crate::domain::palette::{Palette, generate_palette};
+use crate::domain::evaluator::{resolve_theme, EvalError, ResolvedTheme};
+use crate::domain::palette::{generate_palette, Palette};
 use crate::domain::params::{ParamKey, ThemeParams};
 use crate::domain::preview::PreviewState;
 use crate::domain::rules::RuleSet;
 use crate::domain::tokens::{PaletteSlot, TokenRole};
-use crate::export::{ExportProfile, default_export_profiles};
+use crate::export::{default_export_profiles, ExportProfile};
 use crate::i18n::{self, UiText};
 use crate::persistence::editor_config::{
-    DEFAULT_PROJECT_PATH, EditorConfig, EditorKeymapPreset, EditorLocale,
+    EditorConfig, EditorKeymapPreset, EditorLocale, DEFAULT_PROJECT_PATH,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -294,15 +294,10 @@ impl AppState {
 
     pub fn export_fields(&self) -> Vec<ConfigFieldId> {
         let mut fields = Vec::new();
-        for (index, profile) in self.project.export_profiles.iter().enumerate() {
+        for (index, _) in self.project.export_profiles.iter().enumerate() {
             fields.push(ConfigFieldId::ExportEnabled(index));
             fields.push(ConfigFieldId::ExportOutputPath(index));
-            if matches!(
-                &profile.format,
-                crate::export::ExportFormat::Template { .. }
-            ) {
-                fields.push(ConfigFieldId::ExportTemplatePath(index));
-            }
+            fields.push(ConfigFieldId::ExportTemplatePath(index));
         }
         fields
     }

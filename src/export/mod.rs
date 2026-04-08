@@ -9,7 +9,9 @@ use thiserror::Error;
 
 use crate::domain::params::ThemeParams;
 use crate::evaluator::ResolvedTheme;
-use crate::export::alacritty::{bundled_template_path, BUNDLED_TEMPLATE_PATH};
+use crate::export::alacritty::{
+    bundled_template_path, resolve_bundled_template_path, BUNDLED_TEMPLATE_PATH,
+};
 use crate::export::context::ExportContext;
 use crate::export::template::TemplateExporter;
 
@@ -43,6 +45,26 @@ impl ExportFormat {
             Self::Alacritty => "alacritty",
             Self::Template { .. } => "template",
         }
+    }
+
+    pub fn configured_template_path(&self) -> &Path {
+        match self {
+            Self::Alacritty => Path::new(BUNDLED_TEMPLATE_PATH),
+            Self::Template { template_path } => template_path.as_path(),
+        }
+    }
+
+    pub fn resolved_template_path(&self) -> PathBuf {
+        match self {
+            Self::Alacritty => resolve_bundled_template_path(Path::new(BUNDLED_TEMPLATE_PATH))
+                .expect("missing bundled Alacritty template path mapping"),
+            Self::Template { template_path } => resolve_bundled_template_path(template_path)
+                .unwrap_or_else(|| template_path.clone()),
+        }
+    }
+
+    pub fn set_template_path(&mut self, template_path: PathBuf) {
+        *self = Self::Template { template_path };
     }
 }
 
@@ -101,11 +123,16 @@ impl ExportProfile {
         }
     }
 
-    pub fn template_path(&self) -> &Path {
-        match &self.format {
-            ExportFormat::Alacritty => Path::new(BUNDLED_TEMPLATE_PATH),
-            ExportFormat::Template { template_path } => template_path.as_path(),
-        }
+    pub fn configured_template_path(&self) -> &Path {
+        self.format.configured_template_path()
+    }
+
+    pub fn resolved_template_path(&self) -> PathBuf {
+        self.format.resolved_template_path()
+    }
+
+    pub fn set_template_path(&mut self, template_path: PathBuf) {
+        self.format.set_template_path(template_path);
     }
 
     pub fn summary_label(&self) -> String {
@@ -129,7 +156,7 @@ pub fn export_with_profile(
 ) -> Result<String, ExportError> {
     let profile = profile.normalize();
     let context = ExportContext::builder(project_name, &profile, theme, params).build()?;
-    TemplateExporter::from_path(profile.template_path())?.export_with_context(&context)
+    TemplateExporter::from_path(&profile.resolved_template_path())?.export_with_context(&context)
 }
 
 #[derive(Debug, Error)]
@@ -150,6 +177,7 @@ pub enum ExportError {
 #[cfg(test)]
 mod tests {
     use std::io::Write;
+    use std::sync::Mutex;
 
     use crate::domain::palette::generate_palette;
     use crate::domain::params::ThemeParams;
@@ -157,7 +185,17 @@ mod tests {
     use crate::evaluator::resolve_theme;
 
     use super::{export_with_profile, ExportFormat, ExportProfile};
-    use tempfile::NamedTempFile;
+    use tempfile::{tempdir, NamedTempFile};
+
+    static CURRENT_DIR_LOCK: Mutex<()> = Mutex::new(());
+
+    struct CurrentDirRestore(std::path::PathBuf);
+
+    impl Drop for CurrentDirRestore {
+        fn drop(&mut self) {
+            std::env::set_current_dir(&self.0).unwrap();
+        }
+    }
 
     #[test]
     fn export_with_profile_uses_export_context_for_template_profiles() {
@@ -202,6 +240,28 @@ mod tests {
 
         let output = export_with_profile(&profile, "Ignored Project", &theme, &params).unwrap();
 
+        assert!(output.contains("[colors.primary]"));
+        assert!(output.contains("background = \""));
+    }
+
+    #[test]
+    fn export_with_profile_resolves_bundled_alacritty_templates_without_using_current_dir() {
+        let _guard = CURRENT_DIR_LOCK.lock().unwrap();
+        let _restore = CurrentDirRestore(std::env::current_dir().unwrap());
+        let temp_dir = tempdir().unwrap();
+
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let params = ThemeParams::default();
+        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+        let output = export_with_profile(
+            &ExportProfile::alacritty_default(),
+            "Ignored Project",
+            &theme,
+            &params,
+        );
+
+        let output = output.unwrap();
         assert!(output.contains("[colors.primary]"));
         assert!(output.contains("background = \""));
     }

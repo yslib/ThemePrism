@@ -3,10 +3,10 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use crate::app::snapshot::{AppSnapshot, build_snapshot};
-use crate::app::view::{ViewTree, build_view};
-use crate::app::{AppState, Effect, Intent, update};
-use crate::export::{ExportArtifact, export_with_profile};
+use crate::app::snapshot::{build_snapshot, AppSnapshot};
+use crate::app::view::{build_view, ViewTree};
+use crate::app::{update, AppState, Effect, Intent};
+use crate::export::{export_with_profile, ExportArtifact};
 use crate::persistence::editor_config::save_editor_config;
 use crate::persistence::project_file::{load_project, save_project};
 
@@ -156,9 +156,7 @@ mod tests {
             .unwrap();
         profile.name = "Session Template".to_string();
         profile.output_path = output_file.path().to_path_buf();
-        if let ExportFormat::Template { template_path } = &mut profile.format {
-            *template_path = template_file.path().to_path_buf();
-        }
+        profile.set_template_path(template_file.path().to_path_buf());
         profile.enabled = true;
 
         let mut session = CoreSession::new(state);
