@@ -157,8 +157,25 @@ mod tests {
     }
 
     #[test]
+    fn legacy_alacritty_profile_normalizes_profile_format_in_context() {
+        let params = ThemeParams::default();
+        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+        let profile = ExportProfile::alacritty_default().normalize();
+
+        let context = ExportContext::builder("Demo Project", &profile, &theme, &params)
+            .build()
+            .unwrap();
+
+        assert_eq!(context.meta.profile_format, "template");
+    }
+
+    #[test]
     fn context_includes_all_token_palette_and_param_keys() {
         let context = build_context();
+
+        assert_eq!(context.token.len(), TokenRole::ALL.len());
+        assert_eq!(context.palette.len(), PaletteSlot::ALL.len());
+        assert_eq!(context.param.len(), ParamKey::ALL.len());
 
         let token_keys: BTreeSet<_> = context.token.keys().cloned().collect();
         let expected_token_keys: BTreeSet<_> = TokenRole::ALL
