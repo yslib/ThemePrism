@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::color::Color;
 use crate::domain::params::{ParamKey, ThemeParams};
 use crate::evaluator::ResolvedTheme;
-use crate::export::{ExportError, ExportFormat, ExportProfile};
+use crate::export::{ExportError, ExportProfile};
 use crate::tokens::{PaletteSlot, TokenRole};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,10 +70,7 @@ impl<'a> ExportContextBuilder<'a> {
         let meta = ExportMeta {
             project_name: self.project_name.to_string(),
             profile_name: self.profile.name.clone(),
-            profile_format: match &self.profile.format {
-                ExportFormat::Alacritty => "alacritty".to_string(),
-                ExportFormat::Template { .. } => "template".to_string(),
-            },
+            profile_format: self.profile.format.key().to_string(),
             output_path: self.profile.output_path.display().to_string(),
             exporter: self.profile.format_label().to_string(),
             exporter_key: self.profile.format_key().to_string(),
@@ -120,7 +117,7 @@ impl<'a> ExportContextBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use super::{ExportContext, ExportValue};
     use crate::domain::palette::Palette;
@@ -162,6 +159,27 @@ mod tests {
     #[test]
     fn context_includes_all_token_palette_and_param_keys() {
         let context = build_context();
+
+        let token_keys: BTreeSet<_> = context.token.keys().cloned().collect();
+        let expected_token_keys: BTreeSet<_> = TokenRole::ALL
+            .into_iter()
+            .map(|role| role.key().to_string())
+            .collect();
+        assert_eq!(token_keys, expected_token_keys);
+
+        let palette_keys: BTreeSet<_> = context.palette.keys().cloned().collect();
+        let expected_palette_keys: BTreeSet<_> = PaletteSlot::ALL
+            .into_iter()
+            .map(|slot| slot.key().to_string())
+            .collect();
+        assert_eq!(palette_keys, expected_palette_keys);
+
+        let param_keys: BTreeSet<_> = context.param.keys().cloned().collect();
+        let expected_param_keys: BTreeSet<_> = ParamKey::ALL
+            .into_iter()
+            .map(|key| key.key().to_string())
+            .collect();
+        assert_eq!(param_keys, expected_param_keys);
 
         for role in TokenRole::ALL {
             assert!(matches!(
