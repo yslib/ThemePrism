@@ -127,7 +127,7 @@ mod tests {
     use crate::domain::tokens::{PaletteSlot, TokenRole};
     use crate::evaluator::ResolvedTheme;
     use crate::evaluator::resolve_theme;
-    use crate::export::{ExportError, ExportProfile};
+    use crate::export::{ExportError, ExportFormat, ExportProfile};
 
     fn build_context() -> ExportContext {
         let params = ThemeParams::default();
@@ -160,7 +160,13 @@ mod tests {
     fn legacy_alacritty_profile_normalizes_profile_format_in_context() {
         let params = ThemeParams::default();
         let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
-        let profile = ExportProfile::alacritty_default().normalize();
+        let profile = ExportProfile {
+            name: "Alacritty".to_string(),
+            enabled: true,
+            output_path: std::path::PathBuf::from("exports/alacritty-theme.toml"),
+            format: ExportFormat::Alacritty,
+        }
+        .normalize();
 
         let context = ExportContext::builder("Demo Project", &profile, &theme, &params)
             .build()
