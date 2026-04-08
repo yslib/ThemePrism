@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 pub const BUNDLED_TEMPLATE_PATH: &str = "templates/alacritty.toml";
 pub const GENERIC_TEMPLATE_PATH: &str = "templates/generic-theme.txt";
@@ -8,11 +8,24 @@ pub fn bundled_template_path() -> PathBuf {
 }
 
 pub fn resolve_bundled_template_path(path: &Path) -> Option<PathBuf> {
-    match path {
-        path if path == Path::new(BUNDLED_TEMPLATE_PATH) => Some(bundled_template_absolute_path()),
-        path if path == Path::new(GENERIC_TEMPLATE_PATH) => Some(generic_template_absolute_path()),
+    match () {
+        _ if matches_bundled_template_marker(path, BUNDLED_TEMPLATE_PATH) => {
+            Some(bundled_template_absolute_path())
+        }
+        _ if matches_bundled_template_marker(path, GENERIC_TEMPLATE_PATH) => {
+            Some(generic_template_absolute_path())
+        }
         _ => None,
     }
+}
+
+fn matches_bundled_template_marker(path: &Path, marker: &str) -> bool {
+    normalized_components(path).eq(normalized_components(Path::new(marker)))
+}
+
+fn normalized_components(path: &Path) -> impl Iterator<Item = Component<'_>> {
+    path.components()
+        .filter(|component| !matches!(component, Component::CurDir))
 }
 
 fn bundled_template_absolute_path() -> PathBuf {

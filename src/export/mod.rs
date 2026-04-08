@@ -197,6 +197,12 @@ mod tests {
         }
     }
 
+    fn current_dir_test_guard() -> std::sync::MutexGuard<'static, ()> {
+        CURRENT_DIR_LOCK
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+    }
+
     #[test]
     fn export_with_profile_uses_export_context_for_template_profiles() {
         let mut file = NamedTempFile::new().unwrap();
@@ -246,7 +252,7 @@ mod tests {
 
     #[test]
     fn export_with_profile_resolves_bundled_alacritty_templates_without_using_current_dir() {
-        let _guard = CURRENT_DIR_LOCK.lock().unwrap();
+        let _guard = current_dir_test_guard();
         let _restore = CurrentDirRestore(std::env::current_dir().unwrap());
         let temp_dir = tempdir().unwrap();
 
@@ -264,5 +270,65 @@ mod tests {
         let output = output.unwrap();
         assert!(output.contains("[colors.primary]"));
         assert!(output.contains("background = \""));
+    }
+
+    #[test]
+    fn export_with_profile_resolves_dot_prefixed_bundled_alacritty_templates_without_using_current_dir(
+    ) {
+        let _guard = current_dir_test_guard();
+        let _restore = CurrentDirRestore(std::env::current_dir().unwrap());
+        let temp_dir = tempdir().unwrap();
+
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let params = ThemeParams::default();
+        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+        let output = export_with_profile(
+            &ExportProfile {
+                name: "Alacritty".to_string(),
+                enabled: true,
+                output_path: std::path::PathBuf::from("exports/alacritty-theme.toml"),
+                format: ExportFormat::Template {
+                    template_path: std::path::PathBuf::from("./templates/alacritty.toml"),
+                },
+            },
+            "Ignored Project",
+            &theme,
+            &params,
+        );
+
+        let output = output.unwrap();
+        assert!(output.contains("[colors.primary]"));
+        assert!(output.contains("background = \""));
+    }
+
+    #[test]
+    fn export_with_profile_resolves_dot_prefixed_bundled_generic_templates_without_using_current_dir(
+    ) {
+        let _guard = current_dir_test_guard();
+        let _restore = CurrentDirRestore(std::env::current_dir().unwrap());
+        let temp_dir = tempdir().unwrap();
+
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let params = ThemeParams::default();
+        let theme = resolve_theme(generate_palette(&params), &RuleSet::default()).unwrap();
+        let output = export_with_profile(
+            &ExportProfile {
+                name: "Template".to_string(),
+                enabled: true,
+                output_path: std::path::PathBuf::from("exports/theme-template.txt"),
+                format: ExportFormat::Template {
+                    template_path: std::path::PathBuf::from("./templates/generic-theme.txt"),
+                },
+            },
+            "Ignored Project",
+            &theme,
+            &params,
+        );
+
+        let output = output.unwrap();
+        assert!(output.contains("profile=Template"));
+        assert!(output.contains("background=#"));
     }
 }
