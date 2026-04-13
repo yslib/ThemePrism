@@ -1,14 +1,15 @@
-use std::collections::VecDeque;
-use std::fs;
-use std::io;
-use std::path::Path;
-
 use crate::app::snapshot::{AppSnapshot, build_snapshot};
 use crate::app::view::{ViewTree, build_view};
 use crate::app::{AppState, Effect, Intent, update};
-use crate::export::{ExportArtifact, export_with_profile};
+use crate::export::managed_block::patch_managed_block_contents;
+use crate::export::{
+    ExportArtifact, ExportProfile, ExportWriteMode, export_with_profile, resolve_output_path,
+};
 use crate::persistence::editor_config::save_editor_config;
 use crate::persistence::project_file::{load_project, save_project};
+use std::collections::VecDeque;
+use std::fs;
+use std::io;
 
 #[derive(Debug)]
 pub struct CoreSession {
@@ -97,11 +98,11 @@ impl CoreSession {
                     for profile in enabled {
                         let content = export_with_profile(&profile, &project_name, &theme, &params)
                             .map_err(|err| err.to_string())?;
-                        write_export(&profile.output_path, &content)
-                            .map_err(|err| err.to_string())?;
+                        let output_path =
+                            write_export(&profile, &content).map_err(|err| err.to_string())?;
                         artifacts.push(ExportArtifact {
                             profile_name: profile.name.clone(),
-                            output_path: profile.output_path.clone(),
+                            output_path,
                         });
                     }
 
@@ -113,11 +114,26 @@ impl CoreSession {
     }
 }
 
-fn write_export(path: &Path, content: &str) -> io::Result<()> {
+fn write_export(profile: &ExportProfile, content: &str) -> io::Result<std::path::PathBuf> {
+    let path = resolve_output_path(&profile.output_path);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(path, content)
+
+    match profile.write_mode {
+        ExportWriteMode::ReplaceFile => fs::write(&path, content)?,
+        ExportWriteMode::ManagedBlock => {
+            let existing = match fs::read_to_string(&path) {
+                Ok(existing) => existing,
+                Err(err) if err.kind() == io::ErrorKind::NotFound => String::new(),
+                Err(err) => return Err(err),
+            };
+            let patched = patch_managed_block_contents(&existing, content);
+            fs::write(&path, patched)?;
+        }
+    }
+
+    Ok(path)
 }
 
 #[cfg(test)]
@@ -197,5 +213,42 @@ mod tests {
                 .status
                 .contains(&format!("{}", output_path.display()))
         );
+    }
+
+    #[test]
+    fn export_flow_patches_alacritty_managed_block_without_overwriting_other_config() {
+        let temp_dir = tempdir().unwrap();
+        let output_path = temp_dir.path().join("alacritty.toml");
+        fs::write(
+            &output_path,
+            format!(
+                "live = true\n{}\nold = \"value\"\n{}\nother = 42\n",
+                crate::export::managed_block::managed_block_start_marker(),
+                crate::export::managed_block::managed_block_end_marker()
+            ),
+        )
+        .unwrap();
+
+        let mut state = AppState::new().unwrap();
+        for profile in &mut state.project.export_profiles {
+            profile.enabled = false;
+        }
+        let profile = state
+            .project
+            .export_profiles
+            .iter_mut()
+            .find(|profile| profile.name == "Alacritty")
+            .unwrap();
+        profile.output_path = output_path.clone();
+        profile.enabled = true;
+
+        let mut session = CoreSession::new(state);
+        session.dispatch(Intent::ExportThemeRequested);
+
+        let output = fs::read_to_string(&output_path).unwrap();
+        assert!(output.contains("live = true"));
+        assert!(output.contains("other = 42"));
+        assert!(output.contains("[colors.primary]"));
+        assert!(!output.contains("old = \"value\""));
     }
 }

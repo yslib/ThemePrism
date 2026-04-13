@@ -43,7 +43,7 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
             ],
         )
         .map(bound_action_to_ui_action),
-        SurfaceId::SourcePicker => match_action(
+        SurfaceId::SourcePicker => map_text_first_surface_action(
             preset,
             key,
             &[
@@ -54,23 +54,36 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
                 BoundAction::Backspace,
                 BoundAction::Clear,
             ],
-        )
-        .map(bound_action_to_ui_action)
-        .or_else(|| free_text_action(key)),
-        SurfaceId::NumericEditorSurface => match_action(
-            preset,
-            key,
-            &[
-                BoundAction::Cancel,
-                BoundAction::Apply,
-                BoundAction::MoveLeft,
-                BoundAction::MoveRight,
-                BoundAction::Backspace,
-                BoundAction::Clear,
-            ],
-        )
-        .map(bound_action_to_ui_action)
-        .or_else(|| free_text_action(key)),
+        ),
+        SurfaceId::NumericEditorSurface => {
+            if active_text_input_supports_numeric_editor(state) {
+                match_action(
+                    preset,
+                    key,
+                    &[
+                        BoundAction::Cancel,
+                        BoundAction::Apply,
+                        BoundAction::MoveLeft,
+                        BoundAction::MoveRight,
+                        BoundAction::Backspace,
+                        BoundAction::Clear,
+                    ],
+                )
+                .map(bound_action_to_ui_action)
+                .or_else(|| free_text_action(key))
+            } else {
+                map_text_first_surface_action(
+                    preset,
+                    key,
+                    &[
+                        BoundAction::Cancel,
+                        BoundAction::Apply,
+                        BoundAction::Backspace,
+                        BoundAction::Clear,
+                    ],
+                )
+            }
+        }
         SurfaceId::ConfigDialog => match_action(
             preset,
             key,
@@ -84,21 +97,18 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
             ],
         )
         .map(bound_action_to_ui_action),
-        SurfaceId::CommandPalette => free_text_action(key).or_else(|| {
-            match_action(
-                preset,
-                key,
-                &[
-                    BoundAction::Cancel,
-                    BoundAction::Apply,
-                    BoundAction::MoveUp,
-                    BoundAction::MoveDown,
-                    BoundAction::Backspace,
-                    BoundAction::Clear,
-                ],
-            )
-            .map(bound_action_to_ui_action)
-        }),
+        SurfaceId::CommandPalette => map_text_first_surface_action(
+            preset,
+            key,
+            &[
+                BoundAction::Cancel,
+                BoundAction::Apply,
+                BoundAction::MoveUp,
+                BoundAction::MoveDown,
+                BoundAction::Backspace,
+                BoundAction::Clear,
+            ],
+        ),
         surface if surface.is_workspace_surface() => {
             if matches!(
                 state.ui.interaction.current_mode(),
@@ -153,6 +163,24 @@ fn map_ui_action(state: &AppState, key: &KeyEvent) -> Option<UiAction> {
         }
         _ => None,
     }
+}
+
+fn active_text_input_supports_numeric_editor(state: &AppState) -> bool {
+    state.ui.text_input.as_ref().is_some_and(|input| {
+        matches!(
+            input.target,
+            crate::app::state::TextInputTarget::Control(control) if control.supports_numeric_editor()
+        )
+    })
+}
+
+fn map_text_first_surface_action(
+    preset: crate::persistence::editor_config::EditorKeymapPreset,
+    key: &KeyEvent,
+    actions: &[BoundAction],
+) -> Option<UiAction> {
+    free_text_action(key)
+        .or_else(|| match_action(preset, key, actions).map(bound_action_to_ui_action))
 }
 
 fn free_text_action(key: &KeyEvent) -> Option<UiAction> {
@@ -282,6 +310,71 @@ mod tests {
             intents.as_slice(),
             [Intent::AppendCommandPaletteQuery('j')]
         ));
+    }
+
+    #[test]
+    fn plain_text_input_uses_printable_chars_under_vim_preset() {
+        let mut state = AppState::new().unwrap();
+        state.editor.keymap_preset = EditorKeymapPreset::Vim;
+        state.ui.text_input = Some(crate::app::state::TextInputState {
+            target: crate::app::state::TextInputTarget::Config(
+                crate::app::state::ConfigFieldId::ProjectName,
+            ),
+            buffer: String::new(),
+        });
+        state.ui.interaction.focus_path = vec![
+            crate::app::interaction::SurfaceId::AppRoot,
+            crate::app::interaction::SurfaceId::MainWindow,
+            crate::app::interaction::SurfaceId::NumericEditorSurface,
+        ];
+        state
+            .ui
+            .interaction
+            .push_mode(crate::app::interaction::InteractionMode::Modal {
+                owner: crate::app::interaction::SurfaceId::NumericEditorSurface,
+            });
+
+        for ch in ['h', 'j', 'k', 'l'] {
+            let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Char(ch)));
+            assert!(
+                matches!(intents.as_slice(), [Intent::AppendTextInput(actual)] if *actual == ch),
+                "expected {ch} to append into text input, got {intents:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn source_picker_filter_uses_printable_chars_under_vim_preset() {
+        let mut state = AppState::new().unwrap();
+        state.editor.keymap_preset = EditorKeymapPreset::Vim;
+        state.ui.source_picker = Some(crate::app::state::SourcePickerState {
+            control: crate::app::controls::ControlId::Reference(
+                crate::domain::tokens::TokenRole::Background,
+                crate::app::controls::ReferenceField::AliasSource,
+            ),
+            filter: String::new(),
+            selected: 0,
+        });
+        state.ui.interaction.focus_path = vec![
+            crate::app::interaction::SurfaceId::AppRoot,
+            crate::app::interaction::SurfaceId::MainWindow,
+            crate::app::interaction::SurfaceId::InspectorPanel,
+            crate::app::interaction::SurfaceId::SourcePicker,
+        ];
+        state
+            .ui
+            .interaction
+            .push_mode(crate::app::interaction::InteractionMode::Modal {
+                owner: crate::app::interaction::SurfaceId::SourcePicker,
+            });
+
+        for ch in ['j', 'k'] {
+            let intents = TuiEventAdapter.map_event(&state, key(KeyCode::Char(ch)));
+            assert!(
+                matches!(intents.as_slice(), [Intent::AppendSourcePickerFilter(actual)] if *actual == ch),
+                "expected {ch} to append into source picker filter, got {intents:?}"
+            );
+        }
     }
 
     #[test]

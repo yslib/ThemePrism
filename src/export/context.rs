@@ -127,7 +127,7 @@ mod tests {
     use crate::domain::tokens::{PaletteSlot, TokenRole};
     use crate::evaluator::ResolvedTheme;
     use crate::evaluator::resolve_theme;
-    use crate::export::{ExportError, ExportFormat, ExportProfile};
+    use crate::export::{ExportError, ExportFormat, ExportProfile, ExportWriteMode};
 
     fn build_context() -> ExportContext {
         let params = ThemeParams::default();
@@ -164,6 +164,7 @@ mod tests {
             name: "Alacritty".to_string(),
             enabled: true,
             output_path: std::path::PathBuf::from("exports/alacritty-theme.toml"),
+            write_mode: ExportWriteMode::ReplaceFile,
             format: ExportFormat::Alacritty,
         }
         .normalize();

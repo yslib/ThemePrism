@@ -1,7 +1,0 @@
-profile=Template
-exporter=Template
-background=#1D1E21
-surface=#2F3237
-text=#DFE0E2
-keyword=#4E46EC
-string=#5EEE82

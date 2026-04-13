@@ -363,7 +363,7 @@ mod tests {
 
     use crate::app::effect::ProjectData;
     use crate::export::alacritty::{bundled_template_path, generic_template_path};
-    use crate::export::{ExportFormat, ExportProfile, default_export_profiles};
+    use crate::export::{ExportFormat, ExportProfile, ExportWriteMode, default_export_profiles};
     use crate::params::ThemeParams;
     use crate::persistence::project_file::{load_project, save_project};
     use crate::rules::RuleSet;
@@ -383,6 +383,7 @@ mod tests {
             name: "Alacritty".to_string(),
             enabled: true,
             output_path: "exports/alacritty-theme.toml".into(),
+            write_mode: ExportWriteMode::ReplaceFile,
             format: ExportFormat::Template {
                 template_path: bundled_template_path(),
             },
@@ -439,6 +440,7 @@ mod tests {
                 name: "Custom Template".to_string(),
                 enabled: true,
                 output_path: "exports/custom.conf".into(),
+                write_mode: ExportWriteMode::ReplaceFile,
                 format: ExportFormat::Template {
                     template_path: temp_dir.path().join("project/templates/custom.txt"),
                 },
@@ -463,6 +465,7 @@ mod tests {
             name: "Project Template".to_string(),
             enabled: true,
             output_path: "exports/project-template.txt".into(),
+            write_mode: ExportWriteMode::ReplaceFile,
             format: ExportFormat::Template {
                 template_path: "templates/custom.txt".into(),
             },

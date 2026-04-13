@@ -1,17 +1,19 @@
 pub mod alacritty;
 pub mod context;
+pub mod managed_block;
 pub mod template;
 
 use std::path::{Path, PathBuf};
 
+use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::domain::params::ThemeParams;
 use crate::evaluator::ResolvedTheme;
 use crate::export::alacritty::{
-    BUNDLED_TEMPLATE_PATH, bundled_template_path, generic_template_path,
-    resolve_bundled_template_path,
+    BUNDLED_TEMPLATE_PATH, bundled_template_path, default_alacritty_output_path,
+    generic_template_path, resolve_bundled_template_path,
 };
 use crate::export::context::ExportContext;
 use crate::export::template::TemplateExporter;
@@ -21,7 +23,23 @@ pub struct ExportProfile {
     pub name: String,
     pub enabled: bool,
     pub output_path: PathBuf,
+    #[serde(default, skip_serializing_if = "ExportWriteMode::is_replace_file")]
+    pub write_mode: ExportWriteMode,
     pub format: ExportFormat,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ExportWriteMode {
+    #[default]
+    ReplaceFile,
+    ManagedBlock,
+}
+
+impl ExportWriteMode {
+    pub const fn is_replace_file(&self) -> bool {
+        matches!(self, Self::ReplaceFile)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,7 +104,8 @@ impl ExportProfile {
         Self {
             name: "Alacritty".to_string(),
             enabled: true,
-            output_path: PathBuf::from("exports/alacritty-theme.toml"),
+            output_path: default_alacritty_output_path(),
+            write_mode: ExportWriteMode::ManagedBlock,
             format: ExportFormat::Template {
                 template_path: bundled_template_path(),
             },
@@ -98,6 +117,7 @@ impl ExportProfile {
             name: "Template".to_string(),
             enabled: false,
             output_path: PathBuf::from("exports/theme-template.txt"),
+            write_mode: ExportWriteMode::ReplaceFile,
             format: ExportFormat::Template {
                 template_path: generic_template_path(),
             },
@@ -120,6 +140,7 @@ impl ExportProfile {
             name: self.name.clone(),
             enabled: self.enabled,
             output_path: self.output_path.clone(),
+            write_mode: self.write_mode,
             format: self.format.clone().normalize(),
         }
     }
@@ -140,6 +161,23 @@ impl ExportProfile {
         let marker = if self.enabled { "[x]" } else { "[ ]" };
         format!("{marker} {} ({})", self.name, self.format_label())
     }
+}
+
+pub fn resolve_output_path(path: &Path) -> PathBuf {
+    let raw = path.to_string_lossy();
+    if raw == "~" {
+        return BaseDirs::new()
+            .map(|dirs| dirs.home_dir().to_path_buf())
+            .unwrap_or_else(|| path.to_path_buf());
+    }
+
+    if let Some(relative) = raw.strip_prefix("~/") {
+        return BaseDirs::new()
+            .map(|dirs| dirs.home_dir().join(relative))
+            .unwrap_or_else(|| path.to_path_buf());
+    }
+
+    path.to_path_buf()
 }
 
 pub fn default_export_profiles() -> Vec<ExportProfile> {
@@ -186,7 +224,7 @@ mod tests {
     use crate::domain::rules::RuleSet;
     use crate::evaluator::resolve_theme;
 
-    use super::{ExportFormat, ExportProfile, export_with_profile};
+    use super::{ExportFormat, ExportProfile, ExportWriteMode, export_with_profile};
     use tempfile::{NamedTempFile, tempdir};
 
     static CURRENT_DIR_LOCK: Mutex<()> = Mutex::new(());
@@ -220,6 +258,7 @@ mod tests {
             name: "Context Test".to_string(),
             enabled: true,
             output_path: std::path::PathBuf::from("exports/context-test.txt"),
+            write_mode: ExportWriteMode::ReplaceFile,
             format: ExportFormat::Template {
                 template_path: file.path().to_path_buf(),
             },
@@ -243,6 +282,7 @@ mod tests {
             name: "Alacritty".to_string(),
             enabled: true,
             output_path: std::path::PathBuf::from("exports/alacritty-theme.toml"),
+            write_mode: ExportWriteMode::ReplaceFile,
             format: ExportFormat::Alacritty,
         };
 
@@ -290,6 +330,7 @@ mod tests {
                 name: "Alacritty".to_string(),
                 enabled: true,
                 output_path: std::path::PathBuf::from("exports/alacritty-theme.toml"),
+                write_mode: ExportWriteMode::ReplaceFile,
                 format: ExportFormat::Template {
                     template_path: crate::export::alacritty::bundled_template_path(),
                 },
@@ -319,6 +360,7 @@ mod tests {
                 name: "Template".to_string(),
                 enabled: true,
                 output_path: std::path::PathBuf::from("exports/theme-template.txt"),
+                write_mode: ExportWriteMode::ReplaceFile,
                 format: ExportFormat::Template {
                     template_path: crate::export::alacritty::generic_template_path(),
                 },
@@ -377,6 +419,7 @@ mod tests {
                 name: "Template".to_string(),
                 enabled: true,
                 output_path: std::path::PathBuf::from("exports/theme-template.txt"),
+                write_mode: ExportWriteMode::ReplaceFile,
                 format: ExportFormat::Template {
                     template_path: std::path::PathBuf::from("templates/generic-theme.txt"),
                 },
@@ -388,5 +431,16 @@ mod tests {
         .unwrap();
 
         assert_eq!(output, "project-local=Project Local\n");
+    }
+
+    #[test]
+    fn default_alacritty_profile_targets_managed_block_in_user_config() {
+        let profile = ExportProfile::alacritty_default();
+
+        assert_eq!(
+            profile.output_path,
+            std::path::PathBuf::from("~/.config/alacritty/alacritty.toml")
+        );
+        assert_eq!(profile.write_mode, ExportWriteMode::ManagedBlock);
     }
 }

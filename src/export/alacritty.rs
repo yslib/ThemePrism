@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 pub const BUNDLED_TEMPLATE_PATH: &str = "@bundled/alacritty";
 pub const GENERIC_TEMPLATE_PATH: &str = "@bundled/generic-theme";
+pub const DEFAULT_ALACRITTY_CONFIG_PATH: &str = "~/.config/alacritty/alacritty.toml";
 
 const BUNDLED_TEMPLATE_CONTENTS: &str = include_str!("../../templates/alacritty.toml");
 const GENERIC_TEMPLATE_CONTENTS: &str = include_str!("../../templates/generic-theme.txt");
@@ -12,6 +13,10 @@ pub fn bundled_template_path() -> PathBuf {
 
 pub fn generic_template_path() -> PathBuf {
     PathBuf::from(GENERIC_TEMPLATE_PATH)
+}
+
+pub fn default_alacritty_output_path() -> PathBuf {
+    PathBuf::from(DEFAULT_ALACRITTY_CONFIG_PATH)
 }
 
 pub fn resolve_bundled_template_path(path: &Path) -> Option<PathBuf> {

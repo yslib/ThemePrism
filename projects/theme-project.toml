@@ -101,7 +101,8 @@ source = "accent_2"
 [[exports]]
 name = "Alacritty"
 enabled = true
-output_path = "exports/alacritty-theme.toml"
+output_path = "~/.config/alacritty/alacritty.toml"
+write_mode = "managed_block"
 
 [exports.format]
 type = "template"
