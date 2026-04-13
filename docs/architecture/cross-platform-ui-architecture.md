@@ -171,7 +171,7 @@ fn render(&self, native_ctx: &mut XxxPlatformContext)
 
 这是业务本体。
 
-例如你的主题生成器里：
+例如你的 ThemePrism 里：
 
 - `ThemeParams`
 - `RuleSet`
@@ -786,7 +786,7 @@ loop {
 
 ---
 
-## 10. 对你的主题生成器来说，控件层应该怎么抽象
+## 10. 对你的 ThemePrism 来说，控件层应该怎么抽象
 
 你现在这个项目里，最值得抽象的控件有这些：
 

@@ -499,7 +499,7 @@ crate::app::snapshot
 
 ---
 
-## 12. 你的主题生成器里，`Snapshot` 应该长什么样
+## 12. 你的 ThemePrism 里，`Snapshot` 应该长什么样
 
 如果以后给 AppKit shell 用，我建议它不要做成一个巨大无语义的通用树。
 

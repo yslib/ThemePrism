@@ -7,6 +7,7 @@ use std::io::{self, Write};
 use clap::{ArgAction, Parser, ValueEnum, error::ErrorKind};
 use thiserror::Error;
 
+use crate::branding::CLI_NAME;
 use crate::core::{AppState, CoreSession};
 use crate::i18n::{self, UiText};
 use crate::persistence::editor_config::load_editor_config;
@@ -56,7 +57,7 @@ pub enum LaunchCommand {
 
 #[derive(Debug, Clone, Parser)]
 #[command(
-    name = "theme",
+    name = CLI_NAME,
     about = "Generate terminal/editor themes from a shared color system.",
     long_about = None,
     disable_version_flag = true,
@@ -200,7 +201,7 @@ pub fn registered_platforms() -> &'static [PlatformDescriptor] {
 pub fn resolve_launch_command(
     args: impl IntoIterator<Item = String>,
 ) -> Result<LaunchCommand, PlatformError> {
-    let argv = std::iter::once("theme".to_string())
+    let argv = std::iter::once(CLI_NAME.to_string())
         .chain(args)
         .collect::<Vec<_>>();
 
@@ -264,7 +265,7 @@ mod tests {
     fn help_is_a_successful_command() {
         match resolve_launch_command(["--help".to_string()]).unwrap() {
             LaunchCommand::PrintHelp(help) => {
-                assert!(help.contains("Usage: theme"));
+                assert!(help.contains("Usage: themeprism"));
                 assert!(help.contains("--platform"));
             }
             LaunchCommand::Run(_) => panic!("expected help output"),
@@ -280,7 +281,7 @@ mod tests {
         .unwrap();
 
         let text = String::from_utf8(output).unwrap();
-        assert!(text.contains("Usage: theme"));
+        assert!(text.contains("Usage: themeprism"));
         assert!(text.contains("No arguments: start tui."));
     }
 }

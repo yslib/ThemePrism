@@ -6,9 +6,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
 
+use crate::branding::EDITOR_CONFIG_APP_ID;
 use crate::enum_meta::define_key_enum;
 
-pub const DEFAULT_PROJECT_PATH: &str = "projects/theme-project.toml";
+pub const DEFAULT_PROJECT_PATH: &str = "projects/themeprism-project.toml";
 
 define_key_enum! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -97,8 +98,8 @@ pub fn save_editor_config(config: &EditorConfig) -> Result<PathBuf, EditorConfig
 }
 
 pub fn editor_config_path() -> Result<PathBuf, EditorConfigError> {
-    let dirs =
-        ProjectDirs::from("io", "ysl", "theme").ok_or(EditorConfigError::UnsupportedPlatform)?;
+    let dirs = ProjectDirs::from("io", "ysl", EDITOR_CONFIG_APP_ID)
+        .ok_or(EditorConfigError::UnsupportedPlatform)?;
     Ok(dirs.config_dir().join("editor-config.toml"))
 }
 

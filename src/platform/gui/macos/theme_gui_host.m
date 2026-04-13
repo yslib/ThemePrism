@@ -182,7 +182,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
                                                   defer:NO];
     self.window.opaque = YES;
     self.window.backgroundColor = NSColor.windowBackgroundColor;
-    self.window.title = [self uiTextValue:@"window_title" fallback:@"Theme Generator"];
+    self.window.title = [self uiTextValue:@"window_title" fallback:@"ThemePrism"];
     self.window.titlebarAppearsTransparent = NO;
     self.window.toolbarStyle = NSWindowToolbarStyleUnified;
     self.window.minSize = NSMakeSize(1180, 760);
@@ -1134,7 +1134,7 @@ static NSColor *ThemeColorFromHex(NSString *hex) {
      preservingSliderId:(NSString *)preservedSliderId {
     self.snapshot = snapshot;
     self.tokens = snapshot[@"tokens"] ?: @[];
-    self.window.title = snapshot[@"window_title"] ?: @"Theme Generator";
+    self.window.title = snapshot[@"window_title"] ?: @"ThemePrism";
     self.statusLabel.stringValue = snapshot[@"status"] ?: @"";
     [self applyChromeText];
 

@@ -488,8 +488,8 @@ mod tests {
         let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
         for relative_path in [
-            "projects/theme-project.toml",
-            "projects/projects/theme-project.toml",
+            "projects/themeprism-project.toml",
+            "projects/projects/themeprism-project.toml",
         ] {
             let loaded = load_project(&repo_root.join(relative_path)).unwrap();
 

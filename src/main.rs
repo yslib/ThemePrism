@@ -1,4 +1,5 @@
 mod app;
+mod branding;
 mod core;
 mod domain;
 mod enum_meta;

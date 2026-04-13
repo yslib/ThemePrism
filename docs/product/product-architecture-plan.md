@@ -1,4 +1,4 @@
-# Theme Generator Product And Architecture Plan
+# ThemePrism Product And Architecture Plan
 
 ## Product Goal
 

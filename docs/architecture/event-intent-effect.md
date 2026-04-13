@@ -216,7 +216,7 @@ Native Event -> Intent -> Update -> Effect
 
 ---
 
-## 6. 这几个概念，在你的主题生成器里分别长什么样
+## 6. 这几个概念，在你的 ThemePrism 里分别长什么样
 
 下面用你现在的程序举例。
 
@@ -441,7 +441,7 @@ callback -> mutate local state
 
 这在小工具里没问题。
 
-但如果项目像你的主题生成器这样：
+但如果项目像你的 ThemePrism 这样：
 
 - 状态明显在增长
 - 有多种编辑模式

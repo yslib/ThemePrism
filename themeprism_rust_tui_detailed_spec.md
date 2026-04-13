@@ -1,8 +1,8 @@
-# Theme Generator for Everyone – Rust + TUI Engineering Spec
+# ThemePrism for Everyone – Rust + TUI Engineering Spec
 
 ## 1. 文档目标
 
-这份文档定义一个 **面向普通用户但仍具备高级可扩展性** 的主题生成器（Theme Generator）设计方案，第一阶段使用 **Rust + TUI** 实现。
+这份文档定义一个 **面向普通用户但仍具备高级可扩展性** 的 ThemePrism 设计方案，第一阶段使用 **Rust + TUI** 实现。
 
 本文档目标是让实现者能够直接开始搭建：
 
@@ -17,7 +17,7 @@
 这个工具不是一个通用 node graph 平台，也不是一个只会输出固定模板的 theme preset 机器。  
 它的定位是：
 
-> 一个以 **参数系统 + 语义 token + 受限规则系统 + 多目标导出** 为核心的主题生成器。
+> 一个以 **参数系统 + 语义 token + 受限规则系统 + 多目标导出** 为核心的 ThemePrism。
 
 ---
 
@@ -1004,7 +1004,7 @@ Color: #c586c0
 
 ## 17. Preview 设计
 
-Preview 是 theme generator 是否好用的关键。
+Preview 是 ThemePrism 是否好用的关键。
 
 ### 17.1 必须包含的部分
 
@@ -1365,7 +1365,7 @@ theme file exporters。
 
 整个产品可以用一句话概括：
 
-> **一个基于参数驱动 palette、基于受限规则系统生成语义 token、并可导出到具体工程配置的主题生成器。**
+> **一个基于参数驱动 palette、基于受限规则系统生成语义 token、并可导出到具体工程配置的 ThemePrism。**
 
 更具体地说：
 

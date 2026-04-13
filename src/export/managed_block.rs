@@ -1,4 +1,5 @@
-pub const MANAGED_BLOCK_NAME: &str = "theme-generator";
+pub const MANAGED_BLOCK_NAME: &str = "themeprism";
+const LEGACY_MANAGED_BLOCK_NAMES: &[&str] = &["theme-generator"];
 const COMMENT_PREFIX: &str = "#";
 
 pub fn managed_block_start_marker() -> String {
@@ -11,6 +12,8 @@ pub fn managed_block_end_marker() -> String {
 
 pub fn patch_managed_block_contents(existing: &str, rendered: &str) -> String {
     let newline = detect_newline(existing);
+    let (matched_start, matched_end) = find_existing_markers(existing)
+        .unwrap_or_else(|| (managed_block_start_marker(), managed_block_end_marker()));
     let start = managed_block_start_marker();
     let end = managed_block_end_marker();
     let body = rendered.trim_end_matches(['\r', '\n']);
@@ -21,11 +24,13 @@ pub fn patch_managed_block_contents(existing: &str, rendered: &str) -> String {
     }
 
     let lines = existing.lines().collect::<Vec<_>>();
-    let start_index = lines.iter().position(|line| normalized_line(line) == start);
+    let start_index = lines
+        .iter()
+        .position(|line| normalized_line(line) == matched_start);
     let end_index = start_index.and_then(|index| {
         lines[index + 1..]
             .iter()
-            .position(|line| normalized_line(line) == end)
+            .position(|line| normalized_line(line) == matched_end)
             .map(|offset| index + 1 + offset)
     });
 
@@ -37,6 +42,21 @@ pub fn patch_managed_block_contents(existing: &str, rendered: &str) -> String {
 
     let existing = existing.trim_end_matches(['\r', '\n']);
     format!("{existing}{newline}{newline}{block}")
+}
+
+fn find_existing_markers(existing: &str) -> Option<(String, String)> {
+    marker_names()
+        .map(|name| {
+            (
+                format!("{COMMENT_PREFIX} {name}:start"),
+                format!("{COMMENT_PREFIX} {name}:end"),
+            )
+        })
+        .find(|(start, end)| existing.contains(start) && existing.contains(end))
+}
+
+fn marker_names() -> impl Iterator<Item = &'static str> {
+    std::iter::once(MANAGED_BLOCK_NAME).chain(LEGACY_MANAGED_BLOCK_NAMES.iter().copied())
 }
 
 fn detect_newline(existing: &str) -> &'static str {
@@ -87,6 +107,22 @@ mod tests {
             patched,
             format!(
                 "live = true\n{}\n[colors]\nbackground = \"#000000\"\n{}\nother = 42\n",
+                managed_block_start_marker(),
+                managed_block_end_marker()
+            )
+        );
+    }
+
+    #[test]
+    fn patch_managed_block_migrates_legacy_marker_names_to_themeprism() {
+        let existing = "# theme-generator:start\nold = true\n# theme-generator:end\n";
+
+        let patched = patch_managed_block_contents(&existing, "[colors]\nforeground = \"#ffffff\"");
+
+        assert_eq!(
+            patched,
+            format!(
+                "{}\n[colors]\nforeground = \"#ffffff\"\n{}\n",
                 managed_block_start_marker(),
                 managed_block_end_marker()
             )

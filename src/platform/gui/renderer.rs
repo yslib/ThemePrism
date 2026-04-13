@@ -3,6 +3,7 @@
 pub struct GuiRenderer;
 
 use crate::app::view::ViewTree;
+use crate::branding::PRODUCT_NAME;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,7 +16,7 @@ pub struct GuiWindowConfig {
 impl Default for GuiWindowConfig {
     fn default() -> Self {
         Self {
-            title: "Theme Generator",
+            title: PRODUCT_NAME,
             min_width: 1080,
             min_height: 720,
         }
